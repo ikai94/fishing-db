@@ -15,6 +15,7 @@
     "lint": "pnpm db:generate && pnpm -r --if-present run lint",
     "typecheck": "pnpm db:generate && pnpm -r --if-present run typecheck",
     "test": "pnpm db:generate && pnpm -r --if-present run test",
+    "test:e2e": "pnpm db:generate && pnpm --filter @fishing-db/api run test:e2e",
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -24,6 +25,10 @@
     "db:generate": "pnpm --filter @fishing-db/api run prisma:generate",
     "db:migrate:dev": "pnpm --filter @fishing-db/api run prisma:migrate:dev",
     "db:migrate:deploy": "pnpm --filter @fishing-db/api run prisma:migrate:deploy",
+    "db:seed": "pnpm --filter @fishing-db/api run prisma:seed",
+    "db:test:up": "docker compose --profile test up -d --wait postgres-test",
+    "db:test:down": "docker compose --profile test stop postgres-test",
+    "db:test:logs": "docker compose --profile test logs -f postgres-test",
     "db:studio": "pnpm --filter @fishing-db/api run prisma:studio"
   },
   "devDependencies": {

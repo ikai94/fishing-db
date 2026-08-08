@@ -1,4 +1,7 @@
 const DEFAULT_API_PORT = 3001;
+const NODE_ENVIRONMENTS = ['development', 'test', 'production'] as const;
+
+export type NodeEnvironment = (typeof NODE_ENVIRONMENTS)[number];
 
 function requiredString(config: Record<string, unknown>, key: string): string {
   const value = config[key];
@@ -52,12 +55,22 @@ function validateWebOrigin(value: string): string {
   return url.origin;
 }
 
+function validateNodeEnvironment(value: string): NodeEnvironment {
+  if (!NODE_ENVIRONMENTS.includes(value as NodeEnvironment)) {
+    throw new Error('NODE_ENV must be one of: development, test, production');
+  }
+
+  return value as NodeEnvironment;
+}
+
 export function validateEnvironment(config: Record<string, unknown>): Record<string, unknown> {
   const databaseUrl = validateDatabaseUrl(requiredString(config, 'DATABASE_URL'));
   const webOrigin = validateWebOrigin(requiredString(config, 'WEB_ORIGIN'));
+  const nodeEnvironment = validateNodeEnvironment(requiredString(config, 'NODE_ENV'));
 
   return {
     ...config,
+    NODE_ENV: nodeEnvironment,
     PORT: parsePort(config.PORT),
     DATABASE_URL: databaseUrl,
     WEB_ORIGIN: webOrigin,

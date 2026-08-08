@@ -35,6 +35,58 @@
   line-height: 1.6;
 }
 
+.authActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.primaryLink,
+.secondaryLink,
+.accountLink {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.primaryLink {
+  border: 1px solid #28573b;
+  color: #ffffff;
+  background: #376c4b;
+}
+
+.secondaryLink {
+  border: 1px solid #9aaba0;
+  color: #28573b;
+  background: #ffffff;
+}
+
+.accountLink {
+  color: #28573b;
+}
+
+.primaryLink:hover {
+  background: #28573b;
+}
+
+.secondaryLink:hover,
+.accountLink:hover {
+  background: #f0f5f2;
+}
+
+.primaryLink:focus-visible,
+.secondaryLink:focus-visible,
+.accountLink:focus-visible {
+  outline: 3px solid rgb(55 108 75 / 24%);
+  outline-offset: 2px;
+}
+
 .statusList {
   display: grid;
   gap: 12px;
@@ -78,4 +130,14 @@
   background: #fff5e6;
   color: #704d0d;
   line-height: 1.5;
+}
+
+@media (max-width: 520px) {
+  .card {
+    padding: 24px;
+  }
+
+  .authActions > * {
+    width: 100%;
+  }
 }

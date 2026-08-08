@@ -1,6 +1,8 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { apiBaseUrl } from '@/lib/api-client';
 import styles from './page.module.css';
 
 type HealthPayload = {
@@ -15,8 +17,6 @@ type HealthState =
   | { kind: 'healthy'; payload: HealthPayload }
   | { kind: 'degraded'; payload: HealthPayload }
   | { kind: 'unavailable' };
-
-const apiUrl = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001').replace(/\/$/, '');
 
 function isHealthPayload(value: unknown): value is HealthPayload {
   if (typeof value !== 'object' || value === null) {
@@ -38,10 +38,15 @@ export default function Home() {
 
   useEffect(() => {
     const controller = new AbortController();
+    let isActive = true;
+    const timeout = setTimeout(
+      () => controller.abort(new DOMException('Health request timed out', 'TimeoutError')),
+      15_000,
+    );
 
     async function loadHealth() {
       try {
-        const response = await fetch(`${apiUrl}/api/v1/health`, {
+        const response = await fetch(`${apiBaseUrl}/api/v1/health`, {
           cache: 'no-store',
           signal: controller.signal,
         });
@@ -58,15 +63,21 @@ export default function Home() {
 
         setHealth({ kind: 'degraded', payload });
       } catch {
-        if (!controller.signal.aborted) {
+        if (isActive) {
           setHealth({ kind: 'unavailable' });
         }
+      } finally {
+        clearTimeout(timeout);
       }
     }
 
     void loadHealth();
 
-    return () => controller.abort();
+    return () => {
+      isActive = false;
+      clearTimeout(timeout);
+      controller.abort();
+    };
   }, []);
 
   const apiStatus =
@@ -86,11 +97,23 @@ export default function Home() {
   return (
     <main className={styles.page}>
       <section className={styles.card}>
-        <p className={styles.eyebrow}>Phase 1 · Infrastructure</p>
+        <p className={styles.eyebrow}>Fishing Database</p>
         <h1>Fishing Database</h1>
         <p className={styles.description}>
-          Frontend запущен. Предметные функции будут добавляться постепенно в следующих фазах.
+          Совместная база и личный архив для игроков «Русской рыбалки».
         </p>
+
+        <nav className={styles.authActions} aria-label="Аккаунт">
+          <Link className={styles.primaryLink} href="/register">
+            Зарегистрироваться
+          </Link>
+          <Link className={styles.secondaryLink} href="/login">
+            Войти
+          </Link>
+          <Link className={styles.accountLink} href="/account">
+            Мой аккаунт
+          </Link>
+        </nav>
 
         <dl className={styles.statusList} aria-live="polite">
           <div>
