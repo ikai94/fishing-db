@@ -1,0 +1,32 @@
+{
+  "name": "fishing-db",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=24.0.0 <25",
+    "pnpm": ">=11.0.0 <12"
+  },
+  "packageManager": "pnpm@11.20.0",
+  "scripts": {
+    "dev": "pnpm db:generate && pnpm --parallel --filter @fishing-db/web --filter @fishing-db/api run dev",
+    "dev:web": "pnpm --filter @fishing-db/web run dev",
+    "dev:api": "pnpm db:generate && pnpm --filter @fishing-db/api run dev",
+    "build": "pnpm db:generate && pnpm -r --if-present run build",
+    "lint": "pnpm db:generate && pnpm -r --if-present run lint",
+    "typecheck": "pnpm db:generate && pnpm -r --if-present run typecheck",
+    "test": "pnpm db:generate && pnpm -r --if-present run test",
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:up": "docker compose up -d --wait postgres",
+    "db:down": "docker compose down",
+    "db:logs": "docker compose logs -f postgres",
+    "db:generate": "pnpm --filter @fishing-db/api run prisma:generate",
+    "db:migrate:dev": "pnpm --filter @fishing-db/api run prisma:migrate:dev",
+    "db:migrate:deploy": "pnpm --filter @fishing-db/api run prisma:migrate:deploy",
+    "db:studio": "pnpm --filter @fishing-db/api run prisma:studio"
+  },
+  "devDependencies": {
+    "prettier": "3.9.6"
+  }
+}

@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+.next/
+out/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Generated sources
+apps/api/src/generated/prisma/
+next-env.d.ts
+
+# Environment files
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+
+# Logs and local tooling
+*.log
+.DS_Store
+.idea/
+.vscode/
+.vercel/

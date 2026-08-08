@@ -1,0 +1,7 @@
+node_modules/
+.next/
+dist/
+coverage/
+apps/api/src/generated/prisma/
+pnpm-lock.yaml
+AGENTS.md
