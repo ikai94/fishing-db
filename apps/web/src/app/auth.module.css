@@ -79,6 +79,7 @@
 .input:focus-visible,
 .submitButton:focus-visible,
 .secondaryButton:focus-visible,
+.adminLink:focus-visible,
 .backLink:focus-visible,
 .textLink:focus-visible {
   outline: 3px solid rgb(55 108 75 / 24%);
@@ -126,7 +127,8 @@
 }
 
 .submitButton,
-.secondaryButton {
+.secondaryButton,
+.adminLink {
   min-height: 44px;
   padding: 11px 18px;
   border-radius: 8px;
@@ -150,8 +152,22 @@
   background: #ffffff;
 }
 
+.adminLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #28573b;
+  color: #ffffff;
+  background: #376c4b;
+  text-decoration: none;
+}
+
 .secondaryButton:hover:not(:disabled) {
   background: #f0f5f2;
+}
+
+.adminLink:hover {
+  background: #28573b;
 }
 
 .submitButton:disabled,

@@ -140,6 +140,11 @@ export default function AccountPage() {
             ) : null}
 
             <div className={styles.actions}>
+              {state.user.role === 'ADMIN' && !state.user.isBanned ? (
+                <Link className={styles.adminLink} href="/admin/catalog">
+                  Управлять игровым каталогом
+                </Link>
+              ) : null}
               <button
                 className={styles.secondaryButton}
                 type="button"

@@ -103,6 +103,21 @@ export default function Home() {
           Совместная база и личный архив для игроков «Русской рыбалки».
         </p>
 
+        <section className={styles.catalogSection}>
+          <h2 className={styles.sectionTitle}>Игровой каталог</h2>
+          <nav className={styles.catalogActions} aria-label="Игровой каталог">
+            <Link className={styles.catalogLink} href="/bases">
+              Рыболовные базы
+            </Link>
+            <Link className={styles.catalogLink} href="/fish">
+              Рыбы
+            </Link>
+            <Link className={styles.catalogLink} href="/baits">
+              Наживки и приманки
+            </Link>
+          </nav>
+        </section>
+
         <nav className={styles.authActions} aria-label="Аккаунт">
           <Link className={styles.primaryLink} href="/register">
             Зарегистрироваться

@@ -14,6 +14,11 @@ enum UserRole {
   ADMIN
 }
 
+enum BaitType {
+  BAIT
+  LURE
+}
+
 model User {
   id                 String    @id @default(uuid()) @db.Uuid
   email              String    @unique @db.VarChar(254)
@@ -37,4 +42,61 @@ model Session {
 
   @@index([userId])
   @@index([expiresAt])
+}
+
+model FishingBase {
+  id             String     @id @default(uuid()) @db.Uuid
+  name           String     @db.VarChar(128)
+  nameNormalized String     @unique @db.VarChar(128)
+  isActive       Boolean    @default(true)
+  createdAt      DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime   @default(now()) @updatedAt @db.Timestamptz(3)
+  locations      Location[]
+}
+
+model Location {
+  id             String         @id @default(uuid()) @db.Uuid
+  fishingBaseId  String         @db.Uuid
+  number         Int
+  name           String         @db.VarChar(128)
+  nameNormalized String         @db.VarChar(128)
+  isActive       Boolean        @default(true)
+  createdAt      DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime       @default(now()) @updatedAt @db.Timestamptz(3)
+  fishingBase    FishingBase    @relation(fields: [fishingBaseId], references: [id], onDelete: Restrict)
+  fishLinks      LocationFish[]
+
+  @@unique([fishingBaseId, number])
+  @@unique([fishingBaseId, nameNormalized])
+}
+
+model Fish {
+  id             String         @id @default(uuid()) @db.Uuid
+  name           String         @db.VarChar(128)
+  nameNormalized String         @unique @db.VarChar(128)
+  isActive       Boolean        @default(true)
+  createdAt      DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime       @default(now()) @updatedAt @db.Timestamptz(3)
+  locationLinks  LocationFish[]
+}
+
+model Bait {
+  id             String   @id @default(uuid()) @db.Uuid
+  name           String   @db.VarChar(128)
+  nameNormalized String   @unique @db.VarChar(128)
+  type           BaitType
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime @default(now()) @updatedAt @db.Timestamptz(3)
+}
+
+model LocationFish {
+  locationId String   @db.Uuid
+  fishId     String   @db.Uuid
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  fish       Fish     @relation(fields: [fishId], references: [id], onDelete: Restrict)
+
+  @@id([locationId, fishId])
+  @@index([fishId])
 }

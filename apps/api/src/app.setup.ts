@@ -13,7 +13,7 @@ export function configureApplication(app: INestApplication): void {
   app.enableCors({
     origin: [webOrigin],
     credentials: true,
-    methods: ['GET', 'HEAD', 'POST', 'OPTIONS'],
+    methods: ['GET', 'HEAD', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type'],
   });
   app.enableShutdownHooks();

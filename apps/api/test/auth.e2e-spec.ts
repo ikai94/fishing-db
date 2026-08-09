@@ -8,7 +8,7 @@ import { NestFactory } from '@nestjs/core';
 import { config as loadEnvironmentFile } from 'dotenv';
 import request from 'supertest';
 import {
-  clearAuthTestData,
+  clearTestData,
   getTestDatabaseConfiguration,
   type TestDatabaseConfiguration,
 } from './database.js';
@@ -203,7 +203,22 @@ void describe('Auth API (PostgreSQL e2e)', { concurrency: false }, () => {
     httpServer = app.getHttpServer() as Server;
     prisma = app.get(prismaModule.PrismaService);
     clearDatabase = async () => {
-      await clearAuthTestData(databaseConfiguration, {
+      await clearTestData(databaseConfiguration, {
+        deleteLocationFish: async () => {
+          await prisma.locationFish.deleteMany();
+        },
+        deleteLocations: async () => {
+          await prisma.location.deleteMany();
+        },
+        deleteFishingBases: async () => {
+          await prisma.fishingBase.deleteMany();
+        },
+        deleteFish: async () => {
+          await prisma.fish.deleteMany();
+        },
+        deleteBaits: async () => {
+          await prisma.bait.deleteMany();
+        },
         deleteSessions: async () => {
           await prisma.session.deleteMany();
         },

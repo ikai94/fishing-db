@@ -1,0 +1,124 @@
+import { apiRequest } from './api-client';
+
+export type BaitType = 'BAIT' | 'LURE';
+
+export type PublicCatalogItem = {
+  id: string;
+  name: string;
+};
+
+export type PublicLocationSummary = PublicCatalogItem & {
+  number: number;
+};
+
+export type PublicFishingBase = PublicCatalogItem & {
+  locations: PublicLocationSummary[];
+};
+
+export type PublicLocation = PublicLocationSummary & {
+  fishingBase: PublicCatalogItem;
+  fish: PublicCatalogItem[];
+};
+
+export type PublicBait = PublicCatalogItem & {
+  type: BaitType;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function readCatalogItem(value: unknown): PublicCatalogItem {
+  if (!isRecord(value) || typeof value.id !== 'string' || typeof value.name !== 'string') {
+    throw new Error('Сервер вернул некорректный ответ каталога');
+  }
+
+  return { id: value.id, name: value.name };
+}
+
+function readLocationSummary(value: unknown): PublicLocationSummary {
+  const item = readCatalogItem(value);
+
+  if (!isRecord(value) || typeof value.number !== 'number' || !Number.isInteger(value.number)) {
+    throw new Error('Сервер вернул некорректный ответ каталога');
+  }
+
+  return { ...item, number: value.number };
+}
+
+function readItems<T>(payload: unknown, reader: (value: unknown) => T): T[] {
+  if (!isRecord(payload) || !Array.isArray(payload.items)) {
+    throw new Error('Сервер вернул некорректный ответ каталога');
+  }
+
+  return payload.items.map(reader);
+}
+
+function readFishingBaseResponse(payload: unknown): PublicFishingBase {
+  if (!isRecord(payload) || !isRecord(payload.base) || !Array.isArray(payload.base.locations)) {
+    throw new Error('Сервер вернул некорректный ответ каталога');
+  }
+
+  return {
+    ...readCatalogItem(payload.base),
+    locations: payload.base.locations.map(readLocationSummary),
+  };
+}
+
+function readLocationResponse(payload: unknown): PublicLocation {
+  if (!isRecord(payload) || !isRecord(payload.location) || !Array.isArray(payload.location.fish)) {
+    throw new Error('Сервер вернул некорректный ответ каталога');
+  }
+
+  return {
+    ...readLocationSummary(payload.location),
+    fishingBase: readCatalogItem(payload.location.fishingBase),
+    fish: payload.location.fish.map(readCatalogItem),
+  };
+}
+
+function readBait(value: unknown): PublicBait {
+  const item = readCatalogItem(value);
+
+  if (!isRecord(value) || (value.type !== 'BAIT' && value.type !== 'LURE')) {
+    throw new Error('Сервер вернул некорректный ответ каталога');
+  }
+
+  return { ...item, type: value.type };
+}
+
+export async function listFishingBases(signal?: AbortSignal): Promise<PublicCatalogItem[]> {
+  const payload = await apiRequest<unknown>('/catalog/bases', { signal });
+  return readItems(payload, readCatalogItem);
+}
+
+export async function getFishingBase(
+  baseId: string,
+  signal?: AbortSignal,
+): Promise<PublicFishingBase> {
+  const payload = await apiRequest<unknown>(`/catalog/bases/${encodeURIComponent(baseId)}`, {
+    signal,
+  });
+  return readFishingBaseResponse(payload);
+}
+
+export async function getLocation(
+  locationId: string,
+  signal?: AbortSignal,
+): Promise<PublicLocation> {
+  const payload = await apiRequest<unknown>(
+    `/catalog/locations/${encodeURIComponent(locationId)}`,
+    { signal },
+  );
+  return readLocationResponse(payload);
+}
+
+export async function listFish(signal?: AbortSignal): Promise<PublicCatalogItem[]> {
+  const payload = await apiRequest<unknown>('/catalog/fish', { signal });
+  return readItems(payload, readCatalogItem);
+}
+
+export async function listBaits(signal?: AbortSignal): Promise<PublicBait[]> {
+  const payload = await apiRequest<unknown>('/catalog/baits', { signal });
+  return readItems(payload, readBait);
+}

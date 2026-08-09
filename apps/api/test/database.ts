@@ -3,7 +3,12 @@ export interface TestDatabaseConfiguration {
   testDatabaseUrl: string;
 }
 
-interface AuthDataCleaner {
+export interface TestDataCleaner {
+  deleteLocationFish: () => Promise<unknown>;
+  deleteLocations: () => Promise<unknown>;
+  deleteFishingBases: () => Promise<unknown>;
+  deleteFish: () => Promise<unknown>;
+  deleteBaits: () => Promise<unknown>;
   deleteSessions: () => Promise<unknown>;
   deleteUsers: () => Promise<unknown>;
 }
@@ -16,7 +21,7 @@ function getRequiredEnvironmentValue(
 
   if (!value) {
     throw new Error(
-      `${name} is required for auth e2e tests. The test database must be configured explicitly.`,
+      `${name} is required for PostgreSQL e2e tests. The test database must be configured explicitly.`,
     );
   }
 
@@ -71,7 +76,7 @@ function assertSeparateDatabaseNames(
     developmentTarget.identity === testTarget.identity
   ) {
     throw new Error(
-      `Auth e2e tests require TEST_DATABASE_URL to use a database name separate from DATABASE_URL; refusing ${action}.`,
+      `PostgreSQL e2e tests require TEST_DATABASE_URL to use a database name separate from DATABASE_URL; refusing ${action}.`,
     );
   }
 }
@@ -87,9 +92,9 @@ export function getTestDatabaseConfiguration(
   return { developmentDatabaseUrl, testDatabaseUrl };
 }
 
-export async function clearAuthTestData(
+export async function clearTestData(
   configuration: TestDatabaseConfiguration,
-  cleaner: AuthDataCleaner,
+  cleaner: TestDataCleaner,
 ): Promise<void> {
   // Repeat the guard immediately before every destructive cleanup.
   assertSeparateDatabaseNames(
@@ -98,6 +103,11 @@ export async function clearAuthTestData(
     'destructive cleanup',
   );
 
+  await cleaner.deleteLocationFish();
+  await cleaner.deleteLocations();
+  await cleaner.deleteFishingBases();
+  await cleaner.deleteFish();
+  await cleaner.deleteBaits();
   await cleaner.deleteSessions();
   await cleaner.deleteUsers();
 }
