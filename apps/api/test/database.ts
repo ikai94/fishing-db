@@ -4,6 +4,7 @@ export interface TestDatabaseConfiguration {
 }
 
 export interface TestDataCleaner {
+  deleteCatchReports: () => Promise<unknown>;
   deleteLocationFish: () => Promise<unknown>;
   deleteLocations: () => Promise<unknown>;
   deleteFishingBases: () => Promise<unknown>;
@@ -103,6 +104,7 @@ export async function clearTestData(
     'destructive cleanup',
   );
 
+  await cleaner.deleteCatchReports();
   await cleaner.deleteLocationFish();
   await cleaner.deleteLocations();
   await cleaner.deleteFishingBases();

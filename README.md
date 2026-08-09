@@ -4,8 +4,8 @@
 
 Phase 2 добавляет пользователей и browser-аутентификацию: email, nickname, пароль, серверные
 сессии PostgreSQL и HttpOnly cookie. Phase 3 добавляет публичный игровой каталог и защищённое
-ADMIN-управление базами, локациями, рыбами, наживками и связями Location–Fish. Отчёты об
-уловах пока не реализованы.
+ADMIN-управление базами, локациями, рыбами, наживками и связями Location–Fish. Phase 4 добавляет
+публичные структурированные отчёты об уловах, ручной ввод и личный список опубликованных уловов.
 
 ## Требуемое программное обеспечение
 
@@ -85,6 +85,9 @@ pnpm dev
 - базы: http://localhost:3000/bases
 - рыбы: http://localhost:3000/fish
 - наживки и приманки: http://localhost:3000/baits
+- публичные уловы: http://localhost:3000/catches
+- добавить улов: http://localhost:3000/catches/new
+- мои уловы: http://localhost:3000/my/catches
 - ADMIN-каталог: http://localhost:3000/admin/catalog
 - API health: http://localhost:3001/api/v1/health
 
@@ -139,10 +142,10 @@ pnpm build
 pnpm check
 ```
 
-Unit-тесты не изменяют базу данных. Auth и catalog e2e последовательно используют отдельный
-PostgreSQL на порту `5433`; они консервативно требуют отдельное имя тестовой БД и повторяют
-safety-check прямо перед очисткой. Это защищает development-данные даже при алиасах хоста вроде
-`localhost`/`127.0.0.1`.
+Unit-тесты не изменяют базу данных. Auth, catalog и CatchReport e2e последовательно используют
+отдельный PostgreSQL на порту `5433`; они консервативно требуют отдельное имя тестовой БД и
+повторяют safety-check прямо перед очисткой. Это защищает development-данные даже при алиасах
+хоста вроде `localhost`/`127.0.0.1`.
 
 Подготовка e2e в Windows PowerShell:
 
@@ -204,11 +207,40 @@ Frontend-страницы каталога находятся на `/bases`, `/b
 
 Для `FishingBase`, `Location`, `Fish` и `Bait` нет штатных hard-delete endpoints: lifecycle
 управляется полем `isActive`. Строку `LocationFish` ADMIN может добавить и физически удалить,
-поскольку будущий CatchReport будет ссылаться отдельно на Location и Fish.
+поскольку CatchReport ссылается отдельно на Location и Fish.
 
 Каталожные названия сохраняют отображаемый регистр и пунктуацию. Отдельный ключ уникальности
 формируется через внешний trim, NFKC, схлопывание Unicode-пробелов и lowercase; `е` и `ё` не
 объединяются.
+
+## Отчёты об уловах
+
+Публичные endpoints доступны без авторизации:
+
+- `GET /api/v1/catch-reports`;
+- `GET /api/v1/catch-reports/:reportId`.
+
+Лента использует cursor pagination по `createdAt DESC, id DESC`; поддерживаются `limit=1..100` и
+opaque `cursor`. Ответ содержит `items` и `nextCursor`, без total count и номеров страниц.
+
+Изменения требуют Session и незаблокированный аккаунт:
+
+- `POST /api/v1/catch-reports`;
+- `PATCH /api/v1/catch-reports/:reportId`;
+- `DELETE /api/v1/catch-reports/:reportId`.
+
+`GET /api/v1/me/catch-reports` требует только Session и остаётся доступным заблокированному
+пользователю для чтения. Владелец всегда определяется backend по Session cookie; `userId` и
+`fishingBaseId` не принимаются из запроса.
+
+Вес хранится целыми граммами, глубина — nullable целыми сантиметрами. Ориентир места и способ
+подачи хранятся раздельно. `userNoteRaw` сохраняет исходный осмысленный текст без нормализации.
+Полный текст строки игрового блокнота и автоматический parser в Phase 4 не реализованы.
+
+При создании проверяется текущее активное состояние Location/Base/Fish/Bait и наличие
+LocationFish. После создания отчёт является историческим: деактивация каталога, удаление
+LocationFish или блокировка автора не скрывают его. При редактировании текущий каталог повторно
+проверяется только для действительно изменённых ссылок.
 
 ## Первый ADMIN
 

@@ -129,7 +129,7 @@ export default function AccountPage() {
 
             {state.user.isBanned ? (
               <p className={styles.bannedNotice} role="status">
-                Аккаунт заблокирован. Публикация новых отчётов недоступна.
+                Аккаунт заблокирован. Создание, изменение и удаление публичных отчётов недоступны.
               </p>
             ) : null}
 
@@ -140,6 +140,9 @@ export default function AccountPage() {
             ) : null}
 
             <div className={styles.actions}>
+              <Link className={styles.adminLink} href="/my/catches">
+                Мои уловы
+              </Link>
               {state.user.role === 'ADMIN' && !state.user.isBanned ? (
                 <Link className={styles.adminLink} href="/admin/catalog">
                   Управлять игровым каталогом

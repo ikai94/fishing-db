@@ -1,0 +1,430 @@
+.page {
+  min-height: 100vh;
+  padding: 32px 24px 56px;
+}
+
+.container,
+.narrowContainer {
+  width: min(100%, 1040px);
+  margin: 0 auto;
+}
+
+.narrowContainer {
+  width: min(100%, 760px);
+}
+
+.topNav,
+.reportHeader,
+.reportFooter,
+.inlineActions,
+.pageActions,
+.formActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.topNav,
+.reportHeader,
+.reportFooter {
+  justify-content: space-between;
+}
+
+.topNav {
+  margin-bottom: 36px;
+}
+
+.pageActions,
+.inlineActions,
+.formActions {
+  flex-wrap: wrap;
+}
+
+.header {
+  margin-bottom: 28px;
+}
+
+.eyebrow,
+.reportEyebrow {
+  margin: 0 0 6px;
+  color: #376c4b;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.title {
+  margin: 0;
+  font-size: clamp(2rem, 6vw, 3.25rem);
+  line-height: 1.08;
+}
+
+.subtitle,
+.muted,
+.byline,
+.fieldHint,
+.historicalHint {
+  color: #5b6960;
+  line-height: 1.55;
+}
+
+.subtitle {
+  max-width: 720px;
+  margin: 12px 0 0;
+}
+
+.header > .pageActions {
+  margin-top: 20px;
+}
+
+.primaryLink,
+.secondaryLink,
+.textLink,
+.backLink {
+  color: #28573b;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.primaryLink,
+.secondaryLink,
+.primaryButton,
+.secondaryButton,
+.dangerButton {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 9px 14px;
+  border-radius: 8px;
+  font-weight: 700;
+}
+
+.primaryLink,
+.primaryButton {
+  border: 1px solid #28573b;
+  color: #ffffff;
+  background: #376c4b;
+}
+
+.secondaryLink,
+.secondaryButton {
+  border: 1px solid #9aaba0;
+  color: #28573b;
+  background: #ffffff;
+}
+
+.primaryButton,
+.secondaryButton,
+.dangerButton {
+  cursor: pointer;
+}
+
+.dangerButton {
+  border: 1px solid #bd7373;
+  color: #8a2424;
+  background: #fffafa;
+}
+
+.primaryLink:hover,
+.primaryButton:hover:not(:disabled) {
+  background: #28573b;
+}
+
+.secondaryLink:hover,
+.secondaryButton:hover:not(:disabled),
+.textLink:hover,
+.backLink:hover {
+  text-decoration: underline;
+}
+
+.dangerButton:hover:not(:disabled) {
+  background: #fff0f0;
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled,
+.dangerButton:disabled,
+.input:disabled,
+.select:disabled,
+.textarea:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.primaryLink:focus-visible,
+.secondaryLink:focus-visible,
+.textLink:focus-visible,
+.backLink:focus-visible,
+.primaryButton:focus-visible,
+.secondaryButton:focus-visible,
+.dangerButton:focus-visible,
+.input:focus-visible,
+.select:focus-visible,
+.textarea:focus-visible {
+  outline: 3px solid rgb(55 108 75 / 24%);
+  outline-offset: 2px;
+}
+
+.message,
+.panel,
+.reportCard {
+  border: 1px solid #d9e2dc;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgb(34 67 48 / 6%);
+}
+
+.message {
+  padding: 20px;
+  line-height: 1.55;
+}
+
+.message > :first-child,
+.panel > :first-child {
+  margin-top: 0;
+}
+
+.message > :last-child,
+.panel > :last-child {
+  margin-bottom: 0;
+}
+
+.errorMessage,
+.formError {
+  border-color: #edc3c3;
+  background: #fff1f1;
+  color: #7d2020;
+}
+
+.warningMessage {
+  border-color: #eed099;
+  background: #fff7e8;
+  color: #704d0d;
+}
+
+.reportList {
+  display: grid;
+  gap: 18px;
+}
+
+.reportCard {
+  padding: 24px;
+}
+
+.reportTitle {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+.weight {
+  flex: 0 0 auto;
+  margin: 0;
+  color: #28573b;
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+
+.locationLine {
+  margin: 14px 0 0;
+  color: #36493e;
+  font-weight: 700;
+}
+
+.compactDetails,
+.detailGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 28px;
+  margin: 18px 0 0;
+}
+
+.compactDetails div,
+.detailGrid div {
+  display: grid;
+  grid-template-columns: minmax(100px, 1fr) 2fr;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid #edf1ee;
+}
+
+.compactDetails dt,
+.compactDetails dd,
+.detailGrid dt,
+.detailGrid dd {
+  margin: 0;
+}
+
+.compactDetails dt,
+.detailGrid dt {
+  color: #647168;
+}
+
+.compactDetails dd,
+.detailGrid dd {
+  overflow-wrap: anywhere;
+  font-weight: 700;
+}
+
+.rawNote {
+  margin: 18px 0 0;
+  padding: 12px 14px;
+  border-left: 3px solid #8cae99;
+  color: #35473c;
+  background: #f8fbf9;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.reportFooter {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #edf1ee;
+}
+
+.byline {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.panel {
+  padding: 28px;
+}
+
+.panel + .panel,
+.panel + .message,
+.message + .panel,
+.message + .message {
+  margin-top: 18px;
+}
+
+.panelTitle {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+.detailHeading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.form {
+  display: grid;
+  gap: 22px;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.field,
+.fieldWide {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+}
+
+.fieldWide {
+  grid-column: 1 / -1;
+}
+
+.label {
+  font-weight: 700;
+}
+
+.required {
+  color: #8f2424;
+}
+
+.input,
+.select,
+.textarea {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #aebcb3;
+  border-radius: 8px;
+  color: #17251d;
+  background: #ffffff;
+}
+
+.textarea {
+  min-height: 116px;
+  resize: vertical;
+}
+
+.invalidInput {
+  border-color: #a52a2a;
+}
+
+.fieldError,
+.fieldHint,
+.historicalHint,
+.formError {
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+.fieldError {
+  color: #8f2424;
+}
+
+.formError {
+  padding: 12px 14px;
+  border: 1px solid #edc3c3;
+  border-radius: 8px;
+  line-height: 1.5;
+}
+
+.historicalHint {
+  color: #765616;
+}
+
+.loadMore {
+  display: flex;
+  justify-content: center;
+  margin-top: 22px;
+}
+
+.paginationError {
+  margin: 14px 0 0;
+  color: #8f2424;
+  text-align: center;
+}
+
+.forbiddenTitle {
+  margin: 0 0 8px;
+  font-size: 1.25rem;
+}
+
+@media (max-width: 700px) {
+  .topNav,
+  .reportHeader,
+  .reportFooter,
+  .detailHeading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .formGrid,
+  .compactDetails,
+  .detailGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .panel,
+  .reportCard {
+    padding: 20px;
+  }
+
+  .pageActions > *,
+  .formActions > * {
+    width: 100%;
+  }
+}

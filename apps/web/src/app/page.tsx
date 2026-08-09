@@ -104,6 +104,21 @@ export default function Home() {
         </p>
 
         <section className={styles.catalogSection}>
+          <h2 className={styles.sectionTitle}>Уловы игроков</h2>
+          <nav className={styles.catalogActions} aria-label="Отчёты об уловах">
+            <Link className={styles.catalogLink} href="/catches">
+              Публичные уловы
+            </Link>
+            <Link className={styles.catalogLink} href="/catches/new">
+              Добавить улов
+            </Link>
+            <Link className={styles.catalogLink} href="/my/catches">
+              Мои уловы
+            </Link>
+          </nav>
+        </section>
+
+        <section className={styles.catalogSection}>
           <h2 className={styles.sectionTitle}>Игровой каталог</h2>
           <nav className={styles.catalogActions} aria-label="Игровой каталог">
             <Link className={styles.catalogLink} href="/bases">

@@ -278,6 +278,9 @@ void describe('Catalog API (PostgreSQL e2e)', { concurrency: false }, () => {
     prisma = app.get(prismaModule.PrismaService);
     clearDatabase = async () => {
       await clearTestData(databaseConfiguration, {
+        deleteCatchReports: async () => {
+          await prisma.catchReport.deleteMany();
+        },
         deleteLocationFish: async () => {
           await prisma.locationFish.deleteMany();
         },

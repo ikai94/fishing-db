@@ -62,6 +62,9 @@ export const catalogErrors = {
     conflict('FISHING_BASE_INACTIVE', 'Рыболовная база неактивна'),
   locationInactive: (): ConflictException => conflict('LOCATION_INACTIVE', 'Локация неактивна'),
   fishInactive: (): ConflictException => conflict('FISH_INACTIVE', 'Рыба неактивна'),
+  baitInactive: (): ConflictException => conflict('BAIT_INACTIVE', 'Наживка неактивна'),
+  fishNotAvailableAtLocation: (): ConflictException =>
+    conflict('FISH_NOT_AVAILABLE_AT_LOCATION', 'Выбранная рыба сейчас недоступна на этой локации'),
   locationFishRelationInvalid: (): ConflictException =>
     conflict('LOCATION_FISH_RELATION_INVALID', 'Не удалось изменить связь локации и рыбы'),
   catalogConflict: (): ConflictException =>
