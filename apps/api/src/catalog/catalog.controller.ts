@@ -1,7 +1,11 @@
 import { Controller, Get, Inject, Param } from '@nestjs/common';
 import { createApplicationValidationPipe } from '../common/validation/validation-exception.factory.js';
 import { CatalogQueryService } from './catalog-query.service.js';
-import { FishingBaseIdParamsDto, LocationIdParamsDto } from './dto/catalog-params.dto.js';
+import {
+  FishingBaseIdParamsDto,
+  FishIdParamsDto,
+  LocationIdParamsDto,
+} from './dto/catalog-params.dto.js';
 
 @Controller('catalog')
 export class CatalogController {
@@ -30,6 +34,11 @@ export class CatalogController {
   @Get('fish')
   listFish() {
     return this.catalogQuery.listPublicFish();
+  }
+
+  @Get('fish/:fishId')
+  getFish(@Param(createApplicationValidationPipe(FishIdParamsDto)) params: FishIdParamsDto) {
+    return this.catalogQuery.getPublicFish(params.fishId);
   }
 
   @Get('baits')

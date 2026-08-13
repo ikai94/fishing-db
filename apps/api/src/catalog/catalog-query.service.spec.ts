@@ -23,13 +23,21 @@ function hasCode(expectedCode: string): (error: unknown) => boolean {
 }
 
 void describe('CatalogQueryService', () => {
-  void it('uses an active-only safe projection for the public base list', async () => {
+  void it('counts active Locations and active Fish in one public Base-list query', async () => {
     let query: unknown;
+    let queriesCount = 0;
     const prisma = {
       fishingBase: {
         findMany: (input: unknown) => {
           query = input;
-          return Promise.resolve([{ id: 'base-id', name: 'Амур' }]);
+          queriesCount += 1;
+          return Promise.resolve([
+            {
+              id: 'base-id',
+              name: 'Амур',
+              _count: { locations: 2, fishLinks: 3 },
+            },
+          ]);
         },
       },
     } as unknown as PrismaService;
@@ -39,8 +47,23 @@ void describe('CatalogQueryService', () => {
     const queryObject = asObject(query);
 
     assert.deepEqual(queryObject.where, { isActive: true });
-    assert.deepEqual(Object.keys(asObject(queryObject.select)).sort(), ['id', 'name']);
-    assert.deepEqual(result, { items: [{ id: 'base-id', name: 'Амур' }] });
+    const select = asObject(queryObject.select);
+    const countSelect = asObject(asObject(select._count).select);
+    assert.equal(queriesCount, 1);
+    assert.deepEqual(Object.keys(select).sort(), ['_count', 'id', 'name']);
+    assert.deepEqual(asObject(countSelect.locations).where, { isActive: true });
+    assert.deepEqual(asObject(countSelect.fishLinks).where, { fish: { isActive: true } });
+    assert.deepEqual(result, {
+      items: [
+        {
+          id: 'base-id',
+          name: 'Амур',
+          locationsCount: 2,
+          fishCount: 3,
+        },
+      ],
+    });
+    assert.equal('_count' in result.items[0], false);
   });
 
   void it('returns only active locations and active Base fish in public base detail', async () => {
@@ -89,6 +112,62 @@ void describe('CatalogQueryService', () => {
       () => service.getPublicFishingBase('base-id'),
       hasCode('FISHING_BASE_NOT_FOUND'),
     );
+  });
+
+  void it('returns an active Fish with only its active related Bases in stable order', async () => {
+    let query: unknown;
+    const prisma = {
+      fish: {
+        findFirst: (input: unknown) => {
+          query = input;
+          return Promise.resolve({
+            id: 'fish-id',
+            name: 'Сом',
+            fishingBaseLinks: [
+              { fishingBase: { id: 'base-1', name: 'Ахтуба' } },
+              { fishingBase: { id: 'base-2', name: 'Волга' } },
+            ],
+          });
+        },
+      },
+    } as unknown as PrismaService;
+    const service = new CatalogQueryService(prisma);
+
+    const result = await service.getPublicFish('fish-id');
+    const queryObject = asObject(query);
+    const select = asObject(queryObject.select);
+    const fishingBaseLinks = asObject(select.fishingBaseLinks);
+
+    assert.deepEqual(queryObject.where, { id: 'fish-id', isActive: true });
+    assert.deepEqual(fishingBaseLinks.where, { fishingBase: { isActive: true } });
+    assert.deepEqual(fishingBaseLinks.orderBy, [
+      { fishingBase: { nameNormalized: 'asc' } },
+      { fishingBaseId: 'asc' },
+    ]);
+    assert.deepEqual(result, {
+      fish: {
+        id: 'fish-id',
+        name: 'Сом',
+        bases: [
+          { id: 'base-1', name: 'Ахтуба' },
+          { id: 'base-2', name: 'Волга' },
+        ],
+      },
+    });
+    assert.equal('fishingBaseLinks' in result.fish, false);
+  });
+
+  void it('supports an active Fish without Base memberships and hides missing or inactive Fish', async () => {
+    const rows: unknown[] = [{ id: 'fish-id', name: 'Сом', fishingBaseLinks: [] }, null];
+    const prisma = {
+      fish: { findFirst: () => Promise.resolve(rows.shift()) },
+    } as unknown as PrismaService;
+    const service = new CatalogQueryService(prisma);
+
+    assert.deepEqual(await service.getPublicFish('fish-id'), {
+      fish: { id: 'fish-id', name: 'Сом', bases: [] },
+    });
+    await assert.rejects(() => service.getPublicFish('hidden-fish-id'), hasCode('FISH_NOT_FOUND'));
   });
 
   void it('requires an active parent and does not project fish from a public location', async () => {

@@ -343,9 +343,51 @@ void describe('Catalog API (PostgreSQL e2e)', { concurrency: false }, () => {
 
     assert.deepEqual(response.body, {
       items: [
-        { id: first.id, name: first.name },
-        { id: second.id, name: second.name },
+        { id: first.id, name: first.name, locationsCount: 0, fishCount: 0 },
+        { id: second.id, name: second.name, locationsCount: 0, fishCount: 0 },
       ],
+    });
+    assertPublicProjection(response.body);
+  });
+
+  void test('public Base counts include only active Locations and active Fish', async () => {
+    const base = await prisma.fishingBase.create({
+      data: { name: 'Амур', nameNormalized: 'амур' },
+    });
+    await prisma.location.createMany({
+      data: [
+        {
+          fishingBaseId: base.id,
+          number: 1,
+          name: 'Берег',
+          nameNormalized: 'берег',
+        },
+        {
+          fishingBaseId: base.id,
+          number: 2,
+          name: 'Скрытая локация',
+          nameNormalized: 'скрытая локация',
+          isActive: false,
+        },
+      ],
+    });
+    const activeFish = await prisma.fish.create({
+      data: { name: 'Сом', nameNormalized: 'сом' },
+    });
+    const inactiveFish = await prisma.fish.create({
+      data: { name: 'Скрытая рыба', nameNormalized: 'скрытая рыба', isActive: false },
+    });
+    await prisma.fishingBaseFish.createMany({
+      data: [
+        { fishingBaseId: base.id, fishId: activeFish.id },
+        { fishingBaseId: base.id, fishId: inactiveFish.id },
+      ],
+    });
+
+    const response = await api().get('/api/v1/catalog/bases').expect(200);
+
+    assert.deepEqual(response.body, {
+      items: [{ id: base.id, name: base.name, locationsCount: 1, fishCount: 1 }],
     });
     assertPublicProjection(response.body);
   });
@@ -490,6 +532,57 @@ void describe('Catalog API (PostgreSQL e2e)', { concurrency: false }, () => {
     assertPublicProjection(baitResponse.body);
   });
 
+  void test('public Fish detail returns only active related Bases in normalized order', async () => {
+    const fish = await prisma.fish.create({
+      data: { name: 'Сом', nameNormalized: 'сом' },
+    });
+    const orphanFish = await prisma.fish.create({
+      data: { name: 'Карась', nameNormalized: 'карась' },
+    });
+    const second = await prisma.fishingBase.create({
+      data: { name: 'Бета', nameNormalized: 'бета' },
+    });
+    const first = await prisma.fishingBase.create({
+      data: { name: 'Альфа', nameNormalized: 'альфа' },
+    });
+    const inactive = await prisma.fishingBase.create({
+      data: { name: 'Скрытая', nameNormalized: 'скрытая', isActive: false },
+    });
+    await prisma.fishingBase.create({
+      data: { name: 'Несвязанная', nameNormalized: 'несвязанная' },
+    });
+    await prisma.fishingBaseFish.createMany({
+      data: [
+        { fishingBaseId: second.id, fishId: fish.id },
+        { fishingBaseId: first.id, fishId: fish.id },
+        { fishingBaseId: inactive.id, fishId: fish.id },
+      ],
+    });
+
+    const response = await api().get(`/api/v1/catalog/fish/${fish.id}`).expect(200);
+
+    assert.deepEqual(response.body, {
+      fish: {
+        id: fish.id,
+        name: fish.name,
+        bases: [
+          { id: first.id, name: first.name },
+          { id: second.id, name: second.name },
+        ],
+      },
+    });
+    assertPublicProjection(response.body);
+
+    const orphan = await api().get(`/api/v1/catalog/fish/${orphanFish.id}`).expect(200);
+    assert.deepEqual(orphan.body, {
+      fish: { id: orphanFish.id, name: orphanFish.name, bases: [] },
+    });
+
+    await prisma.fish.update({ where: { id: fish.id }, data: { isActive: false } });
+    const hidden = await api().get(`/api/v1/catalog/fish/${fish.id}`).expect(404);
+    assert.equal(readErrorCode(hidden.body as unknown), 'FISH_NOT_FOUND');
+  });
+
   void test('public detail validates UUIDs and distinguishes missing resources', async () => {
     const malformed = await api().get('/api/v1/catalog/bases/not-a-uuid').expect(400);
     assert.equal(readErrorCode(malformed.body as unknown), 'VALIDATION_ERROR');
@@ -500,6 +593,10 @@ void describe('Catalog API (PostgreSQL e2e)', { concurrency: false }, () => {
       .get(`/api/v1/catalog/locations/${randomUUID()}`)
       .expect(404);
     assert.equal(readErrorCode(missingLocation.body as unknown), 'LOCATION_NOT_FOUND');
+    const malformedFish = await api().get('/api/v1/catalog/fish/not-a-uuid').expect(400);
+    assert.equal(readErrorCode(malformedFish.body as unknown), 'VALIDATION_ERROR');
+    const missingFish = await api().get(`/api/v1/catalog/fish/${randomUUID()}`).expect(404);
+    assert.equal(readErrorCode(missingFish.body as unknown), 'FISH_NOT_FOUND');
   });
 
   void test('admin mutations require an active ADMIN session', async () => {

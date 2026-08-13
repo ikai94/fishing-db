@@ -33,13 +33,28 @@ export class CatalogQueryService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async listPublicFishingBases() {
-    const items = await this.prisma.fishingBase.findMany({
+    const fishingBases = await this.prisma.fishingBase.findMany({
       where: { isActive: true },
       orderBy: [{ nameNormalized: 'asc' }, { id: 'asc' }],
-      select: PUBLIC_NAMED_ITEM_SELECT,
+      select: {
+        ...PUBLIC_NAMED_ITEM_SELECT,
+        _count: {
+          select: {
+            locations: { where: { isActive: true } },
+            fishLinks: { where: { fish: { isActive: true } } },
+          },
+        },
+      },
     });
 
-    return { items };
+    return {
+      items: fishingBases.map((fishingBase) => ({
+        id: fishingBase.id,
+        name: fishingBase.name,
+        locationsCount: fishingBase._count.locations,
+        fishCount: fishingBase._count.fishLinks,
+      })),
+    };
   }
 
   async getPublicFishingBase(baseId: string) {
@@ -108,6 +123,32 @@ export class CatalogQueryService {
     });
 
     return { items };
+  }
+
+  async getPublicFish(fishId: string) {
+    const fish = await this.prisma.fish.findFirst({
+      where: { id: fishId, isActive: true },
+      select: {
+        ...PUBLIC_NAMED_ITEM_SELECT,
+        fishingBaseLinks: {
+          where: { fishingBase: { isActive: true } },
+          orderBy: [{ fishingBase: { nameNormalized: 'asc' } }, { fishingBaseId: 'asc' }],
+          select: { fishingBase: { select: PUBLIC_NAMED_ITEM_SELECT } },
+        },
+      },
+    });
+
+    if (fish === null) {
+      throw catalogErrors.fishNotFound();
+    }
+
+    return {
+      fish: {
+        id: fish.id,
+        name: fish.name,
+        bases: fish.fishingBaseLinks.map((link) => link.fishingBase),
+      },
+    };
   }
 
   async listPublicBaits() {

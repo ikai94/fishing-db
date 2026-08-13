@@ -1500,6 +1500,170 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
     assert.equal(await prisma.bait.count({ where: { id: catalog.bait.id } }), 1);
   });
 
+  void test('filters the anonymous feed by Fish and Bases with cursor and historical semantics', async () => {
+    const firstCatalog = await createCatalog();
+    const secondCatalog = await createCatalog();
+    const thirdCatalog = await createCatalog();
+    const actor = await createActor();
+    await prisma.fishingBaseFish.createMany({
+      data: [
+        { fishingBaseId: secondCatalog.base.id, fishId: firstCatalog.fish.id },
+        { fishingBaseId: thirdCatalog.base.id, fishId: firstCatalog.fish.id },
+      ],
+    });
+
+    const firstReport = await createReport(actor, firstCatalog, { weightGrams: 101 });
+    const secondReport = await createReport(actor, secondCatalog, {
+      fishId: firstCatalog.fish.id,
+      weightGrams: 102,
+    });
+    const thirdReport = await createReport(actor, thirdCatalog, {
+      fishId: firstCatalog.fish.id,
+      weightGrams: 103,
+    });
+    const otherFishReport = await createReport(actor, secondCatalog, { weightGrams: 104 });
+    const targetIds = [firstReport, secondReport, thirdReport]
+      .map((report) => asString(report.id, 'report.id'))
+      .sort();
+
+    const firstTwoBases = readReportList(
+      (
+        await api()
+          .get('/api/v1/catch-reports')
+          .query({
+            fishId: firstCatalog.fish.id,
+            baseIds: `${firstCatalog.base.id},${secondCatalog.base.id}`,
+            limit: 100,
+          })
+          .expect(200)
+      ).body as unknown,
+    );
+    assert.deepEqual(
+      firstTwoBases.items.map((report) => asString(report.id, 'report.id')).sort(),
+      [firstReport, secondReport].map((report) => asString(report.id, 'report.id')).sort(),
+    );
+    firstTwoBases.items.forEach(assertPublicReportProjection);
+
+    const fishOnly = readReportList(
+      (
+        await api()
+          .get('/api/v1/catch-reports')
+          .query({ fishId: firstCatalog.fish.id, limit: 100 })
+          .expect(200)
+      ).body as unknown,
+    );
+    assert.deepEqual(
+      fishOnly.items.map((report) => asString(report.id, 'report.id')).sort(),
+      targetIds,
+    );
+
+    const baseOnly = readReportList(
+      (
+        await api()
+          .get('/api/v1/catch-reports')
+          .query({ baseIds: secondCatalog.base.id, limit: 100 })
+          .expect(200)
+      ).body as unknown,
+    );
+    assert.deepEqual(
+      baseOnly.items.map((report) => asString(report.id, 'report.id')).sort(),
+      [secondReport, otherFishReport].map((report) => asString(report.id, 'report.id')).sort(),
+    );
+
+    const firstPage = readReportList(
+      (
+        await api()
+          .get('/api/v1/catch-reports')
+          .query({
+            fishId: firstCatalog.fish.id,
+            baseIds: [firstCatalog.base.id, secondCatalog.base.id, thirdCatalog.base.id].join(','),
+            limit: 2,
+          })
+          .expect(200)
+      ).body as unknown,
+    );
+    assert.equal(firstPage.items.length, 2);
+    assert.ok(firstPage.nextCursor);
+    const secondPage = readReportList(
+      (
+        await api()
+          .get('/api/v1/catch-reports')
+          .query({
+            fishId: firstCatalog.fish.id,
+            baseIds: [firstCatalog.base.id, secondCatalog.base.id, thirdCatalog.base.id].join(','),
+            limit: 2,
+            cursor: firstPage.nextCursor,
+          })
+          .expect(200)
+      ).body as unknown,
+    );
+    assert.equal(secondPage.nextCursor, null);
+    assert.deepEqual(
+      [...firstPage.items, ...secondPage.items]
+        .map((report) => asString(report.id, 'report.id'))
+        .sort(),
+      targetIds,
+    );
+
+    const unknownBase = readReportList(
+      (
+        await api()
+          .get('/api/v1/catch-reports')
+          .query({ fishId: firstCatalog.fish.id, baseIds: randomUUID() })
+          .expect(200)
+      ).body as unknown,
+    );
+    assert.deepEqual(unknownBase, { items: [], nextCursor: null });
+
+    for (const query of [
+      { fishId: 'not-a-uuid' },
+      { baseIds: '' },
+      { baseIds: `${firstCatalog.base.id},not-a-uuid` },
+    ]) {
+      const invalid = await api().get('/api/v1/catch-reports').query(query).expect(400);
+      assert.equal(readErrorCode(invalid.body as unknown), 'VALIDATION_ERROR');
+    }
+    const repeatedBaseIds = await api()
+      .get(`/api/v1/catch-reports?baseIds=${firstCatalog.base.id}&baseIds=${secondCatalog.base.id}`)
+      .expect(400);
+    assert.equal(readErrorCode(repeatedBaseIds.body as unknown), 'VALIDATION_ERROR');
+    const privateFilter = await api()
+      .get(`/api/v1/me/catch-reports?fishId=${firstCatalog.fish.id}`)
+      .set('Cookie', actor.cookie)
+      .expect(400);
+    assert.equal(readErrorCode(privateFilter.body as unknown), 'VALIDATION_ERROR');
+
+    await prisma.fishingBase.update({
+      where: { id: firstCatalog.base.id },
+      data: { isActive: false },
+    });
+    await prisma.location.update({
+      where: { id: firstCatalog.location.id },
+      data: { isActive: false },
+    });
+    await prisma.fishingBaseFish.delete({
+      where: {
+        fishingBaseId_fishId: {
+          fishingBaseId: firstCatalog.base.id,
+          fishId: firstCatalog.fish.id,
+        },
+      },
+    });
+
+    const historical = readReportList(
+      (
+        await api()
+          .get('/api/v1/catch-reports')
+          .query({ fishId: firstCatalog.fish.id, baseIds: firstCatalog.base.id })
+          .expect(200)
+      ).body as unknown,
+    );
+    assert.deepEqual(
+      historical.items.map((report) => asString(report.id, 'report.id')),
+      [asString(firstReport.id, 'report.id')],
+    );
+  });
+
   void test('paginates deterministically across equal timestamps and concurrent head inserts', async () => {
     const catalog = await createCatalog();
     const actor = await createActor();

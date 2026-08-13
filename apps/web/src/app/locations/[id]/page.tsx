@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback } from 'react';
-import styles from '../../catalog.module.css';
+import styles from '../../public-catalog.module.css';
 import { getLocation } from '@/lib/catalog-api';
 import { useApiResource } from '@/lib/use-api-resource';
 
@@ -25,29 +25,29 @@ export default function LocationPage() {
           <Link className={styles.backLink} href="/bases">
             ← Все базы
           </Link>
-          <Link className={styles.link} href="/fish">
+          <Link className={styles.navLink} href="/fish">
             Все рыбы
           </Link>
         </nav>
 
         {state.kind === 'loading' ? (
-          <p className={styles.message} aria-live="polite">
+          <p className={styles.statusMessage} aria-live="polite">
             Загружаем локацию…
           </p>
         ) : null}
 
         {state.kind === 'not-found' ? (
-          <div className={styles.message}>
-            <h1 className={styles.panelTitle}>Локация не найдена</h1>
+          <div className={styles.statusMessage}>
+            <h1 className={styles.sectionTitle}>Локация не найдена</h1>
             <p>Возможно, локация или её рыболовная база сейчас неактивна.</p>
-            <Link className={styles.link} href="/bases">
+            <Link className={styles.entityLink} href="/bases">
               Вернуться к базам
             </Link>
           </div>
         ) : null}
 
         {state.kind === 'error' ? (
-          <div className={`${styles.message} ${styles.errorMessage}`} role="alert">
+          <div className={`${styles.statusMessage} ${styles.errorMessage}`} role="alert">
             <p>{state.message}</p>
             <button className={styles.secondaryButton} type="button" onClick={reload}>
               Повторить
@@ -58,24 +58,26 @@ export default function LocationPage() {
         {state.kind === 'ready' ? (
           <>
             <header className={styles.header}>
-              <p className={styles.eyebrow}>
-                <Link className={styles.backLink} href={`/bases/${state.data.fishingBase.id}`}>
-                  {state.data.fishingBase.name}
-                </Link>
-              </p>
+              <p className={styles.eyebrow}>Локация</p>
               <h1 className={styles.title}>
                 {state.data.number}. {state.data.name}
               </h1>
+              <p className={styles.metadata}>
+                Рыболовная база:{' '}
+                <Link className={styles.entityLink} href={`/bases/${state.data.fishingBase.id}`}>
+                  {state.data.fishingBase.name}
+                </Link>
+              </p>
             </header>
 
-            <section className={styles.panel}>
-              <h2 className={styles.panelTitle}>Рыбы учитываются на уровне базы</h2>
-              <p className={styles.muted}>
+            <section className={styles.section}>
+              <h2 className={styles.sectionTitle}>Рыбы на базе</h2>
+              <p className={styles.sectionLead}>
                 Рыба, связанная с базой «{state.data.fishingBase.name}», теоретически доступна на
                 всех её локациях.
               </p>
-              <Link className={styles.link} href={`/bases/${state.data.fishingBase.id}`}>
-                Открыть рыб базы
+              <Link className={styles.entityLink} href={`/bases/${state.data.fishingBase.id}#fish`}>
+                Рыбы базы «{state.data.fishingBase.name}»
               </Link>
             </section>
           </>

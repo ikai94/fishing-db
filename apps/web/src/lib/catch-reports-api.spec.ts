@@ -12,6 +12,8 @@ import {
   decodeCatchReportDraft,
   decodeOwnerCatchReport,
   decodePublicCatchReport,
+  listCatchReports,
+  listMyCatchReports,
   parseCatchReport,
 } from './catch-reports-api';
 
@@ -158,6 +160,45 @@ describe('parseCatchReport', () => {
       method: 'POST',
       body: JSON.stringify({ rawSourceText }),
       signal: controller.signal,
+    });
+  });
+});
+
+describe('CatchReport list requests', () => {
+  beforeEach(() => {
+    mocks.apiRequest.mockReset();
+    mocks.apiRequest.mockResolvedValue({ items: [], nextCursor: null });
+  });
+
+  test('serializes a deterministic public Fish/Base scope with pagination', async () => {
+    const controller = new AbortController();
+
+    await listCatchReports({
+      limit: 20,
+      cursor: 'next page',
+      fishId: 'fish-id',
+      baseIds: ['base-b', 'base-a', 'base-b'],
+      signal: controller.signal,
+    });
+
+    expect(mocks.apiRequest).toHaveBeenCalledWith(
+      '/catch-reports?limit=20&cursor=next+page&fishId=fish-id&baseIds=base-a%2Cbase-b',
+      { signal: controller.signal },
+    );
+  });
+
+  test('rejects an explicit empty Base scope instead of omitting the filter', async () => {
+    await expect(listCatchReports({ fishId: 'fish-id', baseIds: [] })).rejects.toThrow(
+      'хотя бы одну рыболовную базу',
+    );
+    expect(mocks.apiRequest).not.toHaveBeenCalled();
+  });
+
+  test('keeps the owner list contract pagination-only', async () => {
+    await listMyCatchReports({ limit: 5, cursor: 'owner-cursor' });
+
+    expect(mocks.apiRequest).toHaveBeenCalledWith('/me/catch-reports?limit=5&cursor=owner-cursor', {
+      signal: undefined,
     });
   });
 });

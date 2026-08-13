@@ -96,10 +96,15 @@ export type CatchReportDraft = {
   canConfirm: boolean;
 };
 
-type ListCatchReportsOptions = {
+export type CatchReportPaginationOptions = {
   cursor?: string | null;
   limit?: number;
   signal?: AbortSignal;
+};
+
+export type PublicCatchReportListOptions = CatchReportPaginationOptions & {
+  fishId?: string;
+  baseIds?: string[];
 };
 
 const FISHING_METHODS = new Set<FishingMethod>(['BAIT_FISHING', 'SPINNING']);
@@ -429,27 +434,45 @@ export function decodeCatchReportDraft(value: unknown): CatchReportDraft {
   };
 }
 
-function buildListPath(path: string, options: ListCatchReportsOptions): string {
+function buildPaginationQuery(options: CatchReportPaginationOptions): URLSearchParams {
   const query = new URLSearchParams();
   if (options.limit !== undefined) query.set('limit', String(options.limit));
   if (options.cursor) query.set('cursor', options.cursor);
+  return query;
+}
+
+function buildPublicListPath(options: PublicCatchReportListOptions): string {
+  const query = buildPaginationQuery(options);
+  if (options.fishId) query.set('fishId', options.fishId);
+  if (options.baseIds !== undefined) {
+    const baseIds = [...new Set(options.baseIds)].sort();
+    if (baseIds.length === 0) {
+      throw new Error('Для фильтра укажите хотя бы одну рыболовную базу');
+    }
+    query.set('baseIds', baseIds.join(','));
+  }
   const search = query.toString();
+  return search ? `/catch-reports?${search}` : '/catch-reports';
+}
+
+function buildPaginationPath(path: string, options: CatchReportPaginationOptions): string {
+  const search = buildPaginationQuery(options).toString();
   return search ? `${path}?${search}` : path;
 }
 
 export async function listCatchReports(
-  options: ListCatchReportsOptions = {},
+  options: PublicCatchReportListOptions = {},
 ): Promise<CatchReportPage> {
-  const payload = await apiRequest<unknown>(buildListPath('/catch-reports', options), {
+  const payload = await apiRequest<unknown>(buildPublicListPath(options), {
     signal: options.signal,
   });
   return readCatchReportPage(payload);
 }
 
 export async function listMyCatchReports(
-  options: ListCatchReportsOptions = {},
+  options: CatchReportPaginationOptions = {},
 ): Promise<CatchReportPage> {
-  const payload = await apiRequest<unknown>(buildListPath('/me/catch-reports', options), {
+  const payload = await apiRequest<unknown>(buildPaginationPath('/me/catch-reports', options), {
     signal: options.signal,
   });
   return readCatchReportPage(payload);

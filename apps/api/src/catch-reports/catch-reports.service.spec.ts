@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { HttpException } from '@nestjs/common';
 import { describe, it } from 'node:test';
 import type { PrismaService } from '../prisma/prisma.service.js';
+import { encodeCatchReportCursor } from './catch-report-pagination.js';
 import { CatchReportsService } from './catch-reports.service.js';
 import type { CreateCatchReportDto } from './dto/create-catch-report.dto.js';
 
@@ -454,6 +455,59 @@ void describe('CatchReportsService v2', () => {
     const ownerResult = await service.getMine(USER_ID, REPORT_ID);
     assert.equal('rawSourceText' in publicResult.report, false);
     assert.equal(ownerResult.report.rawSourceText, 'Исходная строка');
+  });
+
+  void it('filters the public list by Fish and multiple Bases in one paginated query', async () => {
+    let query: unknown;
+    const prisma = {
+      catchReport: {
+        findMany: (input: unknown) => {
+          query = input;
+          return Promise.resolve([reportRecord()]);
+        },
+      },
+    } as unknown as PrismaService;
+    const service = new CatchReportsService(prisma);
+    const cursorDate = new Date('2026-08-09T11:00:00.000Z');
+    const cursor = encodeCatchReportCursor({ createdAt: cursorDate, id: REPORT_ID });
+
+    const result = await service.listPublic({
+      limit: 2,
+      cursor,
+      fishId: FISH_ID,
+      baseIds: [BASE_ID, OTHER_BASE_ID],
+    });
+    const queryObject = asObject(query);
+
+    assert.deepEqual(queryObject.where, {
+      fishId: FISH_ID,
+      location: { fishingBaseId: { in: [BASE_ID, OTHER_BASE_ID] } },
+      OR: [{ createdAt: { lt: cursorDate } }, { createdAt: cursorDate, id: { lt: REPORT_ID } }],
+    });
+    assert.deepEqual(queryObject.orderBy, [{ createdAt: 'desc' }, { id: 'desc' }]);
+    assert.equal(queryObject.take, 3);
+    assert.equal('rawSourceText' in asObject(queryObject.select), false);
+    assert.equal(result.items.length, 1);
+    assert.equal(result.nextCursor, null);
+  });
+
+  void it('keeps omitted public filters and owner list queries unfiltered', async () => {
+    const queries: unknown[] = [];
+    const prisma = {
+      catchReport: {
+        findMany: (input: unknown) => {
+          queries.push(input);
+          return Promise.resolve([]);
+        },
+      },
+    } as unknown as PrismaService;
+    const service = new CatchReportsService(prisma);
+
+    await service.listPublic({ limit: 20 });
+    await service.listMine(USER_ID, { limit: 20 });
+
+    assert.deepEqual(asObject(queries[0]).where, {});
+    assert.deepEqual(asObject(queries[1]).where, { userId: USER_ID });
   });
 
   void it('checks ownership before validating an update', async () => {

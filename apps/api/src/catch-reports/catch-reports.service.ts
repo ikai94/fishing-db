@@ -30,6 +30,7 @@ import {
 import { catchReportErrors } from './catch-reports.errors.js';
 import type { CatchReportListQueryDto } from './dto/catch-report-list-query.dto.js';
 import type { CreateCatchReportDto } from './dto/create-catch-report.dto.js';
+import type { PublicCatchReportListQueryDto } from './dto/public-catch-report-list-query.dto.js';
 import type { UpdateCatchReportDto } from './dto/update-catch-report.dto.js';
 
 const PUBLIC_CATCH_REPORT_SELECT = {
@@ -196,6 +197,11 @@ interface CatchReportWriteData {
   userNoteRaw?: string | null;
 }
 
+interface PublicCatchReportFilters {
+  fishId?: string;
+  baseIds?: string[];
+}
+
 function toPublicCatchReport(record: PublicCatchReportRecord) {
   return {
     id: record.id,
@@ -308,8 +314,11 @@ function currentObservation(current: CurrentCatchReportState): CatchReportObserv
 export class CatchReportsService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
-  async listPublic(query: CatchReportListQueryDto) {
-    return this.list(query);
+  async listPublic(query: PublicCatchReportListQueryDto) {
+    return this.list(query, undefined, {
+      fishId: query.fishId,
+      baseIds: query.baseIds,
+    });
   }
 
   async listMine(actorUserId: string, query: CatchReportListQueryDto) {
@@ -502,10 +511,31 @@ export class CatchReportsService {
     }
   }
 
-  private async list(query: CatchReportListQueryDto, actorUserId?: string) {
+  private async list(
+    query: CatchReportListQueryDto,
+    actorUserId?: string,
+    publicFilters?: PublicCatchReportFilters,
+  ) {
     const limit = query.limit ?? CATCH_REPORT_DEFAULT_LIMIT;
     const cursorWhere = this.cursorWhere(query.cursor);
-    const where = actorUserId === undefined ? cursorWhere : { userId: actorUserId, ...cursorWhere };
+    const filterWhere =
+      publicFilters === undefined
+        ? {}
+        : {
+            ...(publicFilters.fishId === undefined ? {} : { fishId: publicFilters.fishId }),
+            ...(publicFilters.baseIds === undefined
+              ? {}
+              : {
+                  location: {
+                    fishingBaseId: { in: publicFilters.baseIds },
+                  },
+                }),
+          };
+    const where = {
+      ...(actorUserId === undefined ? {} : { userId: actorUserId }),
+      ...filterWhere,
+      ...cursorWhere,
+    };
     const fetchedRecords = await this.prisma.catchReport.findMany({
       where,
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],

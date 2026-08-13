@@ -1,0 +1,354 @@
+import { act, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
+
+const mocks = vi.hoisted(() => ({
+  listCatchReports: vi.fn(),
+  routerReplace: vi.fn(),
+  search: '',
+}));
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ replace: mocks.routerReplace }),
+  useSearchParams: () => new URLSearchParams(mocks.search),
+}));
+
+vi.mock('@/lib/catch-reports-api', () => ({
+  listCatchReports: mocks.listCatchReports,
+}));
+
+vi.mock('./public-fish-catch-table', () => ({
+  PublicFishCatchTable: ({ reports }: { reports: Array<{ id: string }> }) => (
+    <table aria-label="Публичные уловы рыбы">
+      <tbody>
+        {reports.map((report, index) => (
+          <tr key={report.id}>
+            <th scope="row">{index + 1}</th>
+            <td>{report.id}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  ),
+}));
+
+import { FishExplorer } from './fish-explorer';
+
+type TestPage = {
+  items: Array<{ id: string }>;
+  nextCursor: string | null;
+};
+
+const fish = {
+  id: 'fish-1',
+  name: 'Сом',
+  bases: [
+    { id: 'base-b', name: 'Волга' },
+    { id: 'base-a', name: 'Ахтуба' },
+  ],
+};
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+  return { promise, reject, resolve };
+}
+
+function emptyPage(): TestPage {
+  return { items: [], nextCursor: null };
+}
+
+function requestAt(index: number) {
+  return mocks.listCatchReports.mock.calls[index]?.[0] as {
+    fishId: string;
+    baseIds: string[];
+    cursor?: string;
+    limit: number;
+    signal: AbortSignal;
+  };
+}
+
+describe('FishExplorer', () => {
+  beforeEach(() => {
+    mocks.listCatchReports.mockReset();
+    mocks.listCatchReports.mockResolvedValue(emptyPage());
+    mocks.routerReplace.mockReset();
+    mocks.search = '';
+  });
+
+  test('starts with every membership selected and keeps Base links independent from checkboxes', async () => {
+    render(<FishExplorer fish={fish} />);
+
+    const group = screen.getByRole('group', { name: 'Базы обитания' });
+    const volgaCheckbox = screen.getByRole('checkbox', {
+      name: 'Учитывать базу «Волга»',
+    });
+    const akhtubaCheckbox = screen.getByRole('checkbox', {
+      name: 'Учитывать базу «Ахтуба»',
+    });
+    const volgaLink = screen.getByRole('link', { name: 'Волга' });
+    const akhtubaLink = screen.getByRole('link', { name: 'Ахтуба' });
+
+    expect(group).toContainElement(volgaCheckbox);
+    expect(volgaCheckbox).toBeChecked();
+    expect(akhtubaCheckbox).toBeChecked();
+    expect(screen.getByText('Выбрано 2 из 2')).toHaveAttribute('aria-live', 'polite');
+    expect(screen.getByRole('button', { name: 'Выбрать все' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Снять все' })).toBeEnabled();
+    expect(volgaLink).toHaveAttribute('href', '/bases/base-b');
+    expect(akhtubaLink).toHaveAttribute('href', '/bases/base-a');
+    expect(volgaLink.closest('label')).toBeNull();
+    expect(volgaCheckbox.closest('a')).toBeNull();
+
+    await waitFor(() => expect(mocks.listCatchReports).toHaveBeenCalledTimes(1));
+    expect(requestAt(0)).toMatchObject({
+      fishId: 'fish-1',
+      baseIds: ['base-a', 'base-b'],
+      limit: 20,
+    });
+  });
+
+  test('supports keyboard toggling, clear-all without a request, and select-all restoration', async () => {
+    const user = userEvent.setup();
+    render(<FishExplorer fish={fish} />);
+    await waitFor(() => expect(mocks.listCatchReports).toHaveBeenCalledTimes(1));
+
+    const akhtubaCheckbox = screen.getByRole('checkbox', {
+      name: 'Учитывать базу «Ахтуба»',
+    });
+    akhtubaCheckbox.focus();
+    await user.keyboard(' ');
+
+    expect(akhtubaCheckbox).not.toBeChecked();
+    expect(mocks.routerReplace).toHaveBeenLastCalledWith('/fish/fish-1?baseIds=base-b', {
+      scroll: false,
+    });
+    await waitFor(() => expect(mocks.listCatchReports).toHaveBeenCalledTimes(2));
+    expect(requestAt(1)).toMatchObject({ fishId: 'fish-1', baseIds: ['base-b'], limit: 20 });
+
+    await user.click(screen.getByRole('button', { name: 'Снять все' }));
+    expect(mocks.routerReplace).toHaveBeenLastCalledWith('/fish/fish-1?scope=none', {
+      scroll: false,
+    });
+    expect(screen.getByText('Выберите хотя бы одну базу, чтобы увидеть уловы.')).toBeVisible();
+    expect(screen.getByText('Выбрано 0 из 2')).toBeVisible();
+    await waitFor(() => expect(mocks.listCatchReports).toHaveBeenCalledTimes(2));
+
+    await user.click(screen.getByRole('button', { name: 'Выбрать все' }));
+    expect(mocks.routerReplace).toHaveBeenLastCalledWith('/fish/fish-1', { scroll: false });
+    await waitFor(() => expect(mocks.listCatchReports).toHaveBeenCalledTimes(3));
+    expect(requestAt(2)).toMatchObject({
+      fishId: 'fish-1',
+      baseIds: ['base-a', 'base-b'],
+      limit: 20,
+    });
+    expect(screen.getByRole('button', { name: 'Выбрать все' })).toBeDisabled();
+  });
+
+  test('hydrates an exclusion URL and preserves unrelated URL state when returning to all', async () => {
+    const user = userEvent.setup();
+    mocks.search = 'excludeBaseIds=base-b&view=compact';
+    render(<FishExplorer fish={fish} />);
+
+    expect(screen.getByRole('checkbox', { name: 'Учитывать базу «Ахтуба»' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Учитывать базу «Волга»' })).not.toBeChecked();
+    await waitFor(() => expect(mocks.listCatchReports).toHaveBeenCalledTimes(1));
+    expect(requestAt(0)).toMatchObject({ fishId: 'fish-1', baseIds: ['base-a'] });
+
+    await user.click(screen.getByRole('checkbox', { name: 'Учитывать базу «Волга»' }));
+    expect(mocks.routerReplace).toHaveBeenLastCalledWith('/fish/fish-1?view=compact', {
+      scroll: false,
+    });
+  });
+
+  test('does not refetch when the URL commits the same locally selected scope', async () => {
+    const user = userEvent.setup();
+    const view = render(<FishExplorer fish={fish} />);
+    await waitFor(() => expect(mocks.listCatchReports).toHaveBeenCalledTimes(1));
+
+    await user.click(screen.getByRole('checkbox', { name: 'Учитывать базу «Ахтуба»' }));
+    await waitFor(() => expect(mocks.listCatchReports).toHaveBeenCalledTimes(2));
+    expect(mocks.routerReplace).toHaveBeenLastCalledWith('/fish/fish-1?baseIds=base-b', {
+      scroll: false,
+    });
+
+    mocks.search = 'baseIds=base-b';
+    view.rerender(<FishExplorer fish={fish} />);
+
+    expect(screen.getByRole('checkbox', { name: 'Учитывать базу «Ахтуба»' })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Учитывать базу «Волга»' })).toBeChecked();
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(mocks.listCatchReports).toHaveBeenCalledTimes(2);
+  });
+
+  test('uses the initial loading message and renders recoverable error, retry, and exact empty state', async () => {
+    const user = userEvent.setup();
+    const first = deferred<TestPage>();
+    const retry = deferred<TestPage>();
+    mocks.listCatchReports.mockReturnValueOnce(first.promise).mockReturnValueOnce(retry.promise);
+    render(<FishExplorer fish={fish} />);
+
+    expect(screen.getByRole('status')).toHaveTextContent('Загружаем уловы…');
+    await act(async () => {
+      first.reject(new Error('network'));
+      await first.promise.catch(() => undefined);
+    });
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Не удалось загрузить уловы этой рыбы. Попробуйте ещё раз.',
+    );
+    await user.click(screen.getByRole('button', { name: 'Повторить' }));
+    expect(screen.getByRole('status')).toHaveTextContent('Загружаем уловы…');
+    await act(async () => {
+      retry.resolve(emptyPage());
+      await retry.promise;
+    });
+    expect(await screen.findByText('Для выбранных баз уловов пока нет.')).toBeVisible();
+    expect(mocks.listCatchReports).toHaveBeenCalledTimes(2);
+  });
+
+  test('retains scope, continues visual numbering, and avoids report-card headings across pages', async () => {
+    const user = userEvent.setup();
+    mocks.listCatchReports
+      .mockResolvedValueOnce({ items: [{ id: 'report-1' }], nextCursor: 'cursor-1' })
+      .mockResolvedValueOnce({
+        items: [{ id: 'report-1' }, { id: 'report-2' }],
+        nextCursor: null,
+      });
+    render(<FishExplorer fish={fish} />);
+
+    expect(await screen.findByText('report-1')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Показать ещё' }));
+
+    expect(await screen.findByText('report-2')).toBeVisible();
+    const catchTable = screen.getByRole('table', { name: 'Публичные уловы рыбы' });
+    const catchRows = within(catchTable).getAllByRole('row');
+    expect(catchRows).toHaveLength(2);
+    expect(catchRows[0]).toHaveTextContent('1report-1');
+    expect(catchRows[1]).toHaveTextContent('2report-2');
+    expect(within(catchTable).queryByRole('heading')).not.toBeInTheDocument();
+    expect(requestAt(1)).toMatchObject({
+      fishId: 'fish-1',
+      baseIds: ['base-a', 'base-b'],
+      cursor: 'cursor-1',
+      limit: 20,
+    });
+    expect(screen.queryByRole('button', { name: 'Показать ещё' })).not.toBeInTheDocument();
+  });
+
+  test('uses the refresh message and ignores stale initial success/finally for a replacement scope', async () => {
+    const user = userEvent.setup();
+    const first = deferred<TestPage>();
+    const second = deferred<TestPage>();
+    mocks.listCatchReports.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+    render(<FishExplorer fish={fish} />);
+    await waitFor(() => expect(mocks.listCatchReports).toHaveBeenCalledTimes(1));
+
+    await user.click(screen.getByRole('checkbox', { name: 'Учитывать базу «Ахтуба»' }));
+    await waitFor(() => expect(mocks.listCatchReports).toHaveBeenCalledTimes(2));
+    expect(requestAt(0).signal.aborted).toBe(true);
+    expect(requestAt(1).signal.aborted).toBe(false);
+
+    await act(async () => {
+      first.resolve({ items: [{ id: 'stale-report' }], nextCursor: null });
+      await first.promise;
+    });
+    expect(screen.queryByText('stale-report')).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Обновляем уловы…');
+
+    await act(async () => {
+      second.resolve({ items: [{ id: 'current-report' }], nextCursor: null });
+      await second.promise;
+    });
+    expect(await screen.findByText('current-report')).toBeVisible();
+  });
+
+  test('ignores stale initial errors and their finally while the replacement request is pending', async () => {
+    const user = userEvent.setup();
+    const first = deferred<TestPage>();
+    const second = deferred<TestPage>();
+    mocks.listCatchReports.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+    render(<FishExplorer fish={fish} />);
+    await waitFor(() => expect(mocks.listCatchReports).toHaveBeenCalledTimes(1));
+
+    await user.click(screen.getByRole('checkbox', { name: 'Учитывать базу «Ахтуба»' }));
+    await waitFor(() => expect(mocks.listCatchReports).toHaveBeenCalledTimes(2));
+
+    await act(async () => {
+      first.reject(new Error('stale failure'));
+      await first.promise.catch(() => undefined);
+    });
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Обновляем уловы…');
+
+    await act(async () => {
+      second.resolve(emptyPage());
+      await second.promise;
+    });
+    expect(await screen.findByText('Для выбранных баз уловов пока нет.')).toBeVisible();
+  });
+
+  test('aborts and ignores a stale next page after the selection scope changes', async () => {
+    const user = userEvent.setup();
+    const stalePage = deferred<TestPage>();
+    const replacement = deferred<TestPage>();
+    mocks.listCatchReports
+      .mockResolvedValueOnce({ items: [{ id: 'old-first-page' }], nextCursor: 'old-cursor' })
+      .mockReturnValueOnce(stalePage.promise)
+      .mockReturnValueOnce(replacement.promise);
+    render(<FishExplorer fish={fish} />);
+
+    expect(await screen.findByText('old-first-page')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Показать ещё' }));
+    await waitFor(() => expect(mocks.listCatchReports).toHaveBeenCalledTimes(2));
+    await user.click(screen.getByRole('checkbox', { name: 'Учитывать базу «Ахтуба»' }));
+    await waitFor(() => expect(mocks.listCatchReports).toHaveBeenCalledTimes(3));
+
+    expect(requestAt(1)).toMatchObject({ cursor: 'old-cursor' });
+    expect(requestAt(1).signal.aborted).toBe(true);
+    expect(screen.queryByText('old-first-page')).not.toBeInTheDocument();
+
+    await act(async () => {
+      stalePage.resolve({ items: [{ id: 'stale-next-page' }], nextCursor: null });
+      await stalePage.promise;
+    });
+    expect(screen.queryByText('stale-next-page')).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Обновляем уловы…');
+
+    await act(async () => {
+      replacement.resolve({ items: [{ id: 'new-scope-report' }], nextCursor: null });
+      await replacement.promise;
+    });
+    expect(await screen.findByText('new-scope-report')).toBeVisible();
+    expect(screen.queryByText('old-first-page')).not.toBeInTheDocument();
+  });
+
+  test('aborts the active request when unmounted', async () => {
+    const pending = deferred<TestPage>();
+    mocks.listCatchReports.mockReturnValue(pending.promise);
+    const view = render(<FishExplorer fish={fish} />);
+    await waitFor(() => expect(mocks.listCatchReports).toHaveBeenCalledTimes(1));
+    const signal = requestAt(0).signal;
+
+    view.unmount();
+    expect(signal.aborted).toBe(true);
+    pending.resolve(emptyPage());
+    await pending.promise;
+  });
+
+  test('does not request catches when the fish has no active Base memberships', () => {
+    render(<FishExplorer fish={{ ...fish, bases: [] }} />);
+
+    expect(screen.getByRole('group', { name: 'Базы обитания' })).toBeVisible();
+    expect(screen.getByText('Активных баз обитания пока нет.')).toBeVisible();
+    expect(screen.getByText('Выберите хотя бы одну базу, чтобы увидеть уловы.')).toBeVisible();
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+    expect(mocks.listCatchReports).not.toHaveBeenCalled();
+  });
+});

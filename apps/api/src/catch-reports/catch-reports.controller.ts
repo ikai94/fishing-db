@@ -18,10 +18,10 @@ import { CurrentUser } from '../auth/current-user.decorator.js';
 import { NotBannedGuard } from '../auth/not-banned.guard.js';
 import { createApplicationValidationPipe } from '../common/validation/validation-exception.factory.js';
 import { CatchReportsService } from './catch-reports.service.js';
-import { CatchReportListQueryDto } from './dto/catch-report-list-query.dto.js';
 import { CatchReportParamsDto } from './dto/catch-report-params.dto.js';
 import { CreateCatchReportDto } from './dto/create-catch-report.dto.js';
 import { ParseCatchReportDto } from './dto/parse-catch-report.dto.js';
+import { PublicCatchReportListQueryDto } from './dto/public-catch-report-list-query.dto.js';
 import { UpdateCatchReportDto } from './dto/update-catch-report.dto.js';
 import { CatchReportParserService } from './parser/catch-report-parser.service.js';
 
@@ -34,8 +34,8 @@ export class CatchReportsController {
 
   @Get()
   list(
-    @Query(createApplicationValidationPipe(CatchReportListQueryDto))
-    query: CatchReportListQueryDto,
+    @Query(createApplicationValidationPipe(PublicCatchReportListQueryDto))
+    query: PublicCatchReportListQueryDto,
   ) {
     return this.catchReports.listPublic(query);
   }

@@ -195,12 +195,17 @@ lowercase; nickname сохраняет отображаемый регистр, 
 - `GET /api/v1/catalog/bases/:baseId`;
 - `GET /api/v1/catalog/locations/:locationId`;
 - `GET /api/v1/catalog/fish`;
+- `GET /api/v1/catalog/fish/:fishId`;
 - `GET /api/v1/catalog/baits`;
 - `GET /api/v1/catalog/screen-anchors`.
 
-Frontend-страницы каталога находятся на `/bases`, `/bases/:id`, `/locations/:id`, `/fish` и
-`/baits`. Неактивные сущности остаются в PostgreSQL для будущих исторических ссылок, но не
-выдаются публичным API.
+Список баз возвращает для каждой active Base число active Locations и active Fish.
+Fish detail возвращает только active связанные Bases; active Fish без связей
+имеет пустой список `bases`.
+
+Frontend-страницы каталога находятся на `/bases`, `/bases/:id`, `/locations/:id`, `/fish`,
+`/fish/:id` и `/baits`. Неактивные сущности остаются в PostgreSQL для будущих исторических
+ссылок, но не выдаются публичным API.
 
 Управление выполняется только через `/api/v1/admin/catalog/...`. Каждый ADMIN endpoint сначала
 проверяет server-side Session, затем роль и ban status. Обычный USER получает 403, а banned ADMIN
@@ -224,7 +229,12 @@ lifecycle управляется полем `isActive`. Строку `FishingBas
 - `GET /api/v1/catch-reports/:reportId`.
 
 Лента использует cursor pagination по `createdAt DESC, id DESC`; поддерживаются `limit=1..100` и
-opaque `cursor`. Ответ содержит `items` и `nextCursor`, без total count и номеров страниц.
+opaque `cursor`. Публичная лента также принимает optional `fishId=<uuid-v4>` и
+`baseIds=<uuid-v4>,<uuid-v4>,...` (от 1 до 100 уникальных ID). База фильтруется через
+`CatchReport -> Location -> FishingBase`; пустой или malformed `baseIds` возвращает 400, а
+отсутствующий `baseIds` не добавляет Base filter. Ответ содержит `items` и `nextCursor`, без
+total count и номеров страниц. Эти фильтры не принимаются owner endpoint
+`GET /api/v1/me/catch-reports`.
 
 Изменения требуют Session и незаблокированный аккаунт:
 

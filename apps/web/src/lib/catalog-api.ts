@@ -7,6 +7,11 @@ export type PublicCatalogItem = {
   name: string;
 };
 
+export type PublicFishingBaseSummary = PublicCatalogItem & {
+  locationsCount: number;
+  fishCount: number;
+};
+
 export type PublicLocationSummary = PublicCatalogItem & {
   number: number;
 };
@@ -18,6 +23,10 @@ export type PublicFishingBase = PublicCatalogItem & {
 
 export type PublicLocation = PublicLocationSummary & {
   fishingBase: PublicCatalogItem;
+};
+
+export type PublicFishDetail = PublicCatalogItem & {
+  bases: PublicCatalogItem[];
 };
 
 export type PublicBait = PublicCatalogItem & {
@@ -46,6 +55,28 @@ function readLocationSummary(value: unknown): PublicLocationSummary {
   }
 
   return { ...item, number: value.number };
+}
+
+function readNonNegativeInteger(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) {
+    throw new Error('Сервер вернул некорректный ответ каталога');
+  }
+
+  return value;
+}
+
+function readFishingBaseSummary(value: unknown): PublicFishingBaseSummary {
+  const item = readCatalogItem(value);
+
+  if (!isRecord(value)) {
+    throw new Error('Сервер вернул некорректный ответ каталога');
+  }
+
+  return {
+    ...item,
+    locationsCount: readNonNegativeInteger(value.locationsCount),
+    fishCount: readNonNegativeInteger(value.fishCount),
+  };
 }
 
 function readItems<T>(payload: unknown, reader: (value: unknown) => T): T[] {
@@ -84,6 +115,17 @@ function readLocationResponse(payload: unknown): PublicLocation {
   };
 }
 
+function readFishResponse(payload: unknown): PublicFishDetail {
+  if (!isRecord(payload) || !isRecord(payload.fish) || !Array.isArray(payload.fish.bases)) {
+    throw new Error('Сервер вернул некорректный ответ каталога');
+  }
+
+  return {
+    ...readCatalogItem(payload.fish),
+    bases: payload.fish.bases.map(readCatalogItem),
+  };
+}
+
 function readBait(value: unknown): PublicBait {
   const item = readCatalogItem(value);
 
@@ -94,9 +136,9 @@ function readBait(value: unknown): PublicBait {
   return { ...item, type: value.type };
 }
 
-export async function listFishingBases(signal?: AbortSignal): Promise<PublicCatalogItem[]> {
+export async function listFishingBases(signal?: AbortSignal): Promise<PublicFishingBaseSummary[]> {
   const payload = await apiRequest<unknown>('/catalog/bases', { signal });
-  return readItems(payload, readCatalogItem);
+  return readItems(payload, readFishingBaseSummary);
 }
 
 export async function getFishingBase(
@@ -123,6 +165,13 @@ export async function getLocation(
 export async function listFish(signal?: AbortSignal): Promise<PublicCatalogItem[]> {
   const payload = await apiRequest<unknown>('/catalog/fish', { signal });
   return readItems(payload, readCatalogItem);
+}
+
+export async function getFish(fishId: string, signal?: AbortSignal): Promise<PublicFishDetail> {
+  const payload = await apiRequest<unknown>(`/catalog/fish/${encodeURIComponent(fishId)}`, {
+    signal,
+  });
+  return readFishResponse(payload);
 }
 
 export async function listBaits(signal?: AbortSignal): Promise<PublicBait[]> {

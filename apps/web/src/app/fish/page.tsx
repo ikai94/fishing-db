@@ -1,9 +1,17 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback } from 'react';
-import styles from '../catalog.module.css';
+import { useCallback, useId, useMemo, useState } from 'react';
+import styles from '../public-catalog.module.css';
 import { listFish } from '@/lib/catalog-api';
+import {
+  catalogSearchTokens,
+  FISH_ALPHABET_GROUPS,
+  filterCatalogItems,
+  filterFishByAlphabetGroup,
+  sortCatalogItemsByName,
+  type FishAlphabetGroupId,
+} from '@/lib/catalog-search';
 import { useApiResource } from '@/lib/use-api-resource';
 
 export default function FishPage() {
@@ -12,19 +20,39 @@ export default function FishPage() {
     loadFish,
     'Не удалось загрузить список рыб. Попробуйте ещё раз.',
   );
+  const [query, setQuery] = useState('');
+  const [activeAlphabetGroup, setActiveAlphabetGroup] = useState<FishAlphabetGroupId>('all');
+  const searchId = useId();
+  const sortedFish = useMemo(
+    () => (state.kind === 'ready' ? sortCatalogItemsByName(state.data) : []),
+    [state],
+  );
+  const isSearchActive = catalogSearchTokens(query).length > 0;
+  const displayedFish = useMemo(
+    () =>
+      isSearchActive
+        ? filterCatalogItems(sortedFish, query)
+        : filterFishByAlphabetGroup(sortedFish, activeAlphabetGroup),
+    [activeAlphabetGroup, isSearchActive, query, sortedFish],
+  );
+
+  function selectAlphabetGroup(groupId: FishAlphabetGroupId) {
+    setActiveAlphabetGroup(groupId);
+    setQuery('');
+  }
 
   return (
     <main className={styles.page}>
-      <div className={styles.narrowContainer}>
+      <div className={styles.container}>
         <nav className={styles.topNav} aria-label="Каталог">
           <Link className={styles.backLink} href="/">
             ← На главную
           </Link>
           <div className={styles.navGroup}>
-            <Link className={styles.link} href="/bases">
+            <Link className={styles.navLink} href="/bases">
               Базы
             </Link>
-            <Link className={styles.link} href="/baits">
+            <Link className={styles.navLink} href="/baits">
               Наживки и приманки
             </Link>
           </div>
@@ -37,13 +65,13 @@ export default function FishPage() {
         </header>
 
         {state.kind === 'loading' ? (
-          <p className={styles.message} aria-live="polite">
+          <p className={styles.statusMessage} aria-live="polite">
             Загружаем рыб…
           </p>
         ) : null}
 
         {state.kind === 'error' ? (
-          <div className={`${styles.message} ${styles.errorMessage}`} role="alert">
+          <div className={`${styles.statusMessage} ${styles.errorMessage}`} role="alert">
             <p>{state.message}</p>
             <button className={styles.secondaryButton} type="button" onClick={reload}>
               Повторить
@@ -52,18 +80,67 @@ export default function FishPage() {
         ) : null}
 
         {state.kind === 'not-found' || (state.kind === 'ready' && state.data.length === 0) ? (
-          <p className={styles.message}>В каталоге пока нет активных рыб.</p>
+          <p className={styles.statusMessage}>В каталоге пока нет активных рыб.</p>
         ) : null}
 
         {state.kind === 'ready' && state.data.length > 0 ? (
-          <section className={styles.panel}>
-            <ul className={styles.list}>
-              {state.data.map((fish) => (
-                <li className={styles.listItem} key={fish.id}>
-                  <p className={styles.itemName}>{fish.name}</p>
-                </li>
-              ))}
-            </ul>
+          <section className={styles.section} aria-labelledby="fish-list-title">
+            <h2 className={styles.sectionTitle} id="fish-list-title">
+              Список рыб
+            </h2>
+            <div className={styles.fishFilterDock}>
+              <fieldset className={styles.alphabetFilter}>
+                <legend className={styles.visuallyHidden}>Фильтр рыб по первой букве</legend>
+                {FISH_ALPHABET_GROUPS.map((group) => {
+                  const isActive = activeAlphabetGroup === group.id;
+                  return (
+                    <button
+                      className={`${styles.alphabetButton} ${isActive ? styles.alphabetButtonActive : ''}`}
+                      type="button"
+                      aria-pressed={isActive}
+                      key={group.id}
+                      onClick={() => selectAlphabetGroup(group.id)}
+                    >
+                      {group.label}
+                    </button>
+                  );
+                })}
+              </fieldset>
+              <div className={`${styles.searchField} ${styles.fishIndexSearch}`}>
+                <label className={styles.searchLabel} htmlFor={searchId}>
+                  Поиск по названию
+                </label>
+                <input
+                  className={styles.searchInput}
+                  id={searchId}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Например, сом"
+                  type="search"
+                  value={query}
+                />
+                {isSearchActive ? (
+                  <span className={styles.searchScope}>Поиск по всему каталогу</span>
+                ) : null}
+              </div>
+            </div>
+            <p className={styles.resultCount} aria-live="polite">
+              {isSearchActive ? `Найдено: ${displayedFish.length}` : `Рыб: ${displayedFish.length}`}
+            </p>
+            {displayedFish.length === 0 ? (
+              <p className={styles.sectionLead}>
+                {isSearchActive ? 'Ничего не найдено.' : 'В этой группе рыб пока нет.'}
+              </p>
+            ) : (
+              <ol className={styles.fishReferenceList} aria-label="Рыбы каталога">
+                {displayedFish.map((fish, index) => (
+                  <li className={styles.fishReferenceItem} key={fish.id} value={index + 1}>
+                    <Link className={styles.entityLink} href={`/fish/${fish.id}`}>
+                      {fish.name}
+                    </Link>
+                  </li>
+                ))}
+              </ol>
+            )}
           </section>
         ) : null}
       </div>
