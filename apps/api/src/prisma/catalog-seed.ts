@@ -294,6 +294,34 @@ function isPrismaConflict(error: unknown): boolean {
   return error.code === 'P2002' || error.code === 'P2003' || error.code === 'P2034';
 }
 
+function assertCreatedCount(kind: string, actual: number, expected: number): void {
+  if (actual !== expected) {
+    throw new Error(
+      `Catalog seed internal error: ${kind} createMany planned ${expected} row(s), created ${actual}`,
+    );
+  }
+}
+
+interface ExistingLocation extends ExistingNamedItem {
+  fishingBaseId: string;
+  number: number;
+}
+
+interface MissingLocation {
+  fishingBaseNormalized: string;
+  location: ValidatedSeedLocation;
+}
+
+interface MissingMembership {
+  fishingBaseNormalized: string;
+  fishNormalized: string;
+}
+
+interface ReusedLocation {
+  desired: ValidatedSeedLocation;
+  existing: ExistingLocation;
+}
+
 async function executeCatalogSeed(
   tx: Prisma.TransactionClient,
   data: ValidatedCatalogSeedData,
@@ -316,11 +344,14 @@ async function executeCatalogSeed(
   });
 
   const conflicts: string[] = [];
-  const markedFish = existingFish.filter((item) => item.name.endsWith(SPINNING_FISH_SUFFIX));
+  const markedFish = existingFish
+    .filter((item) => item.name.endsWith(SPINNING_FISH_SUFFIX))
+    .map((item) => item.name)
+    .sort();
 
   if (markedFish.length > 0) {
     conflicts.push(
-      `legacy Fish with exact "${SPINNING_FISH_SUFFIX}" suffix remain: ${markedFish.map((item) => item.name).join(', ')}`,
+      `legacy Fish with exact "${SPINNING_FISH_SUFFIX}" suffix remain: ${markedFish.join(', ')}`,
     );
   }
 
@@ -360,23 +391,39 @@ async function executeCatalogSeed(
   const membershipKeys = new Set(
     existingMemberships.map((item) => `${item.fishingBaseId}:${item.fishId}`),
   );
+  const locationsByBaseId = new Map<string, ExistingLocation[]>();
+
+  for (const location of existingLocations) {
+    const locations = locationsByBaseId.get(location.fishingBaseId) ?? [];
+    locations.push(location);
+    locationsByBaseId.set(location.fishingBaseId, locations);
+  }
+
+  const missingLocations: MissingLocation[] = [];
+  const reusedLocations: ReusedLocation[] = [];
 
   for (const desiredBase of data.bases) {
     const existingBase = baseByNormalized.get(desiredBase.nameNormalized);
 
     if (existingBase === undefined) {
+      for (const desiredLocation of desiredBase.locations) {
+        missingLocations.push({
+          fishingBaseNormalized: desiredBase.nameNormalized,
+          location: desiredLocation,
+        });
+      }
       continue;
     }
 
-    const locations = existingLocations.filter(
-      (location) => location.fishingBaseId === existingBase.id,
+    const locations = locationsByBaseId.get(existingBase.id) ?? [];
+    const locationByNumber = new Map(locations.map((location) => [location.number, location]));
+    const locationByName = new Map(
+      locations.map((location) => [location.nameNormalized, location]),
     );
 
     for (const desiredLocation of desiredBase.locations) {
-      const byNumber = locations.find((location) => location.number === desiredLocation.number);
-      const byName = locations.find(
-        (location) => location.nameNormalized === desiredLocation.nameNormalized,
-      );
+      const byNumber = locationByNumber.get(desiredLocation.number);
+      const byName = locationByName.get(desiredLocation.nameNormalized);
 
       if (byNumber !== undefined && byName !== undefined && byNumber.id !== byName.id) {
         conflicts.push(
@@ -393,6 +440,17 @@ async function executeCatalogSeed(
         conflicts.push(
           `FishingBase "${existingBase.name}": Location "${byName.name}" already uses number ${byName.number}`,
         );
+      } else {
+        const existingLocation = byNumber ?? byName;
+
+        if (existingLocation === undefined) {
+          missingLocations.push({
+            fishingBaseNormalized: desiredBase.nameNormalized,
+            location: desiredLocation,
+          });
+        } else {
+          reusedLocations.push({ desired: desiredLocation, existing: existingLocation });
+        }
       }
     }
   }
@@ -411,134 +469,194 @@ async function executeCatalogSeed(
     throw new CatalogSeedConflictError(conflicts);
   }
 
+  const missingFish: NormalizedCatalogName[] = [];
+
   for (const desiredFish of data.fish) {
-    let fish = fishByNormalized.get(desiredFish.nameNormalized);
+    const fish = fishByNormalized.get(desiredFish.nameNormalized);
 
     if (fish === undefined) {
-      fish = await tx.fish.create({
-        data: desiredFish,
-        select: { id: true, name: true, nameNormalized: true, isActive: true },
-      });
-      fishByNormalized.set(fish.nameNormalized, fish);
-      summary.fish.created += 1;
+      missingFish.push(desiredFish);
     } else {
       summary.fish.reused += 1;
       recordReuseWarning('Fish', desiredFish, fish, summary.warnings);
     }
   }
 
+  const missingBases: NormalizedCatalogName[] = [];
+
   for (const desiredBase of data.bases) {
-    let fishingBase = baseByNormalized.get(desiredBase.nameNormalized);
+    const fishingBase = baseByNormalized.get(desiredBase.nameNormalized);
 
     if (fishingBase === undefined) {
-      fishingBase = await tx.fishingBase.create({
-        data: { name: desiredBase.name, nameNormalized: desiredBase.nameNormalized },
-        select: { id: true, name: true, nameNormalized: true, isActive: true },
-      });
-      baseByNormalized.set(fishingBase.nameNormalized, fishingBase);
-      summary.fishingBases.created += 1;
+      missingBases.push(desiredBase);
     } else {
       summary.fishingBases.reused += 1;
       recordReuseWarning('FishingBase', desiredBase, fishingBase, summary.warnings);
     }
   }
 
+  const missingBaits: ValidatedSeedBait[] = [];
+
   for (const desiredBait of data.baits) {
-    let bait = baitByNormalized.get(desiredBait.nameNormalized);
+    const bait = baitByNormalized.get(desiredBait.nameNormalized);
 
     if (bait === undefined) {
-      bait = await tx.bait.create({
-        data: desiredBait,
-        select: { id: true, name: true, nameNormalized: true, isActive: true, type: true },
-      });
-      baitByNormalized.set(bait.nameNormalized, bait);
-      summary.baits.created += 1;
+      missingBaits.push(desiredBait);
     } else {
       summary.baits.reused += 1;
       recordReuseWarning('Bait', desiredBait, bait, summary.warnings);
     }
   }
 
+  const missingAnchors: NormalizedCatalogName[] = [];
+
   for (const desiredAnchor of data.screenAnchors) {
-    let anchor = anchorByNormalized.get(desiredAnchor.nameNormalized);
+    const anchor = anchorByNormalized.get(desiredAnchor.nameNormalized);
 
     if (anchor === undefined) {
-      anchor = await tx.screenAnchor.create({
-        data: desiredAnchor,
-        select: { id: true, name: true, nameNormalized: true, isActive: true },
-      });
-      anchorByNormalized.set(anchor.nameNormalized, anchor);
-      summary.screenAnchors.created += 1;
+      missingAnchors.push(desiredAnchor);
     } else {
       summary.screenAnchors.reused += 1;
       recordReuseWarning('ScreenAnchor', desiredAnchor, anchor, summary.warnings);
     }
   }
 
+  for (const { desired, existing } of reusedLocations) {
+    summary.locations.reused += 1;
+    recordReuseWarning('Location', desired, existing, summary.warnings);
+  }
+
+  const missingMemberships: MissingMembership[] = [];
+
   for (const desiredBase of data.bases) {
     const fishingBase = baseByNormalized.get(desiredBase.nameNormalized);
 
-    if (fishingBase === undefined) {
-      throw new Error('Catalog seed internal error: FishingBase identity is missing');
-    }
-
-    const currentLocations = existingLocations.filter(
-      (location) => location.fishingBaseId === fishingBase.id,
-    );
-
-    for (const desiredLocation of desiredBase.locations) {
-      const existingLocation = currentLocations.find(
-        (location) =>
-          location.number === desiredLocation.number &&
-          location.nameNormalized === desiredLocation.nameNormalized,
-      );
-
-      if (existingLocation === undefined) {
-        const created = await tx.location.create({
-          data: {
-            fishingBaseId: fishingBase.id,
-            number: desiredLocation.number,
-            name: desiredLocation.name,
-            nameNormalized: desiredLocation.nameNormalized,
-          },
-          select: { id: true },
-        });
-        currentLocations.push({
-          id: created.id,
-          fishingBaseId: fishingBase.id,
-          number: desiredLocation.number,
-          name: desiredLocation.name,
-          nameNormalized: desiredLocation.nameNormalized,
-          isActive: true,
-        });
-        summary.locations.created += 1;
-      } else {
-        summary.locations.reused += 1;
-        recordReuseWarning('Location', desiredLocation, existingLocation, summary.warnings);
-      }
-    }
-
     for (const fishNormalized of desiredBase.fishNormalized) {
       const fish = fishByNormalized.get(fishNormalized);
+      const membershipKey =
+        fishingBase === undefined || fish === undefined
+          ? undefined
+          : `${fishingBase.id}:${fish.id}`;
 
-      if (fish === undefined) {
-        throw new Error('Catalog seed internal error: Fish identity is missing');
-      }
-
-      const membershipKey = `${fishingBase.id}:${fish.id}`;
-
-      if (membershipKeys.has(membershipKey)) {
+      if (membershipKey !== undefined && membershipKeys.has(membershipKey)) {
         summary.fishingBaseFish.reused += 1;
-        continue;
+      } else {
+        missingMemberships.push({
+          fishingBaseNormalized: desiredBase.nameNormalized,
+          fishNormalized,
+        });
+      }
+    }
+  }
+
+  if (missingFish.length > 0) {
+    const created = await tx.fish.createMany({ data: missingFish });
+    assertCreatedCount('Fish', created.count, missingFish.length);
+  }
+
+  if (missingBases.length > 0) {
+    const created = await tx.fishingBase.createMany({
+      data: missingBases.map(({ name, nameNormalized }) => ({ name, nameNormalized })),
+    });
+    assertCreatedCount('FishingBase', created.count, missingBases.length);
+  }
+
+  if (missingBaits.length > 0) {
+    const created = await tx.bait.createMany({ data: missingBaits });
+    assertCreatedCount('Bait', created.count, missingBaits.length);
+  }
+
+  if (missingAnchors.length > 0) {
+    const created = await tx.screenAnchor.createMany({ data: missingAnchors });
+    assertCreatedCount('ScreenAnchor', created.count, missingAnchors.length);
+  }
+
+  const targetBases =
+    data.bases.length === 0
+      ? []
+      : await tx.fishingBase.findMany({
+          where: { nameNormalized: { in: data.bases.map((item) => item.nameNormalized) } },
+          select: { id: true, name: true, nameNormalized: true, isActive: true },
+        });
+  const targetFish =
+    data.fish.length === 0
+      ? []
+      : await tx.fish.findMany({
+          where: { nameNormalized: { in: data.fish.map((item) => item.nameNormalized) } },
+          select: { id: true, name: true, nameNormalized: true, isActive: true },
+        });
+  const targetBaseByNormalized = indexNamed(targetBases);
+  const targetFishByNormalized = indexNamed(targetFish);
+
+  for (const desiredBase of data.bases) {
+    if (!targetBaseByNormalized.has(desiredBase.nameNormalized)) {
+      throw new Error(
+        `Catalog seed internal error: FishingBase identity "${desiredBase.nameNormalized}" is missing after createMany`,
+      );
+    }
+  }
+
+  for (const desiredFish of data.fish) {
+    if (!targetFishByNormalized.has(desiredFish.nameNormalized)) {
+      throw new Error(
+        `Catalog seed internal error: Fish identity "${desiredFish.nameNormalized}" is missing after createMany`,
+      );
+    }
+  }
+
+  if (missingLocations.length > 0) {
+    const locationRows = missingLocations.map(({ fishingBaseNormalized, location }) => {
+      const fishingBase = targetBaseByNormalized.get(fishingBaseNormalized);
+
+      if (fishingBase === undefined) {
+        throw new Error('Catalog seed internal error: Location parent identity is missing');
       }
 
-      await tx.fishingBaseFish.create({
-        data: { fishingBaseId: fishingBase.id, fishId: fish.id },
-        select: { fishingBaseId: true },
-      });
-      membershipKeys.add(membershipKey);
-      summary.fishingBaseFish.created += 1;
-    }
+      return {
+        fishingBaseId: fishingBase.id,
+        number: location.number,
+        name: location.name,
+        nameNormalized: location.nameNormalized,
+      };
+    });
+    const created = await tx.location.createMany({ data: locationRows });
+    assertCreatedCount('Location', created.count, missingLocations.length);
+  }
+
+  if (missingMemberships.length > 0) {
+    const membershipRows = missingMemberships.map(({ fishingBaseNormalized, fishNormalized }) => {
+      const fishingBase = targetBaseByNormalized.get(fishingBaseNormalized);
+      const fish = targetFishByNormalized.get(fishNormalized);
+
+      if (fishingBase === undefined || fish === undefined) {
+        throw new Error('Catalog seed internal error: FishingBaseFish parent identity is missing');
+      }
+
+      return { fishingBaseId: fishingBase.id, fishId: fish.id };
+    });
+    const created = await tx.fishingBaseFish.createMany({ data: membershipRows });
+    assertCreatedCount('FishingBaseFish', created.count, missingMemberships.length);
+  }
+
+  summary.fish.created = missingFish.length;
+  summary.fishingBases.created = missingBases.length;
+  summary.baits.created = missingBaits.length;
+  summary.screenAnchors.created = missingAnchors.length;
+  summary.locations.created = missingLocations.length;
+  summary.fishingBaseFish.created = missingMemberships.length;
+
+  if (
+    summary.locations.created + summary.locations.reused !==
+    data.bases.reduce((total, base) => total + base.locations.length, 0)
+  ) {
+    throw new Error('Catalog seed internal error: Location plan is incomplete');
+  }
+
+  if (
+    summary.fishingBaseFish.created + summary.fishingBaseFish.reused !==
+    data.bases.reduce((total, base) => total + base.fishNormalized.length, 0)
+  ) {
+    throw new Error('Catalog seed internal error: FishingBaseFish plan is incomplete');
   }
 
   return summary;
@@ -553,6 +671,8 @@ export async function seedCatalog(
   try {
     return await prisma.$transaction((tx) => executeCatalogSeed(tx, data), {
       isolationLevel: 'Serializable',
+      maxWait: 10_000,
+      timeout: 60_000,
     });
   } catch (error: unknown) {
     if (error instanceof CatalogSeedValidationError || error instanceof CatalogSeedConflictError) {

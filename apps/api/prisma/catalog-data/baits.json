@@ -1,0 +1,1001 @@
+{
+  "schemaVersion": 1,
+  "baits": [
+    {
+      "name": "Боил",
+      "type": "BAIT"
+    },
+    {
+      "name": "Большой живец",
+      "type": "BAIT"
+    },
+    {
+      "name": "Выползок",
+      "type": "BAIT"
+    },
+    {
+      "name": "Геркулес",
+      "type": "BAIT"
+    },
+    {
+      "name": "Головастик",
+      "type": "BAIT"
+    },
+    {
+      "name": "Горошек",
+      "type": "BAIT"
+    },
+    {
+      "name": "Гусеница Бражника",
+      "type": "BAIT"
+    },
+    {
+      "name": "Живец",
+      "type": "BAIT"
+    },
+    {
+      "name": "Живец (перехват)",
+      "type": "BAIT"
+    },
+    {
+      "name": "Жук",
+      "type": "BAIT"
+    },
+    {
+      "name": "Зелень",
+      "type": "BAIT"
+    },
+    {
+      "name": "Икра",
+      "type": "BAIT"
+    },
+    {
+      "name": "Капуста",
+      "type": "BAIT"
+    },
+    {
+      "name": "Картофель",
+      "type": "BAIT"
+    },
+    {
+      "name": "Крабовое мясо",
+      "type": "BAIT"
+    },
+    {
+      "name": "Креветка",
+      "type": "BAIT"
+    },
+    {
+      "name": "Кузнечик",
+      "type": "BAIT"
+    },
+    {
+      "name": "Кукуруза",
+      "type": "BAIT"
+    },
+    {
+      "name": "Кусочки мяса",
+      "type": "BAIT"
+    },
+    {
+      "name": "Кусочки рыбы",
+      "type": "BAIT"
+    },
+    {
+      "name": "Кусочки топи",
+      "type": "BAIT"
+    },
+    {
+      "name": "Личинка короеда",
+      "type": "BAIT"
+    },
+    {
+      "name": "Лягушка",
+      "type": "BAIT"
+    },
+    {
+      "name": "Макароны",
+      "type": "BAIT"
+    },
+    {
+      "name": "Макуха",
+      "type": "BAIT"
+    },
+    {
+      "name": "Манка",
+      "type": "BAIT"
+    },
+    {
+      "name": "Мидия",
+      "type": "BAIT"
+    },
+    {
+      "name": "Минога",
+      "type": "BAIT"
+    },
+    {
+      "name": "Моллюск",
+      "type": "BAIT"
+    },
+    {
+      "name": "Морской гребешок",
+      "type": "BAIT"
+    },
+    {
+      "name": "Морской червь",
+      "type": "BAIT"
+    },
+    {
+      "name": "Мотыль",
+      "type": "BAIT"
+    },
+    {
+      "name": "Муха",
+      "type": "BAIT"
+    },
+    {
+      "name": "Мясо ампулярии",
+      "type": "BAIT"
+    },
+    {
+      "name": "Мясо глаукуса",
+      "type": "BAIT"
+    },
+    {
+      "name": "Мясо глубинного краба",
+      "type": "BAIT"
+    },
+    {
+      "name": "Мясо голубой линкии",
+      "type": "BAIT"
+    },
+    {
+      "name": "Мясо кальмара",
+      "type": "BAIT"
+    },
+    {
+      "name": "Мясо каракатицы",
+      "type": "BAIT"
+    },
+    {
+      "name": "Мясо лобстера",
+      "type": "BAIT"
+    },
+    {
+      "name": "Мясо лямбиса",
+      "type": "BAIT"
+    },
+    {
+      "name": "Мясо осьминога",
+      "type": "BAIT"
+    },
+    {
+      "name": "Мясо прудовика",
+      "type": "BAIT"
+    },
+    {
+      "name": "Мясо ракушки",
+      "type": "BAIT"
+    },
+    {
+      "name": "Мясо рапаны",
+      "type": "BAIT"
+    },
+    {
+      "name": "Мясо тасманского краба",
+      "type": "BAIT"
+    },
+    {
+      "name": "Мясо тасманского рака",
+      "type": "BAIT"
+    },
+    {
+      "name": "Мясо шашеня",
+      "type": "BAIT"
+    },
+    {
+      "name": "Опарыш",
+      "type": "BAIT"
+    },
+    {
+      "name": "Перловка",
+      "type": "BAIT"
+    },
+    {
+      "name": "Пиранья",
+      "type": "BAIT"
+    },
+    {
+      "name": "Пиявка",
+      "type": "BAIT"
+    },
+    {
+      "name": "Поденка",
+      "type": "BAIT"
+    },
+    {
+      "name": "Помидоры",
+      "type": "BAIT"
+    },
+    {
+      "name": "Раковая шейка",
+      "type": "BAIT"
+    },
+    {
+      "name": "Ручейник",
+      "type": "BAIT"
+    },
+    {
+      "name": "Сырный кубик",
+      "type": "BAIT"
+    },
+    {
+      "name": "Тасманская носатка",
+      "type": "BAIT"
+    },
+    {
+      "name": "Тасманская скорпионница",
+      "type": "BAIT"
+    },
+    {
+      "name": "Тесто",
+      "type": "BAIT"
+    },
+    {
+      "name": "Улитка",
+      "type": "BAIT"
+    },
+    {
+      "name": "Устрица",
+      "type": "BAIT"
+    },
+    {
+      "name": "Хирономида",
+      "type": "BAIT"
+    },
+    {
+      "name": "Хлеб",
+      "type": "BAIT"
+    },
+    {
+      "name": "Цикада зеленая",
+      "type": "BAIT"
+    },
+    {
+      "name": "Цикада розовая",
+      "type": "BAIT"
+    },
+    {
+      "name": "Червь",
+      "type": "BAIT"
+    },
+    {
+      "name": "Эвкалиптовый усач",
+      "type": "BAIT"
+    },
+    {
+      "name": "Propeller-01",
+      "type": "LURE"
+    },
+    {
+      "name": "Propeller-02",
+      "type": "LURE"
+    },
+    {
+      "name": "Propeller-03",
+      "type": "LURE"
+    },
+    {
+      "name": "Propeller-04",
+      "type": "LURE"
+    },
+    {
+      "name": "Propeller-05",
+      "type": "LURE"
+    },
+    {
+      "name": "Propeller-06",
+      "type": "LURE"
+    },
+    {
+      "name": "Propeller-07",
+      "type": "LURE"
+    },
+    {
+      "name": "Propeller-08",
+      "type": "LURE"
+    },
+    {
+      "name": "Propeller-09",
+      "type": "LURE"
+    },
+    {
+      "name": "Propeller-10",
+      "type": "LURE"
+    },
+    {
+      "name": "Propeller-11",
+      "type": "LURE"
+    },
+    {
+      "name": "Propeller-12",
+      "type": "LURE"
+    },
+    {
+      "name": "Propeller-13",
+      "type": "LURE"
+    },
+    {
+      "name": "Propeller-14",
+      "type": "LURE"
+    },
+    {
+      "name": "Propeller-15",
+      "type": "LURE"
+    },
+    {
+      "name": "Circl-5000",
+      "type": "LURE"
+    },
+    {
+      "name": "Circl-5055",
+      "type": "LURE"
+    },
+    {
+      "name": "Circl-5100",
+      "type": "LURE"
+    },
+    {
+      "name": "Circl-5103",
+      "type": "LURE"
+    },
+    {
+      "name": "Circl-5105",
+      "type": "LURE"
+    },
+    {
+      "name": "Circl-5106",
+      "type": "LURE"
+    },
+    {
+      "name": "Circl-5107",
+      "type": "LURE"
+    },
+    {
+      "name": "Circl-5108",
+      "type": "LURE"
+    },
+    {
+      "name": "Circl-5109",
+      "type": "LURE"
+    },
+    {
+      "name": "Circl-5110",
+      "type": "LURE"
+    },
+    {
+      "name": "Circl-5111",
+      "type": "LURE"
+    },
+    {
+      "name": "Circl-5112",
+      "type": "LURE"
+    },
+    {
+      "name": "Circl-5113",
+      "type": "LURE"
+    },
+    {
+      "name": "Circl-5114",
+      "type": "LURE"
+    },
+    {
+      "name": "Circl-5115",
+      "type": "LURE"
+    },
+    {
+      "name": "Circl-5116",
+      "type": "LURE"
+    },
+    {
+      "name": "Tvis-100",
+      "type": "LURE"
+    },
+    {
+      "name": "Tvis-101",
+      "type": "LURE"
+    },
+    {
+      "name": "Tvis-102",
+      "type": "LURE"
+    },
+    {
+      "name": "Tvis-103",
+      "type": "LURE"
+    },
+    {
+      "name": "Tvis-104",
+      "type": "LURE"
+    },
+    {
+      "name": "Tvis-105",
+      "type": "LURE"
+    },
+    {
+      "name": "Tvis-106",
+      "type": "LURE"
+    },
+    {
+      "name": "Tvis-107",
+      "type": "LURE"
+    },
+    {
+      "name": "Tvis-108",
+      "type": "LURE"
+    },
+    {
+      "name": "Tvis-119",
+      "type": "LURE"
+    },
+    {
+      "name": "Vib-6000",
+      "type": "LURE"
+    },
+    {
+      "name": "Vib-6002",
+      "type": "LURE"
+    },
+    {
+      "name": "Vib-6003",
+      "type": "LURE"
+    },
+    {
+      "name": "Vib-6004",
+      "type": "LURE"
+    },
+    {
+      "name": "Vib-6005",
+      "type": "LURE"
+    },
+    {
+      "name": "Vib-6006",
+      "type": "LURE"
+    },
+    {
+      "name": "Vib-6007",
+      "type": "LURE"
+    },
+    {
+      "name": "Vib-6008",
+      "type": "LURE"
+    },
+    {
+      "name": "Vib-6009",
+      "type": "LURE"
+    },
+    {
+      "name": "Vib-6010",
+      "type": "LURE"
+    },
+    {
+      "name": "Vib-6011",
+      "type": "LURE"
+    },
+    {
+      "name": "Vib-6012",
+      "type": "LURE"
+    },
+    {
+      "name": "Vib-6013",
+      "type": "LURE"
+    },
+    {
+      "name": "Vib-6014",
+      "type": "LURE"
+    },
+    {
+      "name": "Vib-6015",
+      "type": "LURE"
+    },
+    {
+      "name": "Vib-6016",
+      "type": "LURE"
+    },
+    {
+      "name": "Vob-3000",
+      "type": "LURE"
+    },
+    {
+      "name": "Vob-3001",
+      "type": "LURE"
+    },
+    {
+      "name": "Vob-3002",
+      "type": "LURE"
+    },
+    {
+      "name": "Vob-3003",
+      "type": "LURE"
+    },
+    {
+      "name": "Vob-3004",
+      "type": "LURE"
+    },
+    {
+      "name": "Vob-3005",
+      "type": "LURE"
+    },
+    {
+      "name": "Vob-3006",
+      "type": "LURE"
+    },
+    {
+      "name": "Vob-3007",
+      "type": "LURE"
+    },
+    {
+      "name": "Vob-3008",
+      "type": "LURE"
+    },
+    {
+      "name": "Vob-3009",
+      "type": "LURE"
+    },
+    {
+      "name": "Vob-3010",
+      "type": "LURE"
+    },
+    {
+      "name": "Vob-3011",
+      "type": "LURE"
+    },
+    {
+      "name": "Vob-3012",
+      "type": "LURE"
+    },
+    {
+      "name": "Vob-3013",
+      "type": "LURE"
+    },
+    {
+      "name": "Vob-3014",
+      "type": "LURE"
+    },
+    {
+      "name": "Vob-3015",
+      "type": "LURE"
+    },
+    {
+      "name": "Circl-baklan",
+      "type": "LURE"
+    },
+    {
+      "name": "Circl-chaika",
+      "type": "LURE"
+    },
+    {
+      "name": "Circl-kaira",
+      "type": "LURE"
+    },
+    {
+      "name": "Circl-moryanka",
+      "type": "LURE"
+    },
+    {
+      "name": "Circl-orlan",
+      "type": "LURE"
+    },
+    {
+      "name": "Circl-pomornik",
+      "type": "LURE"
+    },
+    {
+      "name": "Circl-sapsan",
+      "type": "LURE"
+    },
+    {
+      "name": "Circl-tupik",
+      "type": "LURE"
+    },
+    {
+      "name": "Hand made Plug 1",
+      "type": "LURE"
+    },
+    {
+      "name": "Hand made Plug 2",
+      "type": "LURE"
+    },
+    {
+      "name": "Hand made Plug 3",
+      "type": "LURE"
+    },
+    {
+      "name": "Hand made Plug 4",
+      "type": "LURE"
+    },
+    {
+      "name": "Hand made Plug 5",
+      "type": "LURE"
+    },
+    {
+      "name": "Hand made Plug 6",
+      "type": "LURE"
+    },
+    {
+      "name": "Foam-Black",
+      "type": "LURE"
+    },
+    {
+      "name": "Foam-Blue",
+      "type": "LURE"
+    },
+    {
+      "name": "Foam-Brown",
+      "type": "LURE"
+    },
+    {
+      "name": "Foam-Green",
+      "type": "LURE"
+    },
+    {
+      "name": "Foam-Pink",
+      "type": "LURE"
+    },
+    {
+      "name": "Foam-Red",
+      "type": "LURE"
+    },
+    {
+      "name": "Foam-White",
+      "type": "LURE"
+    },
+    {
+      "name": "Foam-Yellow",
+      "type": "LURE"
+    },
+    {
+      "name": "Deep-100",
+      "type": "LURE"
+    },
+    {
+      "name": "Deep-101",
+      "type": "LURE"
+    },
+    {
+      "name": "Deep-102",
+      "type": "LURE"
+    },
+    {
+      "name": "Deep-103",
+      "type": "LURE"
+    },
+    {
+      "name": "Deep-104",
+      "type": "LURE"
+    },
+    {
+      "name": "Deep-105",
+      "type": "LURE"
+    },
+    {
+      "name": "Deep-106",
+      "type": "LURE"
+    },
+    {
+      "name": "Deep-107",
+      "type": "LURE"
+    },
+    {
+      "name": "Deep-108",
+      "type": "LURE"
+    },
+    {
+      "name": "Deep-109",
+      "type": "LURE"
+    },
+    {
+      "name": "Deep-110",
+      "type": "LURE"
+    },
+    {
+      "name": "Deep-111",
+      "type": "LURE"
+    },
+    {
+      "name": "Deep-112",
+      "type": "LURE"
+    },
+    {
+      "name": "Deep-113",
+      "type": "LURE"
+    },
+    {
+      "name": "Deep-114",
+      "type": "LURE"
+    },
+    {
+      "name": "Deep-115",
+      "type": "LURE"
+    },
+    {
+      "name": "Pilk-100",
+      "type": "LURE"
+    },
+    {
+      "name": "Pilk-101",
+      "type": "LURE"
+    },
+    {
+      "name": "Pilk-102",
+      "type": "LURE"
+    },
+    {
+      "name": "Pilk-103",
+      "type": "LURE"
+    },
+    {
+      "name": "Pilk-104",
+      "type": "LURE"
+    },
+    {
+      "name": "Pilk-105",
+      "type": "LURE"
+    },
+    {
+      "name": "Pilk-106",
+      "type": "LURE"
+    },
+    {
+      "name": "Pilk-107",
+      "type": "LURE"
+    },
+    {
+      "name": "Pilk-108",
+      "type": "LURE"
+    },
+    {
+      "name": "Pilk-109",
+      "type": "LURE"
+    },
+    {
+      "name": "Pilk-110",
+      "type": "LURE"
+    },
+    {
+      "name": "Pilk-111",
+      "type": "LURE"
+    },
+    {
+      "name": "Pilk-112",
+      "type": "LURE"
+    },
+    {
+      "name": "Pilk-113",
+      "type": "LURE"
+    },
+    {
+      "name": "Pilk-114",
+      "type": "LURE"
+    },
+    {
+      "name": "Pilk-115",
+      "type": "LURE"
+    },
+    {
+      "name": "Pilk-116",
+      "type": "LURE"
+    },
+    {
+      "name": "Pilk-117",
+      "type": "LURE"
+    },
+    {
+      "name": "Pilk-118",
+      "type": "LURE"
+    },
+    {
+      "name": "Vib-bluecancer",
+      "type": "LURE"
+    },
+    {
+      "name": "Vib-crab",
+      "type": "LURE"
+    },
+    {
+      "name": "Vib-mussel",
+      "type": "LURE"
+    },
+    {
+      "name": "Vib-oyster",
+      "type": "LURE"
+    },
+    {
+      "name": "Vib-pearl",
+      "type": "LURE"
+    },
+    {
+      "name": "Vib-rapan",
+      "type": "LURE"
+    },
+    {
+      "name": "X-Tail-01",
+      "type": "LURE"
+    },
+    {
+      "name": "X-Tail-02",
+      "type": "LURE"
+    },
+    {
+      "name": "X-Tail-03",
+      "type": "LURE"
+    },
+    {
+      "name": "X-Tail-04",
+      "type": "LURE"
+    },
+    {
+      "name": "X-Tail-05",
+      "type": "LURE"
+    },
+    {
+      "name": "X-Tail-06",
+      "type": "LURE"
+    },
+    {
+      "name": "X-Tail-07",
+      "type": "LURE"
+    },
+    {
+      "name": "X-Tail-08",
+      "type": "LURE"
+    },
+    {
+      "name": "X-Tail-09",
+      "type": "LURE"
+    },
+    {
+      "name": "X-Tail-10",
+      "type": "LURE"
+    },
+    {
+      "name": "X-Tail-11",
+      "type": "LURE"
+    },
+    {
+      "name": "X-Tail-12",
+      "type": "LURE"
+    },
+    {
+      "name": "X-Tail-13",
+      "type": "LURE"
+    },
+    {
+      "name": "X-Tail-14",
+      "type": "LURE"
+    },
+    {
+      "name": "X-Tail-15",
+      "type": "LURE"
+    },
+    {
+      "name": "X-Tail-16",
+      "type": "LURE"
+    },
+    {
+      "name": "X-Tail-17",
+      "type": "LURE"
+    },
+    {
+      "name": "X-Tail-18",
+      "type": "LURE"
+    },
+    {
+      "name": "Creatures-01",
+      "type": "LURE"
+    },
+    {
+      "name": "Creatures-02",
+      "type": "LURE"
+    },
+    {
+      "name": "Creatures-03",
+      "type": "LURE"
+    },
+    {
+      "name": "Creatures-04",
+      "type": "LURE"
+    },
+    {
+      "name": "Creatures-05",
+      "type": "LURE"
+    },
+    {
+      "name": "Creatures-06",
+      "type": "LURE"
+    },
+    {
+      "name": "Creatures-07",
+      "type": "LURE"
+    },
+    {
+      "name": "Creatures-08",
+      "type": "LURE"
+    },
+    {
+      "name": "Creatures-09",
+      "type": "LURE"
+    },
+    {
+      "name": "Creatures-10",
+      "type": "LURE"
+    },
+    {
+      "name": "Creatures-11",
+      "type": "LURE"
+    },
+    {
+      "name": "Creatures-12",
+      "type": "LURE"
+    },
+    {
+      "name": "Creatures-13",
+      "type": "LURE"
+    },
+    {
+      "name": "Creatures-14",
+      "type": "LURE"
+    },
+    {
+      "name": "Creatures-15",
+      "type": "LURE"
+    },
+    {
+      "name": "Creatures-16",
+      "type": "LURE"
+    },
+    {
+      "name": "Creatures-17",
+      "type": "LURE"
+    },
+    {
+      "name": "PopperPlug-1",
+      "type": "LURE"
+    },
+    {
+      "name": "PopperPlug-2",
+      "type": "LURE"
+    },
+    {
+      "name": "PopperPlug-3",
+      "type": "LURE"
+    },
+    {
+      "name": "PopperPlug-4",
+      "type": "LURE"
+    },
+    {
+      "name": "PopperPlug-5",
+      "type": "LURE"
+    },
+    {
+      "name": "Waterplane-1",
+      "type": "LURE"
+    },
+    {
+      "name": "Waterplane-2",
+      "type": "LURE"
+    },
+    {
+      "name": "Waterplane-3",
+      "type": "LURE"
+    },
+    {
+      "name": "Waterplane-4",
+      "type": "LURE"
+    },
+    {
+      "name": "Waterplane-5",
+      "type": "LURE"
+    }
+  ]
+}

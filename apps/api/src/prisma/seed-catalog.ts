@@ -1,12 +1,13 @@
 import 'dotenv/config';
 import { pathToFileURL } from 'node:url';
 import { PrismaClient } from '../generated/prisma/client.js';
-import { REAL_CATALOG_DATA } from './catalog-seed-data.js';
+import { REAL_CATALOG_DATA, assertAuthoritativeCatalogCounts } from './catalog-seed-data.js';
 import { seedCatalog, validateCatalogSeedData } from './catalog-seed.js';
 import { createPrismaAdapter } from './prisma-adapter.js';
 
 export async function runCatalogSeed(environment: NodeJS.ProcessEnv = process.env): Promise<void> {
   // Validate the complete static dataset before even constructing a database client.
+  assertAuthoritativeCatalogCounts(REAL_CATALOG_DATA);
   validateCatalogSeedData(REAL_CATALOG_DATA);
 
   const databaseUrl = environment.DATABASE_URL;
