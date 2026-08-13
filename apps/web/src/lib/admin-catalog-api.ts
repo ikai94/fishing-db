@@ -12,6 +12,8 @@ type AdminCatalogEntity = {
 };
 
 export type AdminFishingBase = AdminCatalogEntity;
+export type AdminFish = AdminCatalogEntity;
+export type AdminScreenAnchor = AdminCatalogEntity;
 
 export type AdminLocation = AdminCatalogEntity & {
   fishingBaseId: string;
@@ -22,21 +24,20 @@ export type AdminLocationSummary = AdminCatalogEntity & {
   number: number;
 };
 
-export type AdminFishingBaseDetail = AdminFishingBase & {
-  locations: AdminLocationSummary[];
-};
-
-export type AdminFish = AdminCatalogEntity;
-
-export type AdminBait = AdminCatalogEntity & {
-  type: BaitType;
-};
-
-export type AdminLocationFish = {
+export type AdminFishingBaseFish = {
   id: string;
   name: string;
   isActive: boolean;
   relationCreatedAt: string;
+};
+
+export type AdminFishingBaseDetail = AdminFishingBase & {
+  locations: AdminLocationSummary[];
+  fish: AdminFishingBaseFish[];
+};
+
+export type AdminBait = AdminCatalogEntity & {
+  type: BaitType;
 };
 
 export type AdminLocationDetail = AdminLocation & {
@@ -45,7 +46,6 @@ export type AdminLocationDetail = AdminLocation & {
     name: string;
     isActive: boolean;
   };
-  fish: AdminLocationFish[];
 };
 
 export type CreateFishingBaseInput = { name: string };
@@ -56,15 +56,21 @@ export type CreateFishInput = { name: string };
 export type UpdateFishInput = { name?: string; isActive?: boolean };
 export type CreateBaitInput = { name: string; type: BaitType };
 export type UpdateBaitInput = { name?: string; type?: BaitType; isActive?: boolean };
+export type CreateScreenAnchorInput = { name: string };
+export type UpdateScreenAnchorInput = { name?: string; isActive?: boolean };
 
-export type LocationFishRelation = {
-  locationId: string;
+export type FishingBaseFishRelation = {
+  fishingBaseId: string;
   fishId: string;
   createdAt: string;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function invalidResponse(): never {
+  throw new Error('Сервер вернул некорректный ответ административного каталога');
 }
 
 function readAdminEntity(value: unknown): AdminCatalogEntity {
@@ -76,7 +82,7 @@ function readAdminEntity(value: unknown): AdminCatalogEntity {
     typeof value.createdAt !== 'string' ||
     typeof value.updatedAt !== 'string'
   ) {
-    throw new Error('Сервер вернул некорректный ответ административного каталога');
+    invalidResponse();
   }
 
   return {
@@ -88,35 +94,31 @@ function readAdminEntity(value: unknown): AdminCatalogEntity {
   };
 }
 
-function readLocation(value: unknown): AdminLocation {
-  const location = readLocationSummary(value);
-
-  if (!isRecord(value) || typeof value.fishingBaseId !== 'string') {
-    throw new Error('Сервер вернул некорректный ответ административного каталога');
-  }
-
-  return { ...location, fishingBaseId: value.fishingBaseId };
-}
-
 function readLocationSummary(value: unknown): AdminLocationSummary {
   const entity = readAdminEntity(value);
 
   if (!isRecord(value) || typeof value.number !== 'number' || !Number.isInteger(value.number)) {
-    throw new Error('Сервер вернул некорректный ответ административного каталога');
+    invalidResponse();
   }
 
   return { ...entity, number: value.number };
 }
 
-function readFish(value: unknown): AdminFish {
-  return readAdminEntity(value);
+function readLocation(value: unknown): AdminLocation {
+  const location = readLocationSummary(value);
+
+  if (!isRecord(value) || typeof value.fishingBaseId !== 'string') {
+    invalidResponse();
+  }
+
+  return { ...location, fishingBaseId: value.fishingBaseId };
 }
 
 function readBait(value: unknown): AdminBait {
   const entity = readAdminEntity(value);
 
   if (!isRecord(value) || (value.type !== 'BAIT' && value.type !== 'LURE')) {
-    throw new Error('Сервер вернул некорректный ответ административного каталога');
+    invalidResponse();
   }
 
   return { ...entity, type: value.type };
@@ -124,7 +126,7 @@ function readBait(value: unknown): AdminBait {
 
 function readItems<T>(payload: unknown, reader: (value: unknown) => T): T[] {
   if (!isRecord(payload) || !Array.isArray(payload.items)) {
-    throw new Error('Сервер вернул некорректный ответ административного каталога');
+    invalidResponse();
   }
 
   return payload.items.map(reader);
@@ -132,72 +134,76 @@ function readItems<T>(payload: unknown, reader: (value: unknown) => T): T[] {
 
 function readEntityResponse<T>(
   payload: unknown,
-  field: 'base' | 'location' | 'fish' | 'bait',
+  field: 'base' | 'location' | 'fish' | 'bait' | 'screenAnchor',
   reader: (value: unknown) => T,
 ): T {
   if (!isRecord(payload)) {
-    throw new Error('Сервер вернул некорректный ответ административного каталога');
+    invalidResponse();
   }
 
   return reader(payload[field]);
 }
 
+function readFishingBaseFish(value: unknown): AdminFishingBaseFish {
+  if (
+    !isRecord(value) ||
+    typeof value.id !== 'string' ||
+    typeof value.name !== 'string' ||
+    typeof value.isActive !== 'boolean' ||
+    typeof value.relationCreatedAt !== 'string'
+  ) {
+    invalidResponse();
+  }
+
+  return {
+    id: value.id,
+    name: value.name,
+    isActive: value.isActive,
+    relationCreatedAt: value.relationCreatedAt,
+  };
+}
+
 function readFishingBaseDetail(payload: unknown): AdminFishingBaseDetail {
-  if (!isRecord(payload) || !isRecord(payload.base) || !Array.isArray(payload.base.locations)) {
-    throw new Error('Сервер вернул некорректный ответ административного каталога');
+  if (
+    !isRecord(payload) ||
+    !isRecord(payload.base) ||
+    !Array.isArray(payload.base.locations) ||
+    !Array.isArray(payload.base.fish)
+  ) {
+    invalidResponse();
   }
 
   return {
     ...readAdminEntity(payload.base),
     locations: payload.base.locations.map(readLocationSummary),
+    fish: payload.base.fish.map(readFishingBaseFish),
   };
 }
 
 function readLocationDetail(payload: unknown): AdminLocationDetail {
-  if (
-    !isRecord(payload) ||
-    !isRecord(payload.location) ||
-    !isRecord(payload.location.fishingBase) ||
-    !Array.isArray(payload.location.fish)
-  ) {
-    throw new Error('Сервер вернул некорректный ответ административного каталога');
+  if (!isRecord(payload) || !isRecord(payload.location)) {
+    invalidResponse();
   }
 
-  const fishingBase = payload.location.fishingBase;
+  const location = payload.location;
+  const fishingBase = location.fishingBase;
 
   if (
+    !isRecord(fishingBase) ||
     typeof fishingBase.id !== 'string' ||
     typeof fishingBase.name !== 'string' ||
     typeof fishingBase.isActive !== 'boolean'
   ) {
-    throw new Error('Сервер вернул некорректный ответ административного каталога');
+    invalidResponse();
   }
 
   return {
-    ...readLocation(payload.location),
+    ...readLocation(location),
     fishingBase: {
       id: fishingBase.id,
       name: fishingBase.name,
       isActive: fishingBase.isActive,
     },
-    fish: payload.location.fish.map((value): AdminLocationFish => {
-      if (
-        !isRecord(value) ||
-        typeof value.id !== 'string' ||
-        typeof value.name !== 'string' ||
-        typeof value.isActive !== 'boolean' ||
-        typeof value.relationCreatedAt !== 'string'
-      ) {
-        throw new Error('Сервер вернул некорректный ответ административного каталога');
-      }
-
-      return {
-        id: value.id,
-        name: value.name,
-        isActive: value.isActive,
-        relationCreatedAt: value.relationCreatedAt,
-      };
-    }),
   };
 }
 
@@ -284,7 +290,7 @@ export async function listAdminFish(
   const payload = await apiRequest<unknown>(`/admin/catalog/fish${statusQuery(status)}`, {
     signal,
   });
-  return readItems(payload, readFish);
+  return readItems(payload, readAdminEntity);
 }
 
 export async function createFish(input: CreateFishInput): Promise<AdminFish> {
@@ -292,7 +298,7 @@ export async function createFish(input: CreateFishInput): Promise<AdminFish> {
     method: 'POST',
     body: JSON.stringify(input),
   });
-  return readEntityResponse(payload, 'fish', readFish);
+  return readEntityResponse(payload, 'fish', readAdminEntity);
 }
 
 export async function updateFish(fishId: string, input: UpdateFishInput): Promise<AdminFish> {
@@ -300,7 +306,7 @@ export async function updateFish(fishId: string, input: UpdateFishInput): Promis
     method: 'PATCH',
     body: JSON.stringify(input),
   });
-  return readEntityResponse(payload, 'fish', readFish);
+  return readEntityResponse(payload, 'fish', readAdminEntity);
 }
 
 export async function listAdminBaits(
@@ -329,39 +335,73 @@ export async function updateBait(baitId: string, input: UpdateBaitInput): Promis
   return readEntityResponse(payload, 'bait', readBait);
 }
 
-export async function addFishToLocation(
-  locationId: string,
+export async function addFishToFishingBase(
+  fishingBaseId: string,
   fishId: string,
-): Promise<LocationFishRelation> {
+): Promise<FishingBaseFishRelation> {
   const payload = await apiRequest<unknown>(
-    `/admin/catalog/locations/${encodeURIComponent(locationId)}/fish`,
+    `/admin/catalog/bases/${encodeURIComponent(fishingBaseId)}/fish`,
     { method: 'POST', body: JSON.stringify({ fishId }) },
   );
 
-  if (!isRecord(payload) || !isRecord(payload.locationFish)) {
-    throw new Error('Сервер вернул некорректный ответ административного каталога');
+  if (!isRecord(payload) || !isRecord(payload.fishingBaseFish)) {
+    invalidResponse();
   }
 
-  const relation = payload.locationFish;
+  const relation = payload.fishingBaseFish;
 
   if (
-    typeof relation.locationId !== 'string' ||
+    typeof relation.fishingBaseId !== 'string' ||
     typeof relation.fishId !== 'string' ||
     typeof relation.createdAt !== 'string'
   ) {
-    throw new Error('Сервер вернул некорректный ответ административного каталога');
+    invalidResponse();
   }
 
   return {
-    locationId: relation.locationId,
+    fishingBaseId: relation.fishingBaseId,
     fishId: relation.fishId,
     createdAt: relation.createdAt,
   };
 }
 
-export async function removeFishFromLocation(locationId: string, fishId: string): Promise<void> {
+export async function removeFishFromFishingBase(
+  fishingBaseId: string,
+  fishId: string,
+): Promise<void> {
   await apiRequest<void>(
-    `/admin/catalog/locations/${encodeURIComponent(locationId)}/fish/${encodeURIComponent(fishId)}`,
+    `/admin/catalog/bases/${encodeURIComponent(fishingBaseId)}/fish/${encodeURIComponent(fishId)}`,
     { method: 'DELETE' },
   );
+}
+
+export async function listAdminScreenAnchors(
+  status: CatalogStatus = 'all',
+  signal?: AbortSignal,
+): Promise<AdminScreenAnchor[]> {
+  const payload = await apiRequest<unknown>(`/admin/catalog/screen-anchors${statusQuery(status)}`, {
+    signal,
+  });
+  return readItems(payload, readAdminEntity);
+}
+
+export async function createScreenAnchor(
+  input: CreateScreenAnchorInput,
+): Promise<AdminScreenAnchor> {
+  const payload = await apiRequest<unknown>('/admin/catalog/screen-anchors', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+  return readEntityResponse(payload, 'screenAnchor', readAdminEntity);
+}
+
+export async function updateScreenAnchor(
+  screenAnchorId: string,
+  input: UpdateScreenAnchorInput,
+): Promise<AdminScreenAnchor> {
+  const payload = await apiRequest<unknown>(
+    `/admin/catalog/screen-anchors/${encodeURIComponent(screenAnchorId)}`,
+    { method: 'PATCH', body: JSON.stringify(input) },
+  );
+  return readEntityResponse(payload, 'screenAnchor', readAdminEntity);
 }

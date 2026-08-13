@@ -19,19 +19,27 @@ enum BaitType {
   LURE
 }
 
-enum SpotLandmark {
-  ROD
-  NOTEBOOK
-  BACKPACK
-  REEL
-  CHAT
-  TACKLE
-}
-
 enum FishingNote {
   MIDWATER
   FROM_BOTTOM
   SURFACE
+}
+
+enum FishingMethod {
+  BAIT_FISHING
+  SPINNING
+}
+
+enum SpinningSize {
+  SMALL
+  MEDIUM
+  LARGE
+}
+
+enum SpinningSpeed {
+  SLOW
+  MEDIUM
+  FAST
 }
 
 model User {
@@ -61,26 +69,26 @@ model Session {
 }
 
 model FishingBase {
-  id             String     @id @default(uuid()) @db.Uuid
-  name           String     @db.VarChar(128)
-  nameNormalized String     @unique @db.VarChar(128)
-  isActive       Boolean    @default(true)
-  createdAt      DateTime   @default(now()) @db.Timestamptz(3)
-  updatedAt      DateTime   @default(now()) @updatedAt @db.Timestamptz(3)
+  id             String            @id @default(uuid()) @db.Uuid
+  name           String            @db.VarChar(128)
+  nameNormalized String            @unique @db.VarChar(128)
+  isActive       Boolean           @default(true)
+  createdAt      DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime          @default(now()) @updatedAt @db.Timestamptz(3)
   locations      Location[]
+  fishLinks      FishingBaseFish[]
 }
 
 model Location {
-  id             String         @id @default(uuid()) @db.Uuid
-  fishingBaseId  String         @db.Uuid
+  id             String        @id @default(uuid()) @db.Uuid
+  fishingBaseId  String        @db.Uuid
   number         Int
-  name           String         @db.VarChar(128)
-  nameNormalized String         @db.VarChar(128)
-  isActive       Boolean        @default(true)
-  createdAt      DateTime       @default(now()) @db.Timestamptz(3)
-  updatedAt      DateTime       @default(now()) @updatedAt @db.Timestamptz(3)
-  fishingBase    FishingBase    @relation(fields: [fishingBaseId], references: [id], onDelete: Restrict)
-  fishLinks      LocationFish[]
+  name           String        @db.VarChar(128)
+  nameNormalized String        @db.VarChar(128)
+  isActive       Boolean       @default(true)
+  createdAt      DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime      @default(now()) @updatedAt @db.Timestamptz(3)
+  fishingBase    FishingBase   @relation(fields: [fishingBaseId], references: [id], onDelete: Restrict)
   catchReports   CatchReport[]
 
   @@unique([fishingBaseId, number])
@@ -88,14 +96,14 @@ model Location {
 }
 
 model Fish {
-  id             String         @id @default(uuid()) @db.Uuid
-  name           String         @db.VarChar(128)
-  nameNormalized String         @unique @db.VarChar(128)
-  isActive       Boolean        @default(true)
-  createdAt      DateTime       @default(now()) @db.Timestamptz(3)
-  updatedAt      DateTime       @default(now()) @updatedAt @db.Timestamptz(3)
-  locationLinks  LocationFish[]
-  catchReports   CatchReport[]
+  id               String            @id @default(uuid()) @db.Uuid
+  name             String            @db.VarChar(128)
+  nameNormalized   String            @unique @db.VarChar(128)
+  isActive         Boolean           @default(true)
+  createdAt        DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime          @default(now()) @updatedAt @db.Timestamptz(3)
+  fishingBaseLinks FishingBaseFish[]
+  catchReports     CatchReport[]
 }
 
 model Bait {
@@ -109,34 +117,47 @@ model Bait {
   catchReports   CatchReport[]
 }
 
-model LocationFish {
-  locationId String   @db.Uuid
-  fishId     String   @db.Uuid
-  createdAt  DateTime @default(now()) @db.Timestamptz(3)
-  location   Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
-  fish       Fish     @relation(fields: [fishId], references: [id], onDelete: Restrict)
+model FishingBaseFish {
+  fishingBaseId String      @db.Uuid
+  fishId        String      @db.Uuid
+  createdAt     DateTime    @default(now()) @db.Timestamptz(3)
+  fishingBase   FishingBase @relation(fields: [fishingBaseId], references: [id], onDelete: Restrict)
+  fish          Fish        @relation(fields: [fishId], references: [id], onDelete: Restrict)
 
-  @@id([locationId, fishId])
+  @@id([fishingBaseId, fishId])
   @@index([fishId])
 }
 
+model ScreenAnchor {
+  id             String   @id @default(uuid()) @db.Uuid
+  name           String   @db.VarChar(128)
+  nameNormalized String   @unique @db.VarChar(128)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime @default(now()) @updatedAt @db.Timestamptz(3)
+}
+
 model CatchReport {
-  id           String        @id @default(uuid()) @db.Uuid
-  userId       String        @db.Uuid
-  locationId   String        @db.Uuid
-  fishId       String        @db.Uuid
-  baitId       String        @db.Uuid
-  weightGrams  Int
-  holeDepthCm  Int?
-  spotLandmark SpotLandmark?
-  fishingNote  FishingNote?
-  userNoteRaw  String?       @db.VarChar(1000)
-  createdAt    DateTime      @default(now()) @db.Timestamptz(3)
-  updatedAt    DateTime      @default(now()) @updatedAt @db.Timestamptz(3)
-  user         User          @relation(fields: [userId], references: [id], onDelete: Restrict)
-  location     Location      @relation(fields: [locationId], references: [id], onDelete: Restrict)
-  fish         Fish          @relation(fields: [fishId], references: [id], onDelete: Restrict)
-  bait         Bait          @relation(fields: [baitId], references: [id], onDelete: Restrict)
+  id              String         @id @default(uuid()) @db.Uuid
+  userId          String         @db.Uuid
+  locationId      String         @db.Uuid
+  fishId          String         @db.Uuid
+  baitId          String         @db.Uuid
+  weightGrams     Int
+  fishingMethod   FishingMethod
+  holeDepthCm     Int?
+  spotPositionRaw String?        @db.VarChar(1000)
+  fishingNote     FishingNote?
+  spinningSize    SpinningSize?
+  spinningSpeed   SpinningSpeed?
+  userNoteRaw     String?        @db.VarChar(1000)
+  rawSourceText   String?        @db.Text
+  createdAt       DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime       @default(now()) @updatedAt @db.Timestamptz(3)
+  user            User           @relation(fields: [userId], references: [id], onDelete: Restrict)
+  location        Location       @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  fish            Fish           @relation(fields: [fishId], references: [id], onDelete: Restrict)
+  bait            Bait           @relation(fields: [baitId], references: [id], onDelete: Restrict)
 
   @@index([createdAt(sort: Desc), id(sort: Desc)])
   @@index([userId, createdAt(sort: Desc), id(sort: Desc)])

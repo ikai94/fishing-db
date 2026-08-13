@@ -135,6 +135,9 @@ export default function AdminCatalogLayout({ children }: Readonly<{ children: Re
             <Link className={styles.link} href="/admin/catalog/baits">
               Наживки
             </Link>
+            <Link className={styles.link} href="/admin/catalog/screen-anchors">
+              Ориентиры
+            </Link>
             <Link className={styles.link} href="/account">
               {state.user.nickname}
             </Link>

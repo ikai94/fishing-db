@@ -17,23 +17,26 @@ import { AuthGuard } from '../auth/auth.guard.js';
 import { createApplicationValidationPipe } from '../common/validation/validation-exception.factory.js';
 import { CatalogAdminService } from './catalog-admin.service.js';
 import { CatalogQueryService } from './catalog-query.service.js';
-import { AddLocationFishDto } from './dto/add-location-fish.dto.js';
+import { AddFishingBaseFishDto } from './dto/add-fishing-base-fish.dto.js';
 import {
   BaitIdParamsDto,
   FishIdParamsDto,
+  FishingBaseFishParamsDto,
   FishingBaseIdParamsDto,
-  LocationFishParamsDto,
   LocationIdParamsDto,
+  ScreenAnchorIdParamsDto,
 } from './dto/catalog-params.dto.js';
 import { CatalogStatusQueryDto } from './dto/catalog-status-query.dto.js';
 import { CreateBaitDto } from './dto/create-bait.dto.js';
 import { CreateFishDto } from './dto/create-fish.dto.js';
 import { CreateFishingBaseDto } from './dto/create-fishing-base.dto.js';
 import { CreateLocationDto } from './dto/create-location.dto.js';
+import { CreateScreenAnchorDto } from './dto/create-screen-anchor.dto.js';
 import { UpdateBaitDto } from './dto/update-bait.dto.js';
 import { UpdateFishDto } from './dto/update-fish.dto.js';
 import { UpdateFishingBaseDto } from './dto/update-fishing-base.dto.js';
 import { UpdateLocationDto } from './dto/update-location.dto.js';
+import { UpdateScreenAnchorDto } from './dto/update-screen-anchor.dto.js';
 
 @Controller('admin/catalog')
 @UseGuards(AuthGuard, AdminGuard)
@@ -142,21 +145,46 @@ export class AdminCatalogController {
     return this.catalogAdmin.updateBait(params.baitId, dto);
   }
 
-  @Post('locations/:locationId/fish')
-  @HttpCode(HttpStatus.CREATED)
-  addFishToLocation(
-    @Param(createApplicationValidationPipe(LocationIdParamsDto)) params: LocationIdParamsDto,
-    @Body(createApplicationValidationPipe(AddLocationFishDto)) dto: AddLocationFishDto,
+  @Get('screen-anchors')
+  listScreenAnchors(
+    @Query(createApplicationValidationPipe(CatalogStatusQueryDto)) query: CatalogStatusQueryDto,
   ) {
-    return this.catalogAdmin.addFishToLocation(params.locationId, dto);
+    return this.catalogQuery.listAdminScreenAnchors(query.status);
   }
 
-  @Delete('locations/:locationId/fish/:fishId')
+  @Post('screen-anchors')
+  @HttpCode(HttpStatus.CREATED)
+  createScreenAnchor(
+    @Body(createApplicationValidationPipe(CreateScreenAnchorDto)) dto: CreateScreenAnchorDto,
+  ) {
+    return this.catalogAdmin.createScreenAnchor(dto);
+  }
+
+  @Patch('screen-anchors/:anchorId')
+  updateScreenAnchor(
+    @Param(createApplicationValidationPipe(ScreenAnchorIdParamsDto))
+    params: ScreenAnchorIdParamsDto,
+    @Body(createApplicationValidationPipe(UpdateScreenAnchorDto)) dto: UpdateScreenAnchorDto,
+  ) {
+    return this.catalogAdmin.updateScreenAnchor(params.anchorId, dto);
+  }
+
+  @Post('bases/:baseId/fish')
+  @HttpCode(HttpStatus.CREATED)
+  addFishToFishingBase(
+    @Param(createApplicationValidationPipe(FishingBaseIdParamsDto))
+    params: FishingBaseIdParamsDto,
+    @Body(createApplicationValidationPipe(AddFishingBaseFishDto)) dto: AddFishingBaseFishDto,
+  ) {
+    return this.catalogAdmin.addFishToFishingBase(params.baseId, dto);
+  }
+
+  @Delete('bases/:baseId/fish/:fishId')
   @HttpCode(HttpStatus.NO_CONTENT)
-  removeFishFromLocation(
-    @Param(createApplicationValidationPipe(LocationFishParamsDto))
-    params: LocationFishParamsDto,
+  removeFishFromFishingBase(
+    @Param(createApplicationValidationPipe(FishingBaseFishParamsDto))
+    params: FishingBaseFishParamsDto,
   ): Promise<void> {
-    return this.catalogAdmin.removeFishFromLocation(params.locationId, params.fishId);
+    return this.catalogAdmin.removeFishFromFishingBase(params.baseId, params.fishId);
   }
 }

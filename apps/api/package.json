@@ -16,6 +16,8 @@
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:seed": "prisma db seed",
+    "db:seed:catalog": "tsx src/prisma/seed-catalog.ts",
+    "db:audit:catch-reports": "tsx src/prisma/audit-catch-reports.ts",
     "prisma:studio": "prisma studio"
   },
   "dependencies": {

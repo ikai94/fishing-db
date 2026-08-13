@@ -17,6 +17,11 @@ const sections = [
     title: 'Наживки и приманки',
     description: 'Каталог наживок и искусственных приманок.',
   },
+  {
+    href: '/admin/catalog/screen-anchors',
+    title: 'Ориентиры экрана',
+    description: 'Подсказки для точного ввода позиции при ловле.',
+  },
 ];
 
 export default function AdminCatalogPage() {

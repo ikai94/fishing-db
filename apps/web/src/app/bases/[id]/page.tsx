@@ -79,6 +79,25 @@ export default function FishingBasePage() {
                 </ol>
               )}
             </section>
+
+            <section className={styles.panel}>
+              <h2 className={styles.panelTitle}>Рыбы базы</h2>
+              <p className={styles.muted}>
+                Каталог указывает рыб, доступных на этой базе. Он не описывает вероятность улова на
+                отдельной локации.
+              </p>
+              {state.data.fish.length === 0 ? (
+                <p className={styles.muted}>Для этой базы пока не указаны активные рыбы.</p>
+              ) : (
+                <ul className={styles.list}>
+                  {state.data.fish.map((fish) => (
+                    <li className={styles.listItem} key={fish.id}>
+                      <p className={styles.itemName}>{fish.name}</p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
           </>
         ) : null}
       </div>

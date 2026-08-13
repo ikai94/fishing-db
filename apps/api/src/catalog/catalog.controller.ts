@@ -36,4 +36,9 @@ export class CatalogController {
   listBaits() {
     return this.catalogQuery.listPublicBaits();
   }
+
+  @Get('screen-anchors')
+  listScreenAnchors() {
+    return this.catalogQuery.listPublicScreenAnchors();
+  }
 }

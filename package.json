@@ -26,6 +26,8 @@
     "db:migrate:dev": "pnpm --filter @fishing-db/api run prisma:migrate:dev",
     "db:migrate:deploy": "pnpm --filter @fishing-db/api run prisma:migrate:deploy",
     "db:seed": "pnpm --filter @fishing-db/api run prisma:seed",
+    "db:seed:catalog": "pnpm --filter @fishing-db/api run db:seed:catalog",
+    "db:audit:catch-reports": "pnpm --filter @fishing-db/api run db:audit:catch-reports",
     "db:test:up": "docker compose --profile test up -d --wait postgres-test",
     "db:test:down": "docker compose --profile test stop postgres-test",
     "db:test:logs": "docker compose --profile test logs -f postgres-test",

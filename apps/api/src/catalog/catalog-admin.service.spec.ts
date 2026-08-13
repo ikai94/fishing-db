@@ -33,6 +33,22 @@ function knownPrismaError(code: string, meta?: unknown): Error & { code: string;
   return Object.assign(new Error(`Prisma ${code}`), { code, meta });
 }
 
+function withCatalogLocks<T extends object>(database: T, lockStates: Array<boolean | null>): T {
+  let lockIndex = 0;
+  const transactionClient = Object.assign(database, {
+    $queryRaw: () => {
+      const state = lockStates[lockIndex];
+      lockIndex += 1;
+      return Promise.resolve(state === null || state === undefined ? [] : [{ isActive: state }]);
+    },
+  });
+
+  return Object.assign(transactionClient, {
+    $transaction: <Result>(callback: (tx: T) => Promise<Result>): Promise<Result> =>
+      callback(transactionClient),
+  });
+}
+
 void describe('CatalogAdminService', () => {
   void it('stores the display name and normalized key explicitly', async () => {
     let createQuery: unknown;
@@ -186,94 +202,104 @@ void describe('CatalogAdminService', () => {
     );
   });
 
-  void it('adds and removes an active LocationFish relation', async () => {
-    const calls: string[] = [];
-    let createQuery: unknown;
-    let deleteQuery: unknown;
+  void it('rejects the retired exact Fish spinning suffix on create and rename', async () => {
+    let mutationCalled = false;
     const prisma = {
-      location: {
-        findUnique: () => {
-          calls.push('location');
-          return Promise.resolve({ isActive: true, fishingBase: { isActive: true } });
-        },
-      },
       fish: {
-        findUnique: () => {
-          calls.push('fish');
-          return Promise.resolve({ isActive: true });
+        create: () => {
+          mutationCalled = true;
+          return Promise.resolve(undefined);
         },
-      },
-      locationFish: {
-        create: (input: unknown) => {
-          calls.push('create');
-          createQuery = input;
-          return Promise.resolve({ locationId: 'location-id', fishId: 'fish-id', createdAt: NOW });
-        },
-        delete: (input: unknown) => {
-          calls.push('delete');
-          deleteQuery = input;
-          return Promise.resolve({});
+        update: () => {
+          mutationCalled = true;
+          return Promise.resolve(undefined);
         },
       },
     } as unknown as PrismaService;
     const service = new CatalogAdminService(prisma);
 
-    const result = await service.addFishToLocation('location-id', { fishId: 'fish-id' });
-    await service.removeFishFromLocation('location-id', 'fish-id');
+    await assert.rejects(
+      () => service.createFish({ name: 'Сайда (спиннинг)' }),
+      hasCode('VALIDATION_ERROR'),
+    );
+    await assert.rejects(
+      () => service.updateFish('fish-id', { name: 'Жерех-лысач (спиннинг)' }),
+      hasCode('VALIDATION_ERROR'),
+    );
+    assert.equal(mutationCalled, false);
+  });
 
-    assert.deepEqual(calls, ['location', 'fish', 'create', 'delete']);
+  void it('adds and removes an active FishingBaseFish relation', async () => {
+    const calls: string[] = [];
+    let createQuery: unknown;
+    let deleteQuery: unknown;
+    const prisma = withCatalogLocks(
+      {
+        fishingBaseFish: {
+          create: (input: unknown) => {
+            calls.push('create');
+            createQuery = input;
+            return Promise.resolve({
+              fishingBaseId: 'base-id',
+              fishId: 'fish-id',
+              createdAt: NOW,
+            });
+          },
+          delete: (input: unknown) => {
+            calls.push('delete');
+            deleteQuery = input;
+            return Promise.resolve({});
+          },
+        },
+      },
+      [true, true],
+    ) as unknown as PrismaService;
+    const service = new CatalogAdminService(prisma);
+
+    const result = await service.addFishToFishingBase('base-id', { fishId: 'fish-id' });
+    await service.removeFishFromFishingBase('base-id', 'fish-id');
+
+    assert.deepEqual(calls, ['create', 'delete']);
     assert.deepEqual(asObject(asObject(createQuery).data), {
-      locationId: 'location-id',
+      fishingBaseId: 'base-id',
       fishId: 'fish-id',
     });
-    assert.deepEqual(asObject(asObject(deleteQuery).where).locationId_fishId, {
-      locationId: 'location-id',
+    assert.deepEqual(asObject(asObject(deleteQuery).where).fishingBaseId_fishId, {
+      fishingBaseId: 'base-id',
       fishId: 'fish-id',
     });
-    assert.deepEqual(result.locationFish, {
-      locationId: 'location-id',
+    assert.deepEqual(result.fishingBaseFish, {
+      fishingBaseId: 'base-id',
       fishId: 'fish-id',
       createdAt: NOW,
     });
   });
 
-  void it('rejects duplicate and inactive LocationFish participants', async () => {
-    const duplicatePrisma = {
-      location: {
-        findUnique: () => Promise.resolve({ isActive: true, fishingBase: { isActive: true } }),
-      },
-      fish: { findUnique: () => Promise.resolve({ isActive: true }) },
-      locationFish: { create: () => Promise.reject(knownPrismaError('P2002')) },
-    } as unknown as PrismaService;
+  void it('rejects duplicate and inactive FishingBaseFish participants', async () => {
+    const duplicatePrisma = withCatalogLocks(
+      { fishingBaseFish: { create: () => Promise.reject(knownPrismaError('P2002')) } },
+      [true, true],
+    ) as unknown as PrismaService;
     const duplicateService = new CatalogAdminService(duplicatePrisma);
 
     await assert.rejects(
-      () => duplicateService.addFishToLocation('location-id', { fishId: 'fish-id' }),
-      hasCode('LOCATION_FISH_ALREADY_EXISTS'),
+      () => duplicateService.addFishToFishingBase('base-id', { fishId: 'fish-id' }),
+      hasCode('FISHING_BASE_FISH_ALREADY_EXISTS'),
     );
 
-    const inactiveLocationPrisma = {
-      location: {
-        findUnique: () => Promise.resolve({ isActive: false, fishingBase: { isActive: true } }),
-      },
-    } as unknown as PrismaService;
-    const inactiveLocationService = new CatalogAdminService(inactiveLocationPrisma);
+    const inactiveBasePrisma = withCatalogLocks({}, [false]) as unknown as PrismaService;
+    const inactiveBaseService = new CatalogAdminService(inactiveBasePrisma);
 
     await assert.rejects(
-      () => inactiveLocationService.addFishToLocation('location-id', { fishId: 'fish-id' }),
-      hasCode('LOCATION_INACTIVE'),
+      () => inactiveBaseService.addFishToFishingBase('base-id', { fishId: 'fish-id' }),
+      hasCode('FISHING_BASE_INACTIVE'),
     );
 
-    const inactiveFishPrisma = {
-      location: {
-        findUnique: () => Promise.resolve({ isActive: true, fishingBase: { isActive: true } }),
-      },
-      fish: { findUnique: () => Promise.resolve({ isActive: false }) },
-    } as unknown as PrismaService;
+    const inactiveFishPrisma = withCatalogLocks({}, [true, false]) as unknown as PrismaService;
     const inactiveFishService = new CatalogAdminService(inactiveFishPrisma);
 
     await assert.rejects(
-      () => inactiveFishService.addFishToLocation('location-id', { fishId: 'fish-id' }),
+      () => inactiveFishService.addFishToFishingBase('base-id', { fishId: 'fish-id' }),
       hasCode('FISH_INACTIVE'),
     );
   });
@@ -288,7 +314,7 @@ void describe('CatalogAdminService', () => {
           return Promise.resolve(namedItem('fish-id', 'Осётр', false));
         },
       },
-      locationFish: {
+      fishingBaseFish: {
         deleteMany: () => {
           relationDeleteCalled = true;
           return Promise.resolve({ count: 1 });
@@ -302,6 +328,36 @@ void describe('CatalogAdminService', () => {
     assert.deepEqual(asObject(asObject(updateQuery).data), { isActive: false });
     assert.equal(result.fish.isActive, false);
     assert.equal(relationDeleteCalled, false);
+  });
+
+  void it('creates and updates ScreenAnchors with catalog normalization', async () => {
+    const calls: unknown[] = [];
+    const prisma = {
+      screenAnchor: {
+        create: (input: unknown) => {
+          calls.push(input);
+          return Promise.resolve(namedItem('anchor-id', 'Удочка'));
+        },
+        update: (input: unknown) => {
+          calls.push(input);
+          return Promise.resolve(namedItem('anchor-id', 'События', false));
+        },
+      },
+    } as unknown as PrismaService;
+    const service = new CatalogAdminService(prisma);
+
+    await service.createScreenAnchor({ name: '  Удочка  ' });
+    await service.updateScreenAnchor('anchor-id', { name: 'События', isActive: false });
+
+    assert.deepEqual(asObject(asObject(calls[0]).data), {
+      name: 'Удочка',
+      nameNormalized: 'удочка',
+    });
+    assert.deepEqual(asObject(asObject(calls[1]).data), {
+      name: 'События',
+      nameNormalized: 'события',
+      isActive: false,
+    });
   });
 
   void it('rejects empty PATCH bodies before calling Prisma', async () => {

@@ -4,8 +4,10 @@ import styles from '../../catch-reports.module.css';
 import type { CatchReport } from '@/lib/catch-reports-api';
 import {
   fishingNoteLabel,
+  fishingMethodLabel,
   formatCentimetersAsMeters,
-  spotLandmarkLabel,
+  spinningSizeLabel,
+  spinningSpeedLabel,
 } from '@/lib/catch-report-form';
 
 type CatchReportListProps = {
@@ -17,7 +19,6 @@ export function CatchReportList({ reports, renderActions }: CatchReportListProps
   return (
     <section className={styles.reportList} aria-label="Отчёты об уловах">
       {reports.map((report) => {
-        const landmark = spotLandmarkLabel(report.spotLandmark);
         const fishingNote = fishingNoteLabel(report.fishingNote);
 
         return (
@@ -36,8 +37,12 @@ export function CatchReportList({ reports, renderActions }: CatchReportListProps
 
             <dl className={styles.compactDetails}>
               <div>
-                <dt>{report.bait.type === 'BAIT' ? 'Наживка' : 'Приманка'}</dt>
+                <dt>{report.fishingMethod === 'BAIT_FISHING' ? 'Наживка' : 'Приманка'}</dt>
                 <dd>{report.bait.name}</dd>
+              </div>
+              <div>
+                <dt>Способ</dt>
+                <dd>{fishingMethodLabel(report.fishingMethod)}</dd>
               </div>
               {report.holeDepthCm !== null ? (
                 <div>
@@ -45,16 +50,28 @@ export function CatchReportList({ reports, renderActions }: CatchReportListProps
                   <dd>{formatCentimetersAsMeters(report.holeDepthCm)} м</dd>
                 </div>
               ) : null}
-              {landmark ? (
+              {report.spotPositionRaw !== null ? (
                 <div>
-                  <dt>Ориентир</dt>
-                  <dd>{landmark}</dd>
+                  <dt>Позиция</dt>
+                  <dd>{report.spotPositionRaw}</dd>
                 </div>
               ) : null}
               {fishingNote ? (
                 <div>
                   <dt>Условие</dt>
                   <dd>{fishingNote}</dd>
+                </div>
+              ) : null}
+              {report.spinningSize !== null ? (
+                <div>
+                  <dt>Размер</dt>
+                  <dd>{spinningSizeLabel(report.spinningSize)}</dd>
+                </div>
+              ) : null}
+              {report.spinningSpeed !== null ? (
+                <div>
+                  <dt>Скорость</dt>
+                  <dd>{spinningSpeedLabel(report.spinningSpeed)}</dd>
                 </div>
               ) : null}
             </dl>

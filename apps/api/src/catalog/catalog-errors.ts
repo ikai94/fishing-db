@@ -44,8 +44,10 @@ export const catalogErrors = {
   locationNotFound: (): NotFoundException => notFound('LOCATION_NOT_FOUND', 'Локация не найдена'),
   fishNotFound: (): NotFoundException => notFound('FISH_NOT_FOUND', 'Рыба не найдена'),
   baitNotFound: (): NotFoundException => notFound('BAIT_NOT_FOUND', 'Наживка не найдена'),
-  locationFishNotFound: (): NotFoundException =>
-    notFound('LOCATION_FISH_NOT_FOUND', 'Связь локации и рыбы не найдена'),
+  screenAnchorNotFound: (): NotFoundException =>
+    notFound('SCREEN_ANCHOR_NOT_FOUND', 'Экранный ориентир не найден'),
+  fishingBaseFishNotFound: (): NotFoundException =>
+    notFound('FISHING_BASE_FISH_NOT_FOUND', 'Связь базы и рыбы не найдена'),
   fishingBaseNameExists: (): ConflictException =>
     conflict('FISHING_BASE_NAME_ALREADY_EXISTS', 'База с таким названием уже существует'),
   locationNumberExists: (): ConflictException =>
@@ -56,17 +58,22 @@ export const catalogErrors = {
     conflict('FISH_NAME_ALREADY_EXISTS', 'Рыба с таким названием уже существует'),
   baitNameExists: (): ConflictException =>
     conflict('BAIT_NAME_ALREADY_EXISTS', 'Наживка с таким названием уже существует'),
-  locationFishExists: (): ConflictException =>
-    conflict('LOCATION_FISH_ALREADY_EXISTS', 'Рыба уже добавлена в эту локацию'),
+  screenAnchorNameExists: (): ConflictException =>
+    conflict(
+      'SCREEN_ANCHOR_NAME_ALREADY_EXISTS',
+      'Экранный ориентир с таким названием уже существует',
+    ),
+  fishingBaseFishExists: (): ConflictException =>
+    conflict('FISHING_BASE_FISH_ALREADY_EXISTS', 'Рыба уже добавлена на эту базу'),
   fishingBaseInactive: (): ConflictException =>
     conflict('FISHING_BASE_INACTIVE', 'Рыболовная база неактивна'),
   locationInactive: (): ConflictException => conflict('LOCATION_INACTIVE', 'Локация неактивна'),
   fishInactive: (): ConflictException => conflict('FISH_INACTIVE', 'Рыба неактивна'),
   baitInactive: (): ConflictException => conflict('BAIT_INACTIVE', 'Наживка неактивна'),
-  fishNotAvailableAtLocation: (): ConflictException =>
-    conflict('FISH_NOT_AVAILABLE_AT_LOCATION', 'Выбранная рыба сейчас недоступна на этой локации'),
-  locationFishRelationInvalid: (): ConflictException =>
-    conflict('LOCATION_FISH_RELATION_INVALID', 'Не удалось изменить связь локации и рыбы'),
+  fishNotAvailableAtFishingBase: (): ConflictException =>
+    conflict('FISH_NOT_AVAILABLE_AT_FISHING_BASE', 'Выбранная рыба сейчас недоступна на этой базе'),
+  fishingBaseFishRelationInvalid: (): ConflictException =>
+    conflict('FISHING_BASE_FISH_RELATION_INVALID', 'Не удалось изменить связь базы и рыбы'),
   catalogConflict: (): ConflictException =>
     conflict('CATALOG_CONFLICT', 'Не удалось изменить каталог из-за конфликта данных'),
 } as const;

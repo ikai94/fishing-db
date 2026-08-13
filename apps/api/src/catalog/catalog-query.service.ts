@@ -56,6 +56,11 @@ export class CatalogQueryService {
             name: true,
           },
         },
+        fishLinks: {
+          where: { fish: { isActive: true } },
+          orderBy: [{ fish: { nameNormalized: 'asc' } }, { fishId: 'asc' }],
+          select: { fish: { select: PUBLIC_NAMED_ITEM_SELECT } },
+        },
       },
     });
 
@@ -63,7 +68,14 @@ export class CatalogQueryService {
       throw catalogErrors.fishingBaseNotFound();
     }
 
-    return { base: fishingBase };
+    return {
+      base: {
+        id: fishingBase.id,
+        name: fishingBase.name,
+        locations: fishingBase.locations,
+        fish: fishingBase.fishLinks.map((link) => link.fish),
+      },
+    };
   }
 
   async getPublicLocation(locationId: string) {
@@ -78,11 +90,6 @@ export class CatalogQueryService {
         number: true,
         name: true,
         fishingBase: { select: PUBLIC_NAMED_ITEM_SELECT },
-        fishLinks: {
-          where: { fish: { isActive: true } },
-          orderBy: [{ fish: { nameNormalized: 'asc' } }, { fishId: 'asc' }],
-          select: { fish: { select: PUBLIC_NAMED_ITEM_SELECT } },
-        },
       },
     });
 
@@ -90,15 +97,7 @@ export class CatalogQueryService {
       throw catalogErrors.locationNotFound();
     }
 
-    return {
-      location: {
-        id: location.id,
-        number: location.number,
-        name: location.name,
-        fishingBase: location.fishingBase,
-        fish: location.fishLinks.map((link) => link.fish),
-      },
-    };
+    return { location };
   }
 
   async listPublicFish() {
@@ -119,6 +118,16 @@ export class CatalogQueryService {
         ...PUBLIC_NAMED_ITEM_SELECT,
         type: true,
       },
+    });
+
+    return { items };
+  }
+
+  async listPublicScreenAnchors() {
+    const items = await this.prisma.screenAnchor.findMany({
+      where: { isActive: true },
+      orderBy: [{ nameNormalized: 'asc' }, { id: 'asc' }],
+      select: PUBLIC_NAMED_ITEM_SELECT,
     });
 
     return { items };
@@ -150,6 +159,19 @@ export class CatalogQueryService {
             updatedAt: true,
           },
         },
+        fishLinks: {
+          orderBy: [{ fish: { nameNormalized: 'asc' } }, { fishId: 'asc' }],
+          select: {
+            createdAt: true,
+            fish: {
+              select: {
+                id: true,
+                name: true,
+                isActive: true,
+              },
+            },
+          },
+        },
       },
     });
 
@@ -157,7 +179,22 @@ export class CatalogQueryService {
       throw catalogErrors.fishingBaseNotFound();
     }
 
-    return { base: fishingBase };
+    return {
+      base: {
+        id: fishingBase.id,
+        name: fishingBase.name,
+        isActive: fishingBase.isActive,
+        createdAt: fishingBase.createdAt,
+        updatedAt: fishingBase.updatedAt,
+        locations: fishingBase.locations,
+        fish: fishingBase.fishLinks.map((link) => ({
+          id: link.fish.id,
+          name: link.fish.name,
+          isActive: link.fish.isActive,
+          relationCreatedAt: link.createdAt,
+        })),
+      },
+    };
   }
 
   async getAdminLocation(locationId: string) {
@@ -178,19 +215,6 @@ export class CatalogQueryService {
             isActive: true,
           },
         },
-        fishLinks: {
-          orderBy: [{ fish: { nameNormalized: 'asc' } }, { fishId: 'asc' }],
-          select: {
-            createdAt: true,
-            fish: {
-              select: {
-                id: true,
-                name: true,
-                isActive: true,
-              },
-            },
-          },
-        },
       },
     });
 
@@ -198,24 +222,7 @@ export class CatalogQueryService {
       throw catalogErrors.locationNotFound();
     }
 
-    return {
-      location: {
-        id: location.id,
-        fishingBaseId: location.fishingBaseId,
-        number: location.number,
-        name: location.name,
-        isActive: location.isActive,
-        createdAt: location.createdAt,
-        updatedAt: location.updatedAt,
-        fishingBase: location.fishingBase,
-        fish: location.fishLinks.map((link) => ({
-          id: link.fish.id,
-          name: link.fish.name,
-          isActive: link.fish.isActive,
-          relationCreatedAt: link.createdAt,
-        })),
-      },
-    };
+    return { location };
   }
 
   async listAdminFish(status?: CatalogStatus) {
@@ -236,6 +243,16 @@ export class CatalogQueryService {
         ...ADMIN_NAMED_ITEM_SELECT,
         type: true,
       },
+    });
+
+    return { items };
+  }
+
+  async listAdminScreenAnchors(status?: CatalogStatus) {
+    const items = await this.prisma.screenAnchor.findMany({
+      where: statusWhere(status),
+      orderBy: [{ nameNormalized: 'asc' }, { id: 'asc' }],
+      select: ADMIN_NAMED_ITEM_SELECT,
     });
 
     return { items };

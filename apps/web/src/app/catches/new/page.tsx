@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import styles from '../../catch-reports.module.css';
 import { CatchReportForm } from '../_components/catch-report-form';
+import { NotebookCatchEntry } from '../_components/notebook-catch-entry';
 import { useRequiredUser } from '@/lib/use-required-user';
 
 export default function NewCatchReportPage() {
@@ -43,20 +44,36 @@ export default function NewCatchReportPage() {
           </div>
         ) : null}
 
-        {state.kind === 'ready' && state.user.isBanned ? (
-          <div className={`${styles.message} ${styles.warningMessage}`} role="status">
-            <h2 className={styles.forbiddenTitle}>Публикация недоступна</h2>
-            <p>
-              Аккаунт заблокирован. Вы можете читать публичные и свои прежние отчёты, но не
-              создавать новые.
-            </p>
-            <Link className={styles.secondaryLink} href="/my/catches">
-              Открыть мои уловы
-            </Link>
-          </div>
-        ) : null}
+        {state.kind === 'ready' ? (
+          <>
+            {state.user.isBanned ? (
+              <div className={`${styles.message} ${styles.warningMessage}`} role="status">
+                <h2 className={styles.forbiddenTitle}>Публикация недоступна</h2>
+                <p>
+                  Аккаунт заблокирован. Распознать и проверить запись можно, но сохранить её нельзя.
+                </p>
+              </div>
+            ) : null}
 
-        {state.kind === 'ready' && !state.user.isBanned ? <CatchReportForm /> : null}
+            <NotebookCatchEntry canSave={!state.user.isBanned} />
+
+            {!state.user.isBanned ? (
+              <section className={styles.manualEntrySection} aria-labelledby="manual-entry-title">
+                <header className={styles.sectionHeading}>
+                  <p className={styles.eyebrow}>Другой способ</p>
+                  <h2 className={styles.sectionTitle} id="manual-entry-title">
+                    Заполнить вручную
+                  </h2>
+                </header>
+                <CatchReportForm />
+              </section>
+            ) : (
+              <Link className={styles.secondaryLink} href="/my/catches">
+                Открыть мои уловы
+              </Link>
+            )}
+          </>
+        ) : null}
       </div>
     </main>
   );

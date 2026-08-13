@@ -4,7 +4,6 @@ import { describe, it } from 'node:test';
 import type { PrismaService } from '../prisma/prisma.service.js';
 import { CatchReportsService } from './catch-reports.service.js';
 import type { CreateCatchReportDto } from './dto/create-catch-report.dto.js';
-import type { UpdateCatchReportDto } from './dto/update-catch-report.dto.js';
 
 const USER_ID = '10000000-0000-4000-8000-000000000001';
 const OTHER_USER_ID = '10000000-0000-4000-8000-000000000002';
@@ -15,6 +14,8 @@ const FISH_ID = '40000000-0000-4000-8000-000000000001';
 const OTHER_FISH_ID = '40000000-0000-4000-8000-000000000002';
 const BAIT_ID = '50000000-0000-4000-8000-000000000001';
 const OTHER_BAIT_ID = '50000000-0000-4000-8000-000000000002';
+const BASE_ID = '60000000-0000-4000-8000-000000000001';
+const OTHER_BASE_ID = '60000000-0000-4000-8000-000000000002';
 const CREATED_AT = new Date('2026-08-09T10:00:00.000Z');
 const UPDATED_AT = new Date('2026-08-09T10:05:00.000Z');
 
@@ -25,10 +26,7 @@ function asObject(value: unknown): Record<string, unknown> {
 
 function hasCode(expectedCode: string): (error: unknown) => boolean {
   return (error: unknown): boolean => {
-    if (!(error instanceof HttpException)) {
-      return false;
-    }
-
+    if (!(error instanceof HttpException)) return false;
     const response = error.getResponse();
     return typeof response === 'object' && response !== null && 'code' in response
       ? response.code === expectedCode
@@ -36,255 +34,304 @@ function hasCode(expectedCode: string): (error: unknown) => boolean {
   };
 }
 
-function knownPrismaError(code: string): Error & { code: string } {
-  return Object.assign(new Error(`Prisma ${code}`), { code });
-}
-
-function publicRecord(overrides: Record<string, unknown> = {}) {
-  return {
-    id: REPORT_ID,
-    weightGrams: 40,
-    holeDepthCm: 600,
-    spotLandmark: 'ROD',
-    fishingNote: null,
-    userNoteRaw: 'ямка 6,00 удочка',
-    createdAt: CREATED_AT,
-    updatedAt: UPDATED_AT,
-    user: {
-      id: USER_ID,
-      nickname: 'Рыболов',
-      email: 'secret@example.ru',
-      role: 'USER',
-      isBanned: false,
-    },
-    location: {
-      id: LOCATION_ID,
-      number: 1,
-      name: 'Берег слоновьего бивня',
-      fishingBase: {
-        id: '60000000-0000-4000-8000-000000000001',
-        name: 'Озера Танзании',
-        isActive: false,
-      },
-      isActive: false,
-    },
-    fish: {
-      id: FISH_ID,
-      name: 'Шамбардия Валберга',
-      isActive: false,
-    },
-    bait: {
-      id: BAIT_ID,
-      name: 'Мотыль',
-      type: 'BAIT',
-      isActive: false,
-    },
-    ...overrides,
+function hasFieldError(field: string): (error: unknown) => boolean {
+  return (error: unknown): boolean => {
+    if (!(error instanceof HttpException)) return false;
+    const response = asObject(error.getResponse());
+    const errors = asObject(response.errors);
+    return Array.isArray(errors[field]) && errors[field].length > 0;
   };
 }
 
-function createDto(): CreateCatchReportDto {
+function withTransaction<T extends object>(
+  database: T,
+  conflictsBeforeSuccess = 0,
+  actorIsBanned = false,
+): T {
+  let attempts = 0;
+  return Object.assign(database, {
+    $queryRaw: () => Promise.resolve([{ isBanned: actorIsBanned }]),
+    $transaction: <Result>(callback: (tx: T) => Promise<Result>): Promise<Result> => {
+      attempts += 1;
+      return attempts <= conflictsBeforeSuccess
+        ? Promise.reject(Object.assign(new Error('Transaction conflict'), { code: 'P2034' }))
+        : callback(database);
+    },
+  });
+}
+
+function reportRecord(
+  overrides: Partial<{
+    fishingMethod: 'BAIT_FISHING' | 'SPINNING';
+    holeDepthCm: number | null;
+    spinningSize: 'SMALL' | 'MEDIUM' | 'LARGE' | null;
+    spinningSpeed: 'SLOW' | 'MEDIUM' | 'FAST' | null;
+    rawSourceText: string | null;
+  }> = {},
+) {
+  return {
+    id: REPORT_ID,
+    weightGrams: 40,
+    fishingMethod: overrides.fishingMethod ?? 'BAIT_FISHING',
+    holeDepthCm: overrides.holeDepthCm === undefined ? 600 : overrides.holeDepthCm,
+    spotPositionRaw: '  удочка  ',
+    fishingNote: null,
+    spinningSize: overrides.spinningSize === undefined ? null : overrides.spinningSize,
+    spinningSpeed: overrides.spinningSpeed === undefined ? null : overrides.spinningSpeed,
+    userNoteRaw: 'Комментарий',
+    rawSourceText:
+      overrides.rawSourceText === undefined ? 'Исходная строка' : overrides.rawSourceText,
+    createdAt: CREATED_AT,
+    updatedAt: UPDATED_AT,
+    user: { id: USER_ID, nickname: 'Рыболов' },
+    location: {
+      id: LOCATION_ID,
+      number: 1,
+      name: 'Берег',
+      fishingBase: { id: BASE_ID, name: 'База' },
+    },
+    fish: { id: FISH_ID, name: 'Рыба' },
+    bait: { id: BAIT_ID, name: 'Мотыль' },
+  };
+}
+
+function reportScalarRecord(
+  overrides: Parameters<typeof reportRecord>[0] = {},
+): Record<string, unknown> {
+  const report = reportRecord(overrides);
+  return {
+    id: report.id,
+    userId: USER_ID,
+    locationId: LOCATION_ID,
+    fishId: FISH_ID,
+    baitId: BAIT_ID,
+    weightGrams: report.weightGrams,
+    fishingMethod: report.fishingMethod,
+    holeDepthCm: report.holeDepthCm,
+    spotPositionRaw: report.spotPositionRaw,
+    fishingNote: report.fishingNote,
+    spinningSize: report.spinningSize,
+    spinningSpeed: report.spinningSpeed,
+    userNoteRaw: report.userNoteRaw,
+    rawSourceText: report.rawSourceText,
+    createdAt: report.createdAt,
+    updatedAt: report.updatedAt,
+  };
+}
+
+function createDto(overrides: Partial<CreateCatchReportDto> = {}): CreateCatchReportDto {
   return {
     locationId: LOCATION_ID,
     fishId: FISH_ID,
     baitId: BAIT_ID,
     weightGrams: 40,
     holeDepthCm: 600,
-    spotLandmark: 'ROD',
+    spotPositionRaw: '  удочка  ',
     fishingNote: null,
-    userNoteRaw: '  ямка 6,00 удочка  ',
+    spinningSize: null,
+    spinningSpeed: null,
+    userNoteRaw: 'Комментарий',
+    rawSourceText: 'Исходная строка',
+    ...overrides,
   };
 }
 
-interface ValidationState {
+interface CreateMockOptions {
+  baitType?: 'BAIT' | 'LURE';
   location?: unknown;
   fish?: unknown;
+  membership?: unknown;
   bait?: unknown;
-  locationFish?: unknown;
+  created?: ReturnType<typeof reportRecord>;
+  transactionConflicts?: number;
 }
 
-function validationPrisma(
-  state: ValidationState = {},
-  onCreate: (input: unknown) => Promise<unknown> = () => Promise.resolve(publicRecord()),
-) {
+function createPrisma(options: CreateMockOptions = {}) {
   const calls: string[] = [];
-  const value = (key: keyof ValidationState, fallback: unknown): unknown =>
-    Object.prototype.hasOwnProperty.call(state, key) ? state[key] : fallback;
+  let createQuery: unknown;
+  const prisma = withTransaction(
+    {
+      user: { findUnique: () => Promise.resolve({ id: USER_ID, nickname: 'Рыболов' }) },
+      location: {
+        findUnique: (query: unknown) => {
+          if ('isActive' in asObject(asObject(query).select)) calls.push('location');
+          return Promise.resolve(
+            options.location === undefined
+              ? {
+                  id: LOCATION_ID,
+                  fishingBaseId: BASE_ID,
+                  number: 1,
+                  name: 'Берег',
+                  isActive: true,
+                  fishingBase: { isActive: true },
+                }
+              : options.location,
+          );
+        },
+      },
+      fish: {
+        findUnique: (query: unknown) => {
+          if ('isActive' in asObject(asObject(query).select)) calls.push('fish');
+          return Promise.resolve(
+            options.fish === undefined
+              ? { id: FISH_ID, name: 'Рыба', isActive: true }
+              : options.fish,
+          );
+        },
+      },
+      fishingBaseFish: {
+        findUnique: () => {
+          calls.push('membership');
+          return Promise.resolve(
+            options.membership === undefined ? { fishingBaseId: BASE_ID } : options.membership,
+          );
+        },
+      },
+      bait: {
+        findUnique: (query: unknown) => {
+          if ('isActive' in asObject(asObject(query).select)) calls.push('bait');
+          return Promise.resolve(
+            options.bait === undefined
+              ? { id: BAIT_ID, name: 'Мотыль', isActive: true, type: options.baitType ?? 'BAIT' }
+              : options.bait,
+          );
+        },
+      },
+      catchReport: {
+        create: (query: unknown) => {
+          calls.push('create');
+          createQuery = query;
+          return Promise.resolve(options.created ?? reportRecord());
+        },
+        findFirst: () => Promise.resolve(reportScalarRecord()),
+      },
+      fishingBase: {
+        findUnique: () => Promise.resolve({ id: BASE_ID, name: 'База' }),
+      },
+    },
+    options.transactionConflicts,
+  ) as unknown as PrismaService;
 
-  const prisma = {
-    location: {
-      findUnique: () => {
-        calls.push('location');
-        return Promise.resolve(
-          value('location', { isActive: true, fishingBase: { isActive: true } }),
-        );
-      },
-    },
-    fish: {
-      findUnique: () => {
-        calls.push('fish');
-        return Promise.resolve(value('fish', { isActive: true }));
-      },
-    },
-    bait: {
-      findUnique: () => {
-        calls.push('bait');
-        return Promise.resolve(value('bait', { isActive: true }));
-      },
-    },
-    locationFish: {
-      findUnique: () => {
-        calls.push('locationFish');
-        return Promise.resolve(value('locationFish', { locationId: LOCATION_ID }));
-      },
-    },
-    catchReport: {
-      create: (input: unknown) => {
-        calls.push('create');
-        return onCreate(input);
-      },
-    },
-  } as unknown as PrismaService;
-
-  return { prisma, calls };
+  return { prisma, calls, createQuery: () => createQuery };
 }
 
-void describe('CatchReportsService', () => {
-  void it('uses the actor as owner, validates the catalog in order, and maps data explicitly', async () => {
-    let createQuery: unknown;
-    const { prisma, calls } = validationPrisma({}, (input) => {
-      createQuery = input;
-      return Promise.resolve(publicRecord());
-    });
-    const service = new CatchReportsService(prisma);
-    const maliciousDto = {
+void describe('CatchReportsService v2', () => {
+  void it('derives BAIT_FISHING, validates Base membership, preserves text, and ignores spoofed fields', async () => {
+    const mock = createPrisma();
+    const service = new CatchReportsService(mock.prisma);
+    const malicious = {
       ...createDto(),
       userId: OTHER_USER_ID,
-      fishingBaseId: '60000000-0000-4000-8000-000000000002',
-      createdAt: new Date(0),
-      relation: { connect: { id: OTHER_USER_ID } },
+      fishingBaseId: OTHER_BASE_ID,
+      fishingMethod: 'SPINNING',
     } as unknown as CreateCatchReportDto;
 
-    const result = await service.create(USER_ID, maliciousDto);
-    const query = asObject(createQuery);
+    const result = await service.create(USER_ID, malicious);
+    const data = asObject(asObject(mock.createQuery()).data);
 
-    assert.deepEqual(calls, ['location', 'fish', 'bait', 'locationFish', 'create']);
-    assert.deepEqual(asObject(query.data), {
+    assert.deepEqual(mock.calls, ['location', 'fish', 'membership', 'bait', 'create']);
+    assert.deepEqual(data, {
       userId: USER_ID,
       locationId: LOCATION_ID,
       fishId: FISH_ID,
       baitId: BAIT_ID,
       weightGrams: 40,
+      fishingMethod: 'BAIT_FISHING',
       holeDepthCm: 600,
-      spotLandmark: 'ROD',
+      spotPositionRaw: '  удочка  ',
       fishingNote: null,
-      userNoteRaw: '  ямка 6,00 удочка  ',
+      spinningSize: null,
+      spinningSpeed: null,
+      userNoteRaw: 'Комментарий',
+      rawSourceText: 'Исходная строка',
     });
-    assert.deepEqual(result.report.author, { id: USER_ID, nickname: 'Рыболов' });
-    assert.equal('email' in result.report.author, false);
-    assert.equal('user' in result.report, false);
-    assert.equal('isActive' in result.report.location, false);
-    assert.equal('fishingBase' in result.report.location, false);
+    assert.equal(result.report.rawSourceText, 'Исходная строка');
+    assert.equal('type' in result.report.bait, false);
   });
 
-  void it('returns stable errors for every invalid create catalog state', async () => {
-    const scenarios: { state: ValidationState; code: string; calls: string[] }[] = [
-      { state: { location: null }, code: 'LOCATION_NOT_FOUND', calls: ['location'] },
-      {
-        state: { location: { isActive: true, fishingBase: { isActive: false } } },
-        code: 'FISHING_BASE_INACTIVE',
-        calls: ['location'],
-      },
-      {
-        state: { location: { isActive: false, fishingBase: { isActive: true } } },
-        code: 'LOCATION_INACTIVE',
-        calls: ['location'],
-      },
-      { state: { fish: null }, code: 'FISH_NOT_FOUND', calls: ['location', 'fish'] },
-      {
-        state: { fish: { isActive: false } },
-        code: 'FISH_INACTIVE',
-        calls: ['location', 'fish'],
-      },
-      {
-        state: { bait: null },
-        code: 'BAIT_NOT_FOUND',
-        calls: ['location', 'fish', 'bait'],
-      },
-      {
-        state: { bait: { isActive: false } },
-        code: 'BAIT_INACTIVE',
-        calls: ['location', 'fish', 'bait'],
-      },
-      {
-        state: { locationFish: null },
-        code: 'FISH_NOT_AVAILABLE_AT_LOCATION',
-        calls: ['location', 'fish', 'bait', 'locationFish'],
-      },
-    ];
+  void it('requires a hole for BAIT and both structured fields for SPINNING', async () => {
+    const baitService = new CatchReportsService(createPrisma().prisma);
+    await assert.rejects(
+      baitService.create(USER_ID, createDto({ holeDepthCm: null })),
+      hasFieldError('holeDepthCm'),
+    );
 
-    for (const scenario of scenarios) {
-      const { prisma, calls } = validationPrisma(scenario.state);
-      const service = new CatchReportsService(prisma);
-
-      await assert.rejects(() => service.create(USER_ID, createDto()), hasCode(scenario.code));
-      assert.deepEqual(calls, scenario.calls);
-    }
+    const spinningService = new CatchReportsService(createPrisma({ baitType: 'LURE' }).prisma);
+    await assert.rejects(
+      spinningService.create(
+        USER_ID,
+        createDto({ holeDepthCm: 1_078, spinningSize: null, spinningSpeed: null }),
+      ),
+      hasFieldError('spinningSize'),
+    );
   });
 
-  void it('updates observations without revalidating historical or same-id catalog references', async () => {
+  void it('creates SPINNING with size/speed and an optional hole', async () => {
+    let query: unknown;
+    const mock = createPrisma({
+      baitType: 'LURE',
+      created: reportRecord({
+        fishingMethod: 'SPINNING',
+        holeDepthCm: 1_078,
+        spinningSize: 'MEDIUM',
+        spinningSpeed: 'SLOW',
+      }),
+    });
+    const originalCreate = (
+      mock.prisma as unknown as {
+        catchReport: { create: (value: unknown) => Promise<unknown> };
+      }
+    ).catchReport.create;
+    (
+      mock.prisma as unknown as { catchReport: { create: (value: unknown) => Promise<unknown> } }
+    ).catchReport.create = (value) => {
+      query = value;
+      return originalCreate(value);
+    };
+
+    await new CatchReportsService(mock.prisma).create(
+      USER_ID,
+      createDto({ holeDepthCm: 1_078, spinningSize: 'MEDIUM', spinningSpeed: 'SLOW' }),
+    );
+
+    assert.deepEqual(asObject(asObject(query).data), {
+      userId: USER_ID,
+      locationId: LOCATION_ID,
+      fishId: FISH_ID,
+      baitId: BAIT_ID,
+      weightGrams: 40,
+      fishingMethod: 'SPINNING',
+      holeDepthCm: 1_078,
+      spotPositionRaw: '  удочка  ',
+      fishingNote: null,
+      spinningSize: 'MEDIUM',
+      spinningSpeed: 'SLOW',
+      userNoteRaw: 'Комментарий',
+      rawSourceText: 'Исходная строка',
+    });
+  });
+
+  void it('returns stable catalog errors for missing Base/Fish membership', async () => {
+    const service = new CatchReportsService(createPrisma({ membership: null }).prisma);
+    await assert.rejects(
+      service.create(USER_ID, createDto()),
+      hasCode('FISH_NOT_AVAILABLE_AT_FISHING_BASE'),
+    );
+  });
+
+  void it('retries serializable transaction conflicts before writing', async () => {
+    const mock = createPrisma({ transactionConflicts: 2 });
+    const result = await new CatchReportsService(mock.prisma).create(USER_ID, createDto());
+
+    assert.equal(result.report.id, REPORT_ID);
+    assert.deepEqual(mock.calls, ['location', 'fish', 'membership', 'bait', 'create']);
+  });
+
+  void it('uses persisted method for observation-only and redundant same-bait updates', async () => {
+    const calls: string[] = [];
     let updateQuery: unknown;
-    let findCalls = 0;
-    const prisma = {
-      catchReport: {
-        findUnique: () => {
-          findCalls += 1;
-          return Promise.resolve({
-            userId: USER_ID,
-            locationId: LOCATION_ID,
-            fishId: FISH_ID,
-            baitId: BAIT_ID,
-          });
-        },
-        update: (input: unknown) => {
-          updateQuery = input;
-          return Promise.resolve(
-            publicRecord({ weightGrams: 50, holeDepthCm: null, userNoteRaw: null }),
-          );
-        },
-      },
-    } as unknown as PrismaService;
-    const service = new CatchReportsService(prisma);
-    const dto = {
-      locationId: LOCATION_ID,
-      fishId: FISH_ID,
-      baitId: BAIT_ID,
-      weightGrams: 50,
-      holeDepthCm: null,
-      userNoteRaw: '',
-      userId: OTHER_USER_ID,
-    } as unknown as UpdateCatchReportDto;
-
-    await service.update(USER_ID, REPORT_ID, dto);
-    const query = asObject(updateQuery);
-
-    assert.equal(findCalls, 1);
-    assert.deepEqual(query.where, { id: REPORT_ID, userId: USER_ID });
-    assert.deepEqual(asObject(query.data), {
-      locationId: LOCATION_ID,
-      fishId: FISH_ID,
-      baitId: BAIT_ID,
-      weightGrams: 50,
-      holeDepthCm: null,
-      userNoteRaw: null,
-    });
-    assert.equal('userId' in asObject(query.data), false);
-  });
-
-  void it('validates an actually changed Bait and rejects an inactive replacement', async () => {
-    let baitQuery: unknown;
-    let updateCalled = false;
-    const activePrisma = {
+    const prisma = withTransaction({
+      user: { findUnique: () => Promise.resolve({ id: USER_ID, nickname: 'Рыболов' }) },
       catchReport: {
         findUnique: () =>
           Promise.resolve({
@@ -292,258 +339,227 @@ void describe('CatchReportsService', () => {
             locationId: LOCATION_ID,
             fishId: FISH_ID,
             baitId: BAIT_ID,
+            fishingMethod: 'BAIT_FISHING',
+            holeDepthCm: 600,
+            spinningSize: null,
+            spinningSpeed: null,
           }),
-        update: () => {
-          updateCalled = true;
-          return Promise.resolve(
-            publicRecord({ bait: { id: OTHER_BAIT_ID, name: 'Блесна', type: 'LURE' } }),
-          );
+        update: (query: unknown) => {
+          updateQuery = query;
+          return Promise.resolve(reportRecord());
         },
+        findFirst: () => Promise.resolve(reportScalarRecord()),
       },
       bait: {
-        findUnique: (input: unknown) => {
-          baitQuery = input;
-          return Promise.resolve({ isActive: true });
+        findUnique: (query: unknown) => {
+          if ('type' in asObject(asObject(query).select)) calls.push('bait');
+          return Promise.resolve({ id: BAIT_ID, name: 'Мотыль', isActive: true, type: 'LURE' });
         },
       },
-    } as unknown as PrismaService;
-    const activeService = new CatchReportsService(activePrisma);
-
-    await activeService.update(USER_ID, REPORT_ID, { baitId: OTHER_BAIT_ID });
-
-    assert.deepEqual(asObject(baitQuery).where, { id: OTHER_BAIT_ID });
-    assert.equal(updateCalled, true);
-
-    const inactivePrisma = {
-      catchReport: activePrisma.catchReport,
-      bait: { findUnique: () => Promise.resolve({ isActive: false }) },
-    } as unknown as PrismaService;
-    const inactiveService = new CatchReportsService(inactivePrisma);
-
-    await assert.rejects(
-      () => inactiveService.update(USER_ID, REPORT_ID, { baitId: OTHER_BAIT_ID }),
-      hasCode('BAIT_INACTIVE'),
-    );
-  });
-
-  void it('validates the resulting LocationFish pair when location or fish actually changes', async () => {
-    const scenarios = [
-      {
-        dto: { locationId: OTHER_LOCATION_ID },
-        expectedLocationId: OTHER_LOCATION_ID,
-        expectedFishId: FISH_ID,
-      },
-      {
-        dto: { fishId: OTHER_FISH_ID },
-        expectedLocationId: LOCATION_ID,
-        expectedFishId: OTHER_FISH_ID,
-      },
-    ];
-
-    for (const scenario of scenarios) {
-      let locationQuery: unknown;
-      let fishQuery: unknown;
-      let relationQuery: unknown;
-      const calls: string[] = [];
-      const prisma = {
-        catchReport: {
-          findUnique: () =>
-            Promise.resolve({
-              userId: USER_ID,
-              locationId: LOCATION_ID,
-              fishId: FISH_ID,
-              baitId: BAIT_ID,
-            }),
-          update: () => Promise.resolve(publicRecord()),
-        },
-        location: {
-          findUnique: (input: unknown) => {
-            calls.push('location');
-            locationQuery = input;
-            return Promise.resolve({ isActive: true, fishingBase: { isActive: true } });
-          },
-        },
-        fish: {
-          findUnique: (input: unknown) => {
-            calls.push('fish');
-            fishQuery = input;
-            return Promise.resolve({ isActive: true });
-          },
-        },
-        locationFish: {
-          findUnique: (input: unknown) => {
-            calls.push('locationFish');
-            relationQuery = input;
-            return Promise.resolve({ locationId: scenario.expectedLocationId });
-          },
-        },
-      } as unknown as PrismaService;
-      const service = new CatchReportsService(prisma);
-
-      await service.update(USER_ID, REPORT_ID, scenario.dto);
-
-      assert.deepEqual(calls, ['location', 'fish', 'locationFish']);
-      assert.deepEqual(asObject(locationQuery).where, { id: scenario.expectedLocationId });
-      assert.deepEqual(asObject(fishQuery).where, { id: scenario.expectedFishId });
-      assert.deepEqual(asObject(asObject(relationQuery).where).locationId_fishId, {
-        locationId: scenario.expectedLocationId,
-        fishId: scenario.expectedFishId,
-      });
-    }
-  });
-
-  void it('checks ownership before validating catalog changes', async () => {
-    let updateCalled = false;
-    const prisma = {
-      catchReport: {
+      location: {
         findUnique: () =>
           Promise.resolve({
-            userId: OTHER_USER_ID,
-            locationId: LOCATION_ID,
-            fishId: FISH_ID,
-            baitId: BAIT_ID,
-          }),
-        update: () => {
-          updateCalled = true;
-          return Promise.resolve(publicRecord());
-        },
-      },
-    } as unknown as PrismaService;
-    const service = new CatchReportsService(prisma);
-
-    await assert.rejects(
-      () => service.update(USER_ID, REPORT_ID, { locationId: OTHER_LOCATION_ID }),
-      hasCode('CATCH_REPORT_NOT_OWNED'),
-    );
-    assert.equal(updateCalled, false);
-  });
-
-  void it('checks report existence and ownership before rejecting an empty PATCH', async () => {
-    let findCalled = false;
-    const prisma = {
-      catchReport: {
-        findUnique: () => {
-          findCalled = true;
-          return Promise.resolve({
-            userId: USER_ID,
-            locationId: LOCATION_ID,
-            fishId: FISH_ID,
-            baitId: BAIT_ID,
-          });
-        },
-      },
-    } as unknown as PrismaService;
-    const service = new CatchReportsService(prisma);
-
-    await assert.rejects(() => service.update(USER_ID, REPORT_ID, {}), hasCode('VALIDATION_ERROR'));
-    assert.equal(findCalled, true);
-  });
-
-  void it('does not let an empty PATCH bypass not-found and ownership errors', async () => {
-    const missingService = new CatchReportsService({
-      catchReport: { findUnique: () => Promise.resolve(null) },
-    } as unknown as PrismaService);
-    const foreignService = new CatchReportsService({
-      catchReport: {
-        findUnique: () =>
-          Promise.resolve({
-            userId: OTHER_USER_ID,
-            locationId: LOCATION_ID,
-            fishId: FISH_ID,
-            baitId: BAIT_ID,
+            id: LOCATION_ID,
+            fishingBaseId: BASE_ID,
+            number: 1,
+            name: 'Берег',
           }),
       },
-    } as unknown as PrismaService);
+      fishingBase: { findUnique: () => Promise.resolve({ id: BASE_ID, name: 'База' }) },
+      fish: { findUnique: () => Promise.resolve({ id: FISH_ID, name: 'Рыба' }) },
+    }) as unknown as PrismaService;
 
-    await assert.rejects(
-      () => missingService.update(USER_ID, REPORT_ID, {}),
-      hasCode('CATCH_REPORT_NOT_FOUND'),
-    );
-    await assert.rejects(
-      () => foreignService.update(USER_ID, REPORT_ID, {}),
-      hasCode('CATCH_REPORT_NOT_OWNED'),
-    );
-  });
-
-  void it('maps P2003 and P2025 races to stable application errors', async () => {
-    const { prisma: createPrisma } = validationPrisma({}, () =>
-      Promise.reject(knownPrismaError('P2003')),
-    );
-    const createService = new CatchReportsService(createPrisma);
-
-    await assert.rejects(
-      () => createService.create(USER_ID, createDto()),
-      hasCode('CATCH_REPORT_REFERENCE_CONFLICT'),
-    );
-
-    const mutationPrisma = {
-      catchReport: {
-        findUnique: () =>
-          Promise.resolve({
-            userId: USER_ID,
-            locationId: LOCATION_ID,
-            fishId: FISH_ID,
-            baitId: BAIT_ID,
-          }),
-        update: () => Promise.reject(knownPrismaError('P2025')),
-        delete: () => Promise.reject(knownPrismaError('P2025')),
-      },
-    } as unknown as PrismaService;
-    const mutationService = new CatchReportsService(mutationPrisma);
-
-    await assert.rejects(
-      () => mutationService.update(USER_ID, REPORT_ID, { weightGrams: 41 }),
-      hasCode('CATCH_REPORT_NOT_FOUND'),
-    );
-    await assert.rejects(
-      () => mutationService.delete(USER_ID, REPORT_ID),
-      hasCode('CATCH_REPORT_NOT_FOUND'),
-    );
-  });
-
-  void it('filters my list by the authenticated actor and fetches limit plus one', async () => {
-    let listQuery: unknown;
-    const prisma = {
-      catchReport: {
-        findMany: (input: unknown) => {
-          listQuery = input;
-          return Promise.resolve([publicRecord()]);
-        },
-      },
-    } as unknown as PrismaService;
-    const service = new CatchReportsService(prisma);
-
-    const result = await service.listMine(USER_ID, { limit: 20 });
-    const query = asObject(listQuery);
-
-    assert.deepEqual(query.where, { userId: USER_ID });
-    assert.deepEqual(query.orderBy, [{ createdAt: 'desc' }, { id: 'desc' }]);
-    assert.equal(query.take, 21);
-    assert.deepEqual(result.items[0]?.author, { id: USER_ID, nickname: 'Рыболов' });
-    assert.equal(result.nextCursor, null);
-  });
-
-  void it('reads historical reports through direct relations without active filters', async () => {
-    let detailQuery: unknown;
-    const prisma = {
-      catchReport: {
-        findUnique: (input: unknown) => {
-          detailQuery = input;
-          return Promise.resolve(publicRecord());
-        },
-      },
-    } as unknown as PrismaService;
-    const service = new CatchReportsService(prisma);
-
-    const result = await service.getPublic(REPORT_ID);
-    const query = asObject(detailQuery);
-
-    assert.deepEqual(query.where, { id: REPORT_ID });
-    assert.equal('where' in asObject(query.select), false);
-    assert.deepEqual(result.report.fishingBase, {
-      id: '60000000-0000-4000-8000-000000000001',
-      name: 'Озера Танзании',
+    await new CatchReportsService(prisma).update(USER_ID, REPORT_ID, {
+      baitId: BAIT_ID,
+      weightGrams: 41,
     });
-    assert.equal('isActive' in result.report.fishingBase, false);
+
+    assert.deepEqual(calls, []);
+    assert.deepEqual(asObject(asObject(updateQuery).data), {
+      baitId: BAIT_ID,
+      weightGrams: 41,
+    });
+  });
+
+  void it('re-derives an actual BAIT to LURE change and requires spinning observations', async () => {
+    const prisma = updatePrisma({ replacementType: 'LURE' });
+    const service = new CatchReportsService(prisma.value);
+
+    await assert.rejects(
+      service.update(USER_ID, REPORT_ID, { baitId: OTHER_BAIT_ID }),
+      hasFieldError('spinningSize'),
+    );
+
+    await service.update(USER_ID, REPORT_ID, {
+      baitId: OTHER_BAIT_ID,
+      spinningSize: 'MEDIUM',
+      spinningSpeed: 'SLOW',
+    });
+    const data = asObject(asObject(prisma.lastUpdate()).data);
+    assert.equal(data.fishingMethod, 'SPINNING');
+    assert.equal(data.spinningSize, 'MEDIUM');
+    assert.equal(data.spinningSpeed, 'SLOW');
+  });
+
+  void it('re-derives LURE to BAIT, requires a hole, and clears stale spinning data', async () => {
+    const prisma = updatePrisma({
+      currentMethod: 'SPINNING',
+      currentHole: null,
+      currentSize: 'MEDIUM',
+      currentSpeed: 'SLOW',
+      replacementType: 'BAIT',
+    });
+    const service = new CatchReportsService(prisma.value);
+
+    await assert.rejects(
+      service.update(USER_ID, REPORT_ID, { baitId: OTHER_BAIT_ID }),
+      hasFieldError('holeDepthCm'),
+    );
+
+    await service.update(USER_ID, REPORT_ID, {
+      baitId: OTHER_BAIT_ID,
+      holeDepthCm: 555,
+      spinningSize: 'MEDIUM',
+      spinningSpeed: 'SLOW',
+    });
+    assert.deepEqual(asObject(asObject(prisma.lastUpdate()).data), {
+      baitId: OTHER_BAIT_ID,
+      holeDepthCm: 555,
+      fishingMethod: 'BAIT_FISHING',
+      spinningSize: null,
+      spinningSpeed: null,
+    });
+  });
+
+  void it('allows unrelated edits on a preserved incomplete legacy row', async () => {
+    const prisma = updatePrisma({ currentMethod: 'BAIT_FISHING', currentHole: null });
+    await new CatchReportsService(prisma.value).update(USER_ID, REPORT_ID, { weightGrams: 50 });
+    assert.deepEqual(asObject(asObject(prisma.lastUpdate()).data), { weightGrams: 50 });
+  });
+
+  void it('keeps raw source out of public detail and exposes it only through owner detail', async () => {
+    const record = reportRecord();
+    const prisma = {
+      catchReport: {
+        findUnique: () => Promise.resolve(record),
+        findFirst: (query: unknown) => {
+          assert.deepEqual(asObject(query).where, { id: REPORT_ID, userId: USER_ID });
+          return Promise.resolve(record);
+        },
+      },
+    } as unknown as PrismaService;
+    const service = new CatchReportsService(prisma);
+
+    const publicResult = await service.getPublic(REPORT_ID);
+    const ownerResult = await service.getMine(USER_ID, REPORT_ID);
+    assert.equal('rawSourceText' in publicResult.report, false);
+    assert.equal(ownerResult.report.rawSourceText, 'Исходная строка');
+  });
+
+  void it('checks ownership before validating an update', async () => {
+    const prisma = updatePrisma({ ownerId: OTHER_USER_ID });
+    await assert.rejects(
+      new CatchReportsService(prisma.value).update(USER_ID, REPORT_ID, {
+        locationId: OTHER_LOCATION_ID,
+        fishId: OTHER_FISH_ID,
+      }),
+      hasCode('CATCH_REPORT_NOT_OWNED'),
+    );
+  });
+
+  void it('rechecks the actor ban state inside mutations after guard authorization', async () => {
+    let createCalled = false;
+    const prisma = withTransaction(
+      {
+        catchReport: {
+          create: () => {
+            createCalled = true;
+            return Promise.resolve({ id: REPORT_ID });
+          },
+        },
+      },
+      0,
+      true,
+    ) as unknown as PrismaService;
+
+    await assert.rejects(
+      () => new CatchReportsService(prisma).create(USER_ID, createDto()),
+      hasCode('ACCOUNT_BANNED'),
+    );
+    assert.equal(createCalled, false);
   });
 });
+
+interface UpdatePrismaOptions {
+  ownerId?: string;
+  currentMethod?: 'BAIT_FISHING' | 'SPINNING';
+  currentHole?: number | null;
+  currentSize?: 'SMALL' | 'MEDIUM' | 'LARGE' | null;
+  currentSpeed?: 'SLOW' | 'MEDIUM' | 'FAST' | null;
+  replacementType?: 'BAIT' | 'LURE';
+}
+
+function updatePrisma(options: UpdatePrismaOptions = {}) {
+  let updateQuery: unknown;
+  const currentMethod = options.currentMethod ?? 'BAIT_FISHING';
+  const currentHole = options.currentHole === undefined ? 600 : options.currentHole;
+  const currentSize = options.currentSize === undefined ? null : options.currentSize;
+  const currentSpeed = options.currentSpeed === undefined ? null : options.currentSpeed;
+  const resultRecord = reportRecord({
+    fishingMethod: options.replacementType === 'LURE' ? 'SPINNING' : currentMethod,
+    holeDepthCm: currentHole,
+    spinningSize: currentSize,
+    spinningSpeed: currentSpeed,
+  });
+  const value = withTransaction({
+    user: { findUnique: () => Promise.resolve({ id: USER_ID, nickname: 'Рыболов' }) },
+    catchReport: {
+      findUnique: () =>
+        Promise.resolve({
+          userId: options.ownerId ?? USER_ID,
+          locationId: LOCATION_ID,
+          fishId: FISH_ID,
+          baitId: BAIT_ID,
+          fishingMethod: currentMethod,
+          holeDepthCm: currentHole,
+          spinningSize: currentSize,
+          spinningSpeed: currentSpeed,
+        }),
+      update: (query: unknown) => {
+        updateQuery = query;
+        return Promise.resolve(resultRecord);
+      },
+      findFirst: () =>
+        Promise.resolve(
+          reportScalarRecord({
+            fishingMethod: options.replacementType === 'LURE' ? 'SPINNING' : currentMethod,
+            holeDepthCm: currentHole,
+            spinningSize: currentSize,
+            spinningSpeed: currentSpeed,
+          }),
+        ),
+    },
+    bait: {
+      findUnique: () =>
+        Promise.resolve({
+          id: BAIT_ID,
+          name: 'Мотыль',
+          isActive: true,
+          type: options.replacementType ?? 'BAIT',
+        }),
+    },
+    location: {
+      findUnique: () =>
+        Promise.resolve({
+          id: LOCATION_ID,
+          fishingBaseId: BASE_ID,
+          number: 1,
+          name: 'Берег',
+        }),
+    },
+    fishingBase: { findUnique: () => Promise.resolve({ id: BASE_ID, name: 'База' }) },
+    fish: { findUnique: () => Promise.resolve({ id: FISH_ID, name: 'Рыба' }) },
+  }) as unknown as PrismaService;
+
+  return { value, lastUpdate: () => updateQuery };
+}

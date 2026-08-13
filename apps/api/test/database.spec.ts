@@ -8,8 +8,8 @@ function recordingCleaner(calls: string[]): TestDataCleaner {
       calls.push('catchReports');
       return Promise.resolve();
     },
-    deleteLocationFish: () => {
-      calls.push('locationFish');
+    deleteFishingBaseFish: () => {
+      calls.push('fishingBaseFish');
       return Promise.resolve();
     },
     deleteLocations: () => {
@@ -26,6 +26,10 @@ function recordingCleaner(calls: string[]): TestDataCleaner {
     },
     deleteBaits: () => {
       calls.push('baits');
+      return Promise.resolve();
+    },
+    deleteScreenAnchors: () => {
+      calls.push('screenAnchors');
       return Promise.resolve();
     },
     deleteSessions: () => {
@@ -113,11 +117,12 @@ void describe('test database safety guard', () => {
 
     assert.deepEqual(calls, [
       'catchReports',
-      'locationFish',
+      'fishingBaseFish',
       'locations',
       'fishingBases',
       'fish',
       'baits',
+      'screenAnchors',
       'sessions',
       'users',
     ]);

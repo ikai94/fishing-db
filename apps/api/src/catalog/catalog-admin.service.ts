@@ -13,15 +13,17 @@ import {
   normalizeCatalogName,
   type NormalizedCatalogName,
 } from './catalog-normalization.js';
-import type { AddLocationFishDto } from './dto/add-location-fish.dto.js';
+import type { AddFishingBaseFishDto } from './dto/add-fishing-base-fish.dto.js';
 import type { CreateBaitDto } from './dto/create-bait.dto.js';
 import type { CreateFishDto } from './dto/create-fish.dto.js';
 import type { CreateFishingBaseDto } from './dto/create-fishing-base.dto.js';
 import type { CreateLocationDto } from './dto/create-location.dto.js';
+import type { CreateScreenAnchorDto } from './dto/create-screen-anchor.dto.js';
 import type { UpdateBaitDto } from './dto/update-bait.dto.js';
 import type { UpdateFishDto } from './dto/update-fish.dto.js';
 import type { UpdateFishingBaseDto } from './dto/update-fishing-base.dto.js';
 import type { UpdateLocationDto } from './dto/update-location.dto.js';
+import type { UpdateScreenAnchorDto } from './dto/update-screen-anchor.dto.js';
 
 const ADMIN_NAMED_ITEM_SELECT = {
   id: true,
@@ -41,6 +43,8 @@ const ADMIN_LOCATION_SELECT = {
   updatedAt: true,
 } as const;
 
+const LEGACY_SPINNING_FISH_SUFFIX = ' (спиннинг)';
+
 function validatedCatalogName(value: string): NormalizedCatalogName {
   try {
     return normalizeCatalogName(value);
@@ -51,6 +55,20 @@ function validatedCatalogName(value: string): NormalizedCatalogName {
 
     throw error;
   }
+}
+
+function validatedFishName(value: string): NormalizedCatalogName {
+  const name = validatedCatalogName(value);
+
+  if (name.name.endsWith(LEGACY_SPINNING_FISH_SUFFIX)) {
+    throw catalogNameValidationException({
+      field: 'name',
+      code: 'INVALID_CATALOG_NAME',
+      message: 'Название рыбы не должно содержать устаревшую пометку «(спиннинг)»',
+    });
+  }
+
+  return name;
 }
 
 function hasNoDefinedValues(values: unknown[]): boolean {
@@ -233,7 +251,7 @@ export class CatalogAdminService {
   }
 
   async createFish(dto: CreateFishDto) {
-    const name = validatedCatalogName(dto.name);
+    const name = validatedFishName(dto.name);
 
     try {
       const fish = await this.prisma.fish.create({
@@ -259,7 +277,7 @@ export class CatalogAdminService {
     const data: { name?: string; nameNormalized?: string; isActive?: boolean } = {};
 
     if (dto.name !== undefined) {
-      Object.assign(data, validatedCatalogName(dto.name));
+      Object.assign(data, validatedFishName(dto.name));
     }
 
     if (dto.isActive !== undefined) {
@@ -360,81 +378,135 @@ export class CatalogAdminService {
     }
   }
 
-  async addFishToLocation(locationId: string, dto: AddLocationFishDto) {
-    const location = await this.prisma.location.findUnique({
-      where: { id: locationId },
-      select: {
-        isActive: true,
-        fishingBase: { select: { isActive: true } },
-      },
-    });
-
-    if (location === null) {
-      throw catalogErrors.locationNotFound();
-    }
-
-    if (!location.fishingBase.isActive) {
-      throw catalogErrors.fishingBaseInactive();
-    }
-
-    if (!location.isActive) {
-      throw catalogErrors.locationInactive();
-    }
-
-    const fish = await this.prisma.fish.findUnique({
-      where: { id: dto.fishId },
-      select: { isActive: true },
-    });
-
-    if (fish === null) {
-      throw catalogErrors.fishNotFound();
-    }
-
-    if (!fish.isActive) {
-      throw catalogErrors.fishInactive();
-    }
+  async createScreenAnchor(dto: CreateScreenAnchorDto) {
+    const name = validatedCatalogName(dto.name);
 
     try {
-      const locationFish = await this.prisma.locationFish.create({
-        data: {
-          locationId,
-          fishId: dto.fishId,
-        },
-        select: {
-          locationId: true,
-          fishId: true,
-          createdAt: true,
-        },
+      const screenAnchor = await this.prisma.screenAnchor.create({
+        data: name,
+        select: ADMIN_NAMED_ITEM_SELECT,
       });
 
-      return { locationFish };
+      return { screenAnchor };
     } catch (error: unknown) {
       if (isPrismaError(error, 'P2002')) {
-        throw catalogErrors.locationFishExists();
-      }
-
-      if (isPrismaError(error, 'P2003')) {
-        throw catalogErrors.locationFishRelationInvalid();
+        throw catalogErrors.screenAnchorNameExists();
       }
 
       throw error;
     }
   }
 
-  async removeFishFromLocation(locationId: string, fishId: string): Promise<void> {
+  async updateScreenAnchor(anchorId: string, dto: UpdateScreenAnchorDto) {
+    if (hasNoDefinedValues([dto.name, dto.isActive])) {
+      throw emptyUpdateException();
+    }
+
+    const data: { name?: string; nameNormalized?: string; isActive?: boolean } = {};
+
+    if (dto.name !== undefined) {
+      Object.assign(data, validatedCatalogName(dto.name));
+    }
+
+    if (dto.isActive !== undefined) {
+      data.isActive = dto.isActive;
+    }
+
     try {
-      await this.prisma.locationFish.delete({
+      const screenAnchor = await this.prisma.screenAnchor.update({
+        where: { id: anchorId },
+        data,
+        select: ADMIN_NAMED_ITEM_SELECT,
+      });
+
+      return { screenAnchor };
+    } catch (error: unknown) {
+      if (isPrismaError(error, 'P2025')) {
+        throw catalogErrors.screenAnchorNotFound();
+      }
+
+      if (isPrismaError(error, 'P2002')) {
+        throw catalogErrors.screenAnchorNameExists();
+      }
+
+      throw error;
+    }
+  }
+
+  async addFishToFishingBase(baseId: string, dto: AddFishingBaseFishDto) {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const [fishingBase] = await tx.$queryRaw<Array<{ isActive: boolean }>>`
+          SELECT "isActive"
+          FROM "FishingBase"
+          WHERE "id" = ${baseId}::uuid
+          FOR SHARE
+        `;
+
+        if (fishingBase === undefined) {
+          throw catalogErrors.fishingBaseNotFound();
+        }
+
+        if (!fishingBase.isActive) {
+          throw catalogErrors.fishingBaseInactive();
+        }
+
+        const [fish] = await tx.$queryRaw<Array<{ isActive: boolean }>>`
+          SELECT "isActive"
+          FROM "Fish"
+          WHERE "id" = ${dto.fishId}::uuid
+          FOR SHARE
+        `;
+
+        if (fish === undefined) {
+          throw catalogErrors.fishNotFound();
+        }
+
+        if (!fish.isActive) {
+          throw catalogErrors.fishInactive();
+        }
+
+        const fishingBaseFish = await tx.fishingBaseFish.create({
+          data: {
+            fishingBaseId: baseId,
+            fishId: dto.fishId,
+          },
+          select: {
+            fishingBaseId: true,
+            fishId: true,
+            createdAt: true,
+          },
+        });
+
+        return { fishingBaseFish };
+      });
+    } catch (error: unknown) {
+      if (isPrismaError(error, 'P2002')) {
+        throw catalogErrors.fishingBaseFishExists();
+      }
+
+      if (isPrismaError(error, 'P2003')) {
+        throw catalogErrors.fishingBaseFishRelationInvalid();
+      }
+
+      throw error;
+    }
+  }
+
+  async removeFishFromFishingBase(baseId: string, fishId: string): Promise<void> {
+    try {
+      await this.prisma.fishingBaseFish.delete({
         where: {
-          locationId_fishId: { locationId, fishId },
+          fishingBaseId_fishId: { fishingBaseId: baseId, fishId },
         },
       });
     } catch (error: unknown) {
       if (isPrismaError(error, 'P2025')) {
-        throw catalogErrors.locationFishNotFound();
+        throw catalogErrors.fishingBaseFishNotFound();
       }
 
       if (isPrismaError(error, 'P2003')) {
-        throw catalogErrors.locationFishRelationInvalid();
+        throw catalogErrors.fishingBaseFishRelationInvalid();
       }
 
       throw error;

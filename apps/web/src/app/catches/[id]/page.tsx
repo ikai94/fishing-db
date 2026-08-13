@@ -7,9 +7,11 @@ import styles from '../../catch-reports.module.css';
 import { formatCatchDate, formatWeight } from '../_components/catch-report-list';
 import { getCatchReport } from '@/lib/catch-reports-api';
 import {
+  fishingMethodLabel,
   fishingNoteLabel,
   formatCentimetersAsMeters,
-  spotLandmarkLabel,
+  spinningSizeLabel,
+  spinningSpeedLabel,
 } from '@/lib/catch-report-form';
 import { useApiResource } from '@/lib/use-api-resource';
 
@@ -102,8 +104,12 @@ export default function CatchReportDetailPage() {
                   <dd>{state.data.fish.name}</dd>
                 </div>
                 <div>
-                  <dt>{state.data.bait.type === 'BAIT' ? 'Наживка' : 'Приманка'}</dt>
+                  <dt>{state.data.fishingMethod === 'BAIT_FISHING' ? 'Наживка' : 'Приманка'}</dt>
                   <dd>{state.data.bait.name}</dd>
+                </div>
+                <div>
+                  <dt>Способ ловли</dt>
+                  <dd>{fishingMethodLabel(state.data.fishingMethod)}</dd>
                 </div>
                 <div>
                   <dt>Глубина ямки</dt>
@@ -114,18 +120,30 @@ export default function CatchReportDetailPage() {
                   </dd>
                 </div>
                 <div>
-                  <dt>Ориентир</dt>
-                  <dd>{spotLandmarkLabel(state.data.spotLandmark) ?? 'не указан'}</dd>
+                  <dt>Позиция на экране</dt>
+                  <dd>{state.data.spotPositionRaw ?? 'не указана'}</dd>
                 </div>
                 <div>
                   <dt>Условие ловли</dt>
                   <dd>{fishingNoteLabel(state.data.fishingNote) ?? 'не указано'}</dd>
                 </div>
+                {state.data.fishingMethod === 'SPINNING' ? (
+                  <>
+                    <div>
+                      <dt>Размер</dt>
+                      <dd>{spinningSizeLabel(state.data.spinningSize) ?? 'не указан'}</dd>
+                    </div>
+                    <div>
+                      <dt>Скорость проводки</dt>
+                      <dd>{spinningSpeedLabel(state.data.spinningSpeed) ?? 'не указана'}</dd>
+                    </div>
+                  </>
+                ) : null}
               </dl>
 
               {state.data.userNoteRaw !== null ? (
                 <section>
-                  <h2 className={styles.panelTitle}>Исходная заметка</h2>
+                  <h2 className={styles.panelTitle}>Комментарий</h2>
                   <p className={styles.rawNote}>{state.data.userNoteRaw}</p>
                 </section>
               ) : null}

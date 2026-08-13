@@ -20,9 +20,14 @@ export class BaitIdParamsDto {
   baitId!: string;
 }
 
-export class LocationFishParamsDto {
-  @IsUUID('4', { message: 'Идентификатор локации должен быть UUID' })
-  locationId!: string;
+export class ScreenAnchorIdParamsDto {
+  @IsUUID('4', { message: 'Идентификатор ориентира должен быть UUID' })
+  anchorId!: string;
+}
+
+export class FishingBaseFishParamsDto {
+  @IsUUID('4', { message: 'Идентификатор базы должен быть UUID' })
+  baseId!: string;
 
   @IsUUID('4', { message: 'Идентификатор рыбы должен быть UUID' })
   fishId!: string;

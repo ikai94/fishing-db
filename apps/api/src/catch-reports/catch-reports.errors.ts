@@ -4,12 +4,18 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
+import type { CatchReportObservationErrors } from './catch-report-observation.js';
 
 function response(statusCode: number, code: string, message: string): object {
   return { statusCode, code, message };
 }
 
 export const catchReportErrors = {
+  observationValidation: (errors: CatchReportObservationErrors): BadRequestException =>
+    new BadRequestException({
+      ...response(400, 'VALIDATION_ERROR', 'Проверьте введённые данные'),
+      errors,
+    }),
   invalidCursor: (): BadRequestException =>
     new BadRequestException({
       ...response(400, 'VALIDATION_ERROR', 'Проверьте введённые данные'),
@@ -26,6 +32,8 @@ export const catchReportErrors = {
     new ForbiddenException(
       response(403, 'CATCH_REPORT_NOT_OWNED', 'Нельзя изменить чужой отчёт об улове'),
     ),
+  accountBanned: (): ForbiddenException =>
+    new ForbiddenException(response(403, 'ACCOUNT_BANNED', 'Аккаунт заблокирован')),
   referenceConflict: (): ConflictException =>
     new ConflictException(
       response(

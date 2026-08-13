@@ -43,7 +43,7 @@ void describe('CatalogQueryService', () => {
     assert.deepEqual(result, { items: [{ id: 'base-id', name: 'Амур' }] });
   });
 
-  void it('returns only active locations in public base detail', async () => {
+  void it('returns only active locations and active Base fish in public base detail', async () => {
     let query: unknown;
     const prisma = {
       fishingBase: {
@@ -53,6 +53,10 @@ void describe('CatalogQueryService', () => {
             id: 'base-id',
             name: 'Амур',
             locations: [{ id: 'location-id', number: 1, name: 'Протока' }],
+            fishLinks: [
+              { fish: { id: 'fish-1', name: 'Осётр' } },
+              { fish: { id: 'fish-2', name: 'Щука' } },
+            ],
           });
         },
       },
@@ -63,10 +67,16 @@ void describe('CatalogQueryService', () => {
     const queryObject = asObject(query);
     const select = asObject(queryObject.select);
     const locations = asObject(select.locations);
+    const fishLinks = asObject(select.fishLinks);
 
     assert.deepEqual(queryObject.where, { id: 'base-id', isActive: true });
     assert.deepEqual(locations.where, { isActive: true });
     assert.deepEqual(Object.keys(asObject(locations.select)).sort(), ['id', 'name', 'number']);
+    assert.deepEqual(fishLinks.where, { fish: { isActive: true } });
+    assert.deepEqual((await service.getPublicFishingBase('base-id')).base.fish, [
+      { id: 'fish-1', name: 'Осётр' },
+      { id: 'fish-2', name: 'Щука' },
+    ]);
   });
 
   void it('treats an inactive or missing public base as not found', async () => {
@@ -81,7 +91,7 @@ void describe('CatalogQueryService', () => {
     );
   });
 
-  void it('requires an active parent and projects only active fish for a public location', async () => {
+  void it('requires an active parent and does not project fish from a public location', async () => {
     let query: unknown;
     const prisma = {
       location: {
@@ -92,10 +102,6 @@ void describe('CatalogQueryService', () => {
             number: 1,
             name: 'Протока',
             fishingBase: { id: 'base-id', name: 'Амур' },
-            fishLinks: [
-              { fish: { id: 'fish-1', name: 'Осётр' } },
-              { fish: { id: 'fish-2', name: 'Щука' } },
-            ],
           });
         },
       },
@@ -106,19 +112,14 @@ void describe('CatalogQueryService', () => {
     const queryObject = asObject(query);
     const where = asObject(queryObject.where);
     const select = asObject(queryObject.select);
-    const fishLinks = asObject(select.fishLinks);
 
     assert.deepEqual(where, {
       id: 'location-id',
       isActive: true,
       fishingBase: { isActive: true },
     });
-    assert.deepEqual(fishLinks.where, { fish: { isActive: true } });
-    assert.deepEqual(result.location.fish, [
-      { id: 'fish-1', name: 'Осётр' },
-      { id: 'fish-2', name: 'Щука' },
-    ]);
-    assert.equal('fishLinks' in result.location, false);
+    assert.equal('fishLinks' in select, false);
+    assert.equal('fish' in result.location, false);
   });
 
   void it('treats an inactive location or a location under an inactive base as not found', async () => {
@@ -162,20 +163,18 @@ void describe('CatalogQueryService', () => {
     assert.equal('nameNormalized' in (all.items[0] ?? {}), false);
   });
 
-  void it('maps admin LocationFish rows to an explicit safe response', async () => {
+  void it('maps admin FishingBaseFish rows to an explicit safe Base response', async () => {
     const createdAt = new Date('2026-08-08T12:00:00.000Z');
     const prisma = {
-      location: {
+      fishingBase: {
         findUnique: () =>
           Promise.resolve({
-            id: 'location-id',
-            fishingBaseId: 'base-id',
-            number: 1,
-            name: 'Протока',
+            id: 'base-id',
+            name: 'Амур',
             isActive: true,
             createdAt,
             updatedAt: createdAt,
-            fishingBase: { id: 'base-id', name: 'Амур', isActive: true },
+            locations: [{ id: 'location-id', number: 1, name: 'Протока' }],
             fishLinks: [
               {
                 createdAt,
@@ -187,9 +186,9 @@ void describe('CatalogQueryService', () => {
     } as unknown as PrismaService;
     const service = new CatalogQueryService(prisma);
 
-    const result = await service.getAdminLocation('location-id');
+    const result = await service.getAdminFishingBase('base-id');
 
-    assert.deepEqual(result.location.fish, [
+    assert.deepEqual(result.base.fish, [
       {
         id: 'fish-id',
         name: 'Осётр',
@@ -197,6 +196,27 @@ void describe('CatalogQueryService', () => {
         relationCreatedAt: createdAt,
       },
     ]);
-    assert.equal('fishLinks' in result.location, false);
+    assert.equal('fishLinks' in result.base, false);
+  });
+
+  void it('lists only active public ScreenAnchors and supports admin status filters', async () => {
+    const queries: unknown[] = [];
+    const prisma = {
+      screenAnchor: {
+        findMany: (input: unknown) => {
+          queries.push(input);
+          return Promise.resolve([{ id: 'anchor-id', name: 'Удочка' }]);
+        },
+      },
+    } as unknown as PrismaService;
+    const service = new CatalogQueryService(prisma);
+
+    assert.deepEqual(await service.listPublicScreenAnchors(), {
+      items: [{ id: 'anchor-id', name: 'Удочка' }],
+    });
+    await service.listAdminScreenAnchors('inactive');
+
+    assert.deepEqual(asObject(queries[0]).where, { isActive: true });
+    assert.deepEqual(asObject(queries[1]).where, { isActive: false });
   });
 });

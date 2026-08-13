@@ -69,18 +69,14 @@ export default function LocationPage() {
             </header>
 
             <section className={styles.panel}>
-              <h2 className={styles.panelTitle}>Рыбы на локации</h2>
-              {state.data.fish.length === 0 ? (
-                <p className={styles.muted}>Для этой локации пока не указаны активные рыбы.</p>
-              ) : (
-                <ul className={styles.list}>
-                  {state.data.fish.map((fish) => (
-                    <li className={styles.listItem} key={fish.id}>
-                      <p className={styles.itemName}>{fish.name}</p>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <h2 className={styles.panelTitle}>Рыбы учитываются на уровне базы</h2>
+              <p className={styles.muted}>
+                Рыба, связанная с базой «{state.data.fishingBase.name}», теоретически доступна на
+                всех её локациях.
+              </p>
+              <Link className={styles.link} href={`/bases/${state.data.fishingBase.id}`}>
+                Открыть рыб базы
+              </Link>
             </section>
           </>
         ) : null}

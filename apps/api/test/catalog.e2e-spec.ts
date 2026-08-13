@@ -281,8 +281,8 @@ void describe('Catalog API (PostgreSQL e2e)', { concurrency: false }, () => {
         deleteCatchReports: async () => {
           await prisma.catchReport.deleteMany();
         },
-        deleteLocationFish: async () => {
-          await prisma.locationFish.deleteMany();
+        deleteFishingBaseFish: async () => {
+          await prisma.fishingBaseFish.deleteMany();
         },
         deleteLocations: async () => {
           await prisma.location.deleteMany();
@@ -295,6 +295,9 @@ void describe('Catalog API (PostgreSQL e2e)', { concurrency: false }, () => {
         },
         deleteBaits: async () => {
           await prisma.bait.deleteMany();
+        },
+        deleteScreenAnchors: async () => {
+          await prisma.screenAnchor.deleteMany();
         },
         deleteSessions: async () => {
           await prisma.session.deleteMany();
@@ -347,7 +350,7 @@ void describe('Catalog API (PostgreSQL e2e)', { concurrency: false }, () => {
     assertPublicProjection(response.body);
   });
 
-  void test('public base detail contains only active Locations and inactive ancestry is hidden', async () => {
+  void test('public base detail contains only active Locations and Base Fish', async () => {
     const base = await prisma.fishingBase.create({
       data: { name: 'Амур', nameNormalized: 'амур' },
     });
@@ -376,6 +379,18 @@ void describe('Catalog API (PostgreSQL e2e)', { concurrency: false }, () => {
         isActive: false,
       },
     });
+    const activeFish = await prisma.fish.create({
+      data: { name: 'Карась', nameNormalized: 'карась' },
+    });
+    const inactiveFish = await prisma.fish.create({
+      data: { name: 'Щука', nameNormalized: 'щука', isActive: false },
+    });
+    await prisma.fishingBaseFish.createMany({
+      data: [
+        { fishingBaseId: base.id, fishId: activeFish.id },
+        { fishingBaseId: base.id, fishId: inactiveFish.id },
+      ],
+    });
 
     const detail = await api().get(`/api/v1/catalog/bases/${base.id}`).expect(200);
     assert.deepEqual(detail.body, {
@@ -386,6 +401,7 @@ void describe('Catalog API (PostgreSQL e2e)', { concurrency: false }, () => {
           { id: first.id, number: first.number, name: first.name },
           { id: second.id, number: second.number, name: second.name },
         ],
+        fish: [{ id: activeFish.id, name: activeFish.name }],
       },
     });
     assertPublicProjection(detail.body);
@@ -401,7 +417,7 @@ void describe('Catalog API (PostgreSQL e2e)', { concurrency: false }, () => {
     assert.equal(readErrorCode(hiddenByParent.body as unknown), 'LOCATION_NOT_FOUND');
   });
 
-  void test('public Location detail returns its active Base and only active Fish', async () => {
+  void test('public Location detail returns its active Base without a Fish list', async () => {
     const base = await prisma.fishingBase.create({
       data: { name: 'Озёра', nameNormalized: 'озёра' },
     });
@@ -413,19 +429,6 @@ void describe('Catalog API (PostgreSQL e2e)', { concurrency: false }, () => {
         nameNormalized: 'берег',
       },
     });
-    const activeFish = await prisma.fish.create({
-      data: { name: 'Карась', nameNormalized: 'карась' },
-    });
-    const inactiveFish = await prisma.fish.create({
-      data: { name: 'Щука', nameNormalized: 'щука', isActive: false },
-    });
-    await prisma.locationFish.createMany({
-      data: [
-        { locationId: location.id, fishId: activeFish.id },
-        { locationId: location.id, fishId: inactiveFish.id },
-      ],
-    });
-
     const response = await api().get(`/api/v1/catalog/locations/${location.id}`).expect(200);
 
     assert.deepEqual(response.body, {
@@ -434,11 +437,9 @@ void describe('Catalog API (PostgreSQL e2e)', { concurrency: false }, () => {
         number: location.number,
         name: location.name,
         fishingBase: { id: base.id, name: base.name },
-        fish: [{ id: activeFish.id, name: activeFish.name }],
       },
     });
     assertPublicProjection(response.body);
-    assert.equal(await prisma.locationFish.count(), 2);
 
     await prisma.location.update({ where: { id: location.id }, data: { isActive: false } });
     const hidden = await api().get(`/api/v1/catalog/locations/${location.id}`).expect(404);
@@ -683,6 +684,23 @@ void describe('Catalog API (PostgreSQL e2e)', { concurrency: false }, () => {
       .expect(409);
     assert.equal(readErrorCode(duplicate.body as unknown), 'FISH_NAME_ALREADY_EXISTS');
 
+    const retiredCreate = await unsafe(api().post('/api/v1/admin/catalog/fish'), admin.cookie)
+      .send({ name: 'Сайда (спиннинг)' })
+      .expect(400);
+    assert.equal(readErrorCode(retiredCreate.body as unknown), 'VALIDATION_ERROR');
+
+    const retiredRename = await unsafe(
+      api().patch(`/api/v1/admin/catalog/fish/${fish.id}`),
+      admin.cookie,
+    )
+      .send({ name: 'Жерех-лысач (спиннинг)' })
+      .expect(400);
+    assert.equal(readErrorCode(retiredRename.body as unknown), 'VALIDATION_ERROR');
+    assert.equal(
+      (await prisma.fish.findUniqueOrThrow({ where: { id: fish.id } })).name,
+      'БЕЛЫЙ   АМУР',
+    );
+
     await unsafe(api().patch(`/api/v1/admin/catalog/fish/${fish.id}`), admin.cookie)
       .send({ isActive: false })
       .expect(200);
@@ -724,45 +742,92 @@ void describe('Catalog API (PostgreSQL e2e)', { concurrency: false }, () => {
     assert.equal(lure.name, 'Блесна');
   });
 
-  void test('LocationFish add/remove enforces active participants and keeps relations on deactivation', async () => {
+  void test('ScreenAnchor public/admin APIs normalize names and preserve inactive rows', async () => {
+    const admin = await createActor('ADMIN');
+    const created = await unsafe(api().post('/api/v1/admin/catalog/screen-anchors'), admin.cookie)
+      .send({ name: '  Удочка  ' })
+      .expect(201);
+    const anchor = readEnvelope(created.body as unknown, 'screenAnchor');
+    const anchorId = asString(anchor.id, 'screenAnchor.id');
+
+    assert.equal(
+      (await prisma.screenAnchor.findUniqueOrThrow({ where: { id: anchorId } })).nameNormalized,
+      'удочка',
+    );
+    assert.deepEqual((await api().get('/api/v1/catalog/screen-anchors').expect(200)).body, {
+      items: [{ id: anchorId, name: 'Удочка' }],
+    });
+
+    const duplicate = await unsafe(api().post('/api/v1/admin/catalog/screen-anchors'), admin.cookie)
+      .send({ name: 'УДОЧКА' })
+      .expect(409);
+    assert.equal(readErrorCode(duplicate.body as unknown), 'SCREEN_ANCHOR_NAME_ALREADY_EXISTS');
+
+    await unsafe(api().patch(`/api/v1/admin/catalog/screen-anchors/${anchorId}`), admin.cookie)
+      .send({ name: 'События', isActive: false })
+      .expect(200);
+    assert.deepEqual((await api().get('/api/v1/catalog/screen-anchors').expect(200)).body, {
+      items: [],
+    });
+    const inactive = await api()
+      .get('/api/v1/admin/catalog/screen-anchors?status=inactive')
+      .set('Cookie', admin.cookie)
+      .expect(200);
+    assert.equal(readItems(inactive.body as unknown).length, 1);
+  });
+
+  void test('FishingBaseFish add/remove enforces active participants and is shared by all Base Locations', async () => {
     const admin = await createActor('ADMIN');
     const base = await createBase(admin.cookie, 'База связей');
     const firstLocation = await createLocation(admin.cookie, base.id, 1, 'Первая локация');
-    const secondLocation = await createLocation(admin.cookie, base.id, 2, 'Вторая локация');
+    await createLocation(admin.cookie, base.id, 2, 'Вторая локация');
     const firstFish = await createFish(admin.cookie, 'Первая рыба');
     const secondFish = await createFish(admin.cookie, 'Вторая рыба');
+    const thirdFish = await createFish(admin.cookie, 'Третья рыба');
 
     const relation = await unsafe(
-      api().post(`/api/v1/admin/catalog/locations/${firstLocation.id}/fish`),
+      api().post(`/api/v1/admin/catalog/bases/${base.id}/fish`),
       admin.cookie,
     )
       .send({ fishId: firstFish.id })
       .expect(201);
-    const relationBody = readEnvelope(relation.body as unknown, 'locationFish');
-    assert.deepEqual(Object.keys(relationBody).sort(), ['createdAt', 'fishId', 'locationId']);
-    assert.equal(asString(relationBody.locationId, 'locationId'), firstLocation.id);
+    const relationBody = readEnvelope(relation.body as unknown, 'fishingBaseFish');
+    assert.deepEqual(Object.keys(relationBody).sort(), ['createdAt', 'fishId', 'fishingBaseId']);
+    assert.equal(asString(relationBody.fishingBaseId, 'fishingBaseId'), base.id);
     assert.equal(asString(relationBody.fishId, 'fishId'), firstFish.id);
-    assert.equal(await prisma.locationFish.count(), 1);
+    assert.equal(await prisma.fishingBaseFish.count(), 1);
+
+    const publicBase = await api().get(`/api/v1/catalog/bases/${base.id}`).expect(200);
+    const publicBaseBody = readEnvelope(publicBase.body as unknown, 'base');
+    assert.equal(asArray(publicBaseBody.locations).length, 2);
+    assert.deepEqual(publicBaseBody.fish, [{ id: firstFish.id, name: firstFish.name }]);
+    const publicLocation = await api()
+      .get(`/api/v1/catalog/locations/${firstLocation.id}`)
+      .expect(200);
+    assert.equal('fish' in readEnvelope(publicLocation.body as unknown, 'location'), false);
 
     const duplicate = await unsafe(
-      api().post(`/api/v1/admin/catalog/locations/${firstLocation.id}/fish`),
+      api().post(`/api/v1/admin/catalog/bases/${base.id}/fish`),
       admin.cookie,
     )
       .send({ fishId: firstFish.id })
       .expect(409);
-    assert.equal(readErrorCode(duplicate.body as unknown), 'LOCATION_FISH_ALREADY_EXISTS');
+    assert.equal(readErrorCode(duplicate.body as unknown), 'FISHING_BASE_FISH_ALREADY_EXISTS');
 
     await unsafe(api().patch(`/api/v1/admin/catalog/fish/${firstFish.id}`), admin.cookie)
       .send({ isActive: false })
       .expect(200);
-    assert.equal(await prisma.locationFish.count(), 1);
-    const publicLocation = await api()
-      .get(`/api/v1/catalog/locations/${firstLocation.id}`)
+    assert.equal(await prisma.fishingBaseFish.count(), 1);
+    const hiddenFromPublicBase = await api().get(`/api/v1/catalog/bases/${base.id}`).expect(200);
+    assert.deepEqual(readEnvelope(hiddenFromPublicBase.body as unknown, 'base').fish, []);
+    const adminBase = await api()
+      .get(`/api/v1/admin/catalog/bases/${base.id}`)
+      .set('Cookie', admin.cookie)
       .expect(200);
-    assert.deepEqual(asArray(readEnvelope(publicLocation.body as unknown, 'location').fish), []);
+    assert.equal(asArray(readEnvelope(adminBase.body as unknown, 'base').fish).length, 1);
 
     const inactiveFish = await unsafe(
-      api().post(`/api/v1/admin/catalog/locations/${secondLocation.id}/fish`),
+      api().post(`/api/v1/admin/catalog/bases/${base.id}/fish`),
       admin.cookie,
     )
       .send({ fishId: firstFish.id })
@@ -770,37 +835,30 @@ void describe('Catalog API (PostgreSQL e2e)', { concurrency: false }, () => {
     assert.equal(readErrorCode(inactiveFish.body as unknown), 'FISH_INACTIVE');
 
     await unsafe(
-      api().delete(`/api/v1/admin/catalog/locations/${firstLocation.id}/fish/${firstFish.id}`),
+      api().delete(`/api/v1/admin/catalog/bases/${base.id}/fish/${firstFish.id}`),
       admin.cookie,
     ).expect(204);
-    assert.equal(await prisma.locationFish.count(), 0);
+    assert.equal(await prisma.fishingBaseFish.count(), 0);
 
     const missingRelation = await unsafe(
-      api().delete(`/api/v1/admin/catalog/locations/${firstLocation.id}/fish/${firstFish.id}`),
+      api().delete(`/api/v1/admin/catalog/bases/${base.id}/fish/${firstFish.id}`),
       admin.cookie,
     ).expect(404);
-    assert.equal(readErrorCode(missingRelation.body as unknown), 'LOCATION_FISH_NOT_FOUND');
+    assert.equal(readErrorCode(missingRelation.body as unknown), 'FISHING_BASE_FISH_NOT_FOUND');
 
     await unsafe(api().patch(`/api/v1/admin/catalog/fish/${firstFish.id}`), admin.cookie)
       .send({ isActive: true })
       .expect(200);
-    await unsafe(
-      api().post(`/api/v1/admin/catalog/locations/${firstLocation.id}/fish`),
-      admin.cookie,
-    )
+    await unsafe(api().post(`/api/v1/admin/catalog/bases/${base.id}/fish`), admin.cookie)
       .send({ fishId: firstFish.id })
       .expect(201);
     await unsafe(api().patch(`/api/v1/admin/catalog/locations/${firstLocation.id}`), admin.cookie)
       .send({ isActive: false })
       .expect(200);
-    assert.equal(await prisma.locationFish.count(), 1);
-    const inactiveLocation = await unsafe(
-      api().post(`/api/v1/admin/catalog/locations/${firstLocation.id}/fish`),
-      admin.cookie,
-    )
+    assert.equal(await prisma.fishingBaseFish.count(), 1);
+    await unsafe(api().post(`/api/v1/admin/catalog/bases/${base.id}/fish`), admin.cookie)
       .send({ fishId: secondFish.id })
-      .expect(409);
-    assert.equal(readErrorCode(inactiveLocation.body as unknown), 'LOCATION_INACTIVE');
+      .expect(201);
 
     await unsafe(api().patch(`/api/v1/admin/catalog/locations/${firstLocation.id}`), admin.cookie)
       .send({ isActive: true })
@@ -809,42 +867,34 @@ void describe('Catalog API (PostgreSQL e2e)', { concurrency: false }, () => {
       .send({ isActive: false })
       .expect(200);
     const inactiveBase = await unsafe(
-      api().post(`/api/v1/admin/catalog/locations/${firstLocation.id}/fish`),
+      api().post(`/api/v1/admin/catalog/bases/${base.id}/fish`),
       admin.cookie,
     )
-      .send({ fishId: secondFish.id })
+      .send({ fishId: thirdFish.id })
       .expect(409);
     assert.equal(readErrorCode(inactiveBase.body as unknown), 'FISHING_BASE_INACTIVE');
   });
 
-  void test('PostgreSQL enforces LocationFish composite identity and foreign keys', async () => {
+  void test('PostgreSQL enforces FishingBaseFish composite identity and foreign keys', async () => {
     const base = await prisma.fishingBase.create({
       data: { name: 'DB база', nameNormalized: 'db база' },
-    });
-    const location = await prisma.location.create({
-      data: {
-        fishingBaseId: base.id,
-        number: 1,
-        name: 'DB локация',
-        nameNormalized: 'db локация',
-      },
     });
     const fish = await prisma.fish.create({
       data: { name: 'DB рыба', nameNormalized: 'db рыба' },
     });
-    await prisma.locationFish.create({
-      data: { locationId: location.id, fishId: fish.id },
+    await prisma.fishingBaseFish.create({
+      data: { fishingBaseId: base.id, fishId: fish.id },
     });
 
     await assert.rejects(
-      prisma.locationFish.create({
-        data: { locationId: location.id, fishId: fish.id },
+      prisma.fishingBaseFish.create({
+        data: { fishingBaseId: base.id, fishId: fish.id },
       }),
       (error: unknown) => prismaErrorCode(error) === 'P2002',
     );
     await assert.rejects(
-      prisma.locationFish.create({
-        data: { locationId: location.id, fishId: randomUUID() },
+      prisma.fishingBaseFish.create({
+        data: { fishingBaseId: base.id, fishId: randomUUID() },
       }),
       (error: unknown) => prismaErrorCode(error) === 'P2003',
     );
@@ -852,7 +902,7 @@ void describe('Catalog API (PostgreSQL e2e)', { concurrency: false }, () => {
       prisma.fish.delete({ where: { id: fish.id } }),
       (error: unknown) => prismaErrorCode(error) === 'P2003',
     );
-    assert.equal(await prisma.locationFish.count(), 1);
+    assert.equal(await prisma.fishingBaseFish.count(), 1);
   });
 
   void test('credentialed CORS advertises PATCH and DELETE for the admin API', async () => {

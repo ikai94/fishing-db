@@ -8,7 +8,7 @@
     "start": "next start --port 3000",
     "lint": "eslint .",
     "typecheck": "next typegen && tsc --noEmit",
-    "test": "node --test --test-isolation=none src/lib/catch-report-form.spec.ts"
+    "test": "vitest run"
   },
   "dependencies": {
     "next": "16.2.12",
@@ -16,11 +16,16 @@
     "react-dom": "19.2.8"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^7.0.0",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.3",
     "@types/node": "24.13.3",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.4",
     "eslint": "9.39.5",
     "eslint-config-next": "16.2.12",
-    "typescript": "5.9.3"
+    "jsdom": "^30.0.1",
+    "typescript": "5.9.3",
+    "vitest": "^4.1.10"
   }
 }

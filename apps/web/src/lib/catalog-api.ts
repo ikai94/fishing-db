@@ -13,16 +13,18 @@ export type PublicLocationSummary = PublicCatalogItem & {
 
 export type PublicFishingBase = PublicCatalogItem & {
   locations: PublicLocationSummary[];
+  fish: PublicCatalogItem[];
 };
 
 export type PublicLocation = PublicLocationSummary & {
   fishingBase: PublicCatalogItem;
-  fish: PublicCatalogItem[];
 };
 
 export type PublicBait = PublicCatalogItem & {
   type: BaitType;
 };
+
+export type PublicScreenAnchor = PublicCatalogItem;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -55,25 +57,30 @@ function readItems<T>(payload: unknown, reader: (value: unknown) => T): T[] {
 }
 
 function readFishingBaseResponse(payload: unknown): PublicFishingBase {
-  if (!isRecord(payload) || !isRecord(payload.base) || !Array.isArray(payload.base.locations)) {
+  if (
+    !isRecord(payload) ||
+    !isRecord(payload.base) ||
+    !Array.isArray(payload.base.locations) ||
+    !Array.isArray(payload.base.fish)
+  ) {
     throw new Error('Сервер вернул некорректный ответ каталога');
   }
 
   return {
     ...readCatalogItem(payload.base),
     locations: payload.base.locations.map(readLocationSummary),
+    fish: payload.base.fish.map(readCatalogItem),
   };
 }
 
 function readLocationResponse(payload: unknown): PublicLocation {
-  if (!isRecord(payload) || !isRecord(payload.location) || !Array.isArray(payload.location.fish)) {
+  if (!isRecord(payload) || !isRecord(payload.location)) {
     throw new Error('Сервер вернул некорректный ответ каталога');
   }
 
   return {
     ...readLocationSummary(payload.location),
     fishingBase: readCatalogItem(payload.location.fishingBase),
-    fish: payload.location.fish.map(readCatalogItem),
   };
 }
 
@@ -121,4 +128,9 @@ export async function listFish(signal?: AbortSignal): Promise<PublicCatalogItem[
 export async function listBaits(signal?: AbortSignal): Promise<PublicBait[]> {
   const payload = await apiRequest<unknown>('/catalog/baits', { signal });
   return readItems(payload, readBait);
+}
+
+export async function listScreenAnchors(signal?: AbortSignal): Promise<PublicScreenAnchor[]> {
+  const payload = await apiRequest<unknown>('/catalog/screen-anchors', { signal });
+  return readItems(payload, readCatalogItem);
 }

@@ -2,22 +2,37 @@
 
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { type FormEvent, useCallback, useState } from 'react';
+import { type FormEvent, useCallback, useMemo, useState } from 'react';
 import styles from '../../../../catalog.module.css';
 import {
   type AdminFishingBaseDetail,
+  type AdminFish,
+  addFishToFishingBase,
   createLocation,
   getAdminFishingBase,
+  listAdminFish,
+  removeFishFromFishingBase,
   type UpdateFishingBaseInput,
   updateFishingBase,
 } from '@/lib/admin-catalog-api';
 import { getApiErrorMessage, isApiError } from '@/lib/api-client';
 import { useApiResource } from '@/lib/use-api-resource';
 
+type BasePageData = {
+  base: AdminFishingBaseDetail;
+  activeFish: AdminFish[];
+};
+
 export default function AdminFishingBasePage() {
   const { id: baseId } = useParams<{ id: string }>();
   const loadBase = useCallback(
-    (signal: AbortSignal) => getAdminFishingBase(baseId, signal),
+    async (signal: AbortSignal): Promise<BasePageData> => {
+      const [base, activeFish] = await Promise.all([
+        getAdminFishingBase(baseId, signal),
+        listAdminFish('active', signal),
+      ]);
+      return { base, activeFish };
+    },
     [baseId],
   );
   const { state, reload } = useApiResource(loadBase, 'Не удалось загрузить рыболовную базу.');
@@ -56,16 +71,25 @@ export default function AdminFishingBasePage() {
 
       {state.kind === 'ready' ? (
         <BaseEditor
-          base={state.data}
+          base={state.data.base}
+          activeFish={state.data.activeFish}
           reload={reload}
-          key={`${state.data.id}:${state.data.updatedAt}`}
+          key={`${state.data.base.id}:${state.data.base.updatedAt}:${state.data.base.fish.length}`}
         />
       ) : null}
     </>
   );
 }
 
-function BaseEditor({ base, reload }: { base: AdminFishingBaseDetail; reload: () => void }) {
+function BaseEditor({
+  base,
+  activeFish,
+  reload,
+}: {
+  base: AdminFishingBaseDetail;
+  activeFish: AdminFish[];
+  reload: () => void;
+}) {
   const router = useRouter();
   const [name, setName] = useState(base.name);
   const [isActive, setIsActive] = useState(base.isActive);
@@ -81,6 +105,78 @@ function BaseEditor({ base, reload }: { base: AdminFishingBaseDetail; reload: ()
   const [locationError, setLocationError] = useState<string | null>(null);
   const [locationSuccess, setLocationSuccess] = useState<string | null>(null);
   const [isCreatingLocation, setIsCreatingLocation] = useState(false);
+
+  const [selectedFishId, setSelectedFishId] = useState('');
+  const [relationError, setRelationError] = useState<string | null>(null);
+  const [isAddingFish, setIsAddingFish] = useState(false);
+  const [removingFishId, setRemovingFishId] = useState<string | null>(null);
+
+  const availableFish = useMemo(() => {
+    const relatedIds = new Set(base.fish.map((fish) => fish.id));
+    return activeFish.filter((fish) => !relatedIds.has(fish.id));
+  }, [activeFish, base.fish]);
+
+  async function handleAddFish(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (isAddingFish || !base.isActive) return;
+    setRelationError(null);
+    if (!selectedFishId) {
+      setRelationError('Выберите рыбу.');
+      return;
+    }
+
+    setIsAddingFish(true);
+    try {
+      await addFishToFishingBase(base.id, selectedFishId);
+      setSelectedFishId('');
+      reload();
+    } catch (error) {
+      if (isApiError(error) && error.status === 401) {
+        router.replace('/login');
+        return;
+      }
+      if (isApiError(error) && error.status === 403) {
+        setRelationError('Административные права недоступны.');
+      } else if (isApiError(error) && error.code === 'FISHING_BASE_FISH_ALREADY_EXISTS') {
+        setRelationError('Эта рыба уже связана с базой.');
+      } else if (
+        isApiError(error) &&
+        ['FISHING_BASE_INACTIVE', 'FISH_INACTIVE'].includes(error.code ?? '')
+      ) {
+        setRelationError('Добавление возможно только для активной базы и активной рыбы.');
+      } else {
+        setRelationError(getApiErrorMessage(error, 'Не удалось добавить рыбу к базе.'));
+      }
+    } finally {
+      setIsAddingFish(false);
+    }
+  }
+
+  async function handleRemoveFish(fishId: string, fishName: string) {
+    if (removingFishId !== null || !window.confirm(`Убрать рыбу «${fishName}» с этой базы?`))
+      return;
+
+    setRelationError(null);
+    setRemovingFishId(fishId);
+    try {
+      await removeFishFromFishingBase(base.id, fishId);
+      reload();
+    } catch (error) {
+      if (isApiError(error) && error.status === 401) {
+        router.replace('/login');
+        return;
+      }
+      if (isApiError(error) && error.status === 403) {
+        setRelationError('Административные права недоступны.');
+      } else if (isApiError(error) && error.code === 'FISHING_BASE_FISH_NOT_FOUND') {
+        setRelationError('Связь уже отсутствует. Обновите список.');
+      } else {
+        setRelationError(getApiErrorMessage(error, 'Не удалось убрать рыбу с базы.'));
+      }
+    } finally {
+      setRemovingFishId(null);
+    }
+  }
 
   async function handleSaveBase(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -378,6 +474,98 @@ function BaseEditor({ base, reload }: { base: AdminFishingBaseDetail; reload: ()
           </ul>
         )}
       </section>
+
+      <section className={styles.panel}>
+        <h2 className={styles.panelTitle}>Добавить рыбу к базе</h2>
+        {!base.isActive ? (
+          <p className={`${styles.message} ${styles.warningMessage}`}>
+            Добавление доступно только для активной базы.
+          </p>
+        ) : null}
+        {relationError ? (
+          <p className={styles.formError} role="alert">
+            {relationError}
+          </p>
+        ) : null}
+        <form className={styles.form} onSubmit={handleAddFish}>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="base-fish">
+              Активная рыба
+            </label>
+            <select
+              className={styles.select}
+              id="base-fish"
+              value={selectedFishId}
+              onChange={(event) => {
+                setSelectedFishId(event.target.value);
+                setRelationError(null);
+              }}
+              disabled={!base.isActive || isAddingFish || availableFish.length === 0}
+              required
+            >
+              <option value="">Выберите рыбу</option>
+              {availableFish.map((fish) => (
+                <option value={fish.id} key={fish.id}>
+                  {fish.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          {availableFish.length === 0 ? (
+            <p className={styles.muted}>Все активные рыбы уже добавлены или каталог рыб пуст.</p>
+          ) : null}
+          <div className={styles.actions}>
+            <button
+              className={styles.button}
+              type="submit"
+              disabled={!base.isActive || isAddingFish || availableFish.length === 0}
+            >
+              {isAddingFish ? 'Добавляем…' : 'Добавить рыбу'}
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <section className={styles.panel}>
+        <h2 className={styles.panelTitle}>Рыбы базы</h2>
+        <p className={styles.muted}>Связь действует для всех локаций базы.</p>
+        {base.fish.length === 0 ? (
+          <p className={styles.muted}>Связи с рыбами ещё не добавлены.</p>
+        ) : (
+          <ul className={styles.list}>
+            {base.fish.map((fish) => (
+              <li className={styles.listItem} key={fish.id}>
+                <div className={styles.itemMain}>
+                  <p className={styles.itemName}>{fish.name}</p>
+                  <p className={styles.metadata}>
+                    Связь создана: {formatDate(fish.relationCreatedAt)}
+                  </p>
+                </div>
+                <div className={styles.inlineActions}>
+                  <span
+                    className={`${styles.status} ${fish.isActive ? styles.activeStatus : styles.inactiveStatus}`}
+                  >
+                    {fish.isActive ? 'Активна' : 'Рыба неактивна'}
+                  </span>
+                  <button
+                    className={styles.dangerButton}
+                    type="button"
+                    onClick={() => void handleRemoveFish(fish.id, fish.name)}
+                    disabled={removingFishId !== null}
+                  >
+                    {removingFishId === fish.id ? 'Убираем…' : 'Убрать связь'}
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </>
   );
+}
+
+function formatDate(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('ru-RU');
 }

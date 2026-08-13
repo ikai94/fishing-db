@@ -204,6 +204,12 @@
   color: #704d0d;
 }
 
+.successMessage {
+  border-color: #b9dbc4;
+  color: #185d31;
+  background: #eff9f2;
+}
+
 .reportList {
   display: grid;
   gap: 18px;
@@ -305,6 +311,16 @@
   font-size: 1.35rem;
 }
 
+.sectionTitle {
+  margin: 0;
+  font-size: 1.7rem;
+}
+
+.subheading {
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+
 .detailHeading {
   display: flex;
   align-items: flex-start;
@@ -335,6 +351,17 @@
 }
 
 .label {
+  font-weight: 700;
+}
+
+.readonlyValue {
+  min-height: 44px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #d9e2dc;
+  border-radius: 8px;
+  color: #28573b;
+  background: #f8fbf9;
   font-weight: 700;
 }
 
@@ -386,6 +413,104 @@
   color: #765616;
 }
 
+.previewStack {
+  display: grid;
+  gap: 18px;
+}
+
+.notebookPanel {
+  border-color: #9fbeaa;
+  background: linear-gradient(155deg, #fff 0%, #f2f8f4 100%);
+}
+
+.sourceTextarea {
+  min-height: 170px;
+}
+
+.manualEntrySection {
+  display: grid;
+  gap: 18px;
+  margin-top: 36px;
+  padding-top: 32px;
+  border-top: 1px solid #d9e2dc;
+}
+
+.sectionHeading {
+  margin: 0;
+}
+
+.parseFieldList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 24px;
+  margin: 18px 0 0;
+}
+
+.parseFieldList > div {
+  display: grid;
+  gap: 6px;
+  padding: 10px 0;
+  border-bottom: 1px solid #edf1ee;
+}
+
+.parseFieldList dt,
+.parseFieldList dd {
+  margin: 0;
+}
+
+.parseFieldList dt {
+  color: #647168;
+}
+
+.parseFieldList dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.draftStatus {
+  display: inline-flex;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.resolvedStatus {
+  color: #185d31;
+  background: #eaf7ee;
+}
+
+.unresolvedStatus {
+  color: #704d0d;
+  background: #fff2dd;
+}
+
+.sourceExcerpt {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.issueList {
+  margin-top: 20px;
+}
+
+.issueList ul {
+  display: grid;
+  gap: 8px;
+  margin: 8px 0 0;
+  padding-left: 22px;
+}
+
+.blockingIssue {
+  color: #8f2424;
+}
+
+.warningIssue {
+  color: #704d0d;
+}
+
 .loadMore {
   display: flex;
   justify-content: center;
@@ -414,7 +539,8 @@
 
   .formGrid,
   .compactDetails,
-  .detailGrid {
+  .detailGrid,
+  .parseFieldList {
     grid-template-columns: 1fr;
   }
 

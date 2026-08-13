@@ -21,11 +21,16 @@ import { CatchReportsService } from './catch-reports.service.js';
 import { CatchReportListQueryDto } from './dto/catch-report-list-query.dto.js';
 import { CatchReportParamsDto } from './dto/catch-report-params.dto.js';
 import { CreateCatchReportDto } from './dto/create-catch-report.dto.js';
+import { ParseCatchReportDto } from './dto/parse-catch-report.dto.js';
 import { UpdateCatchReportDto } from './dto/update-catch-report.dto.js';
+import { CatchReportParserService } from './parser/catch-report-parser.service.js';
 
 @Controller('catch-reports')
 export class CatchReportsController {
-  constructor(@Inject(CatchReportsService) private readonly catchReports: CatchReportsService) {}
+  constructor(
+    @Inject(CatchReportsService) private readonly catchReports: CatchReportsService,
+    @Inject(CatchReportParserService) private readonly parser: CatchReportParserService,
+  ) {}
 
   @Get()
   list(
@@ -38,6 +43,13 @@ export class CatchReportsController {
   @Get(':reportId')
   get(@Param(createApplicationValidationPipe(CatchReportParamsDto)) params: CatchReportParamsDto) {
     return this.catchReports.getPublic(params.reportId);
+  }
+
+  @Post('parse')
+  @UseGuards(AuthGuard)
+  @HttpCode(HttpStatus.OK)
+  parse(@Body(createApplicationValidationPipe(ParseCatchReportDto)) dto: ParseCatchReportDto) {
+    return this.parser.parse(dto.rawSourceText);
   }
 
   @Post()

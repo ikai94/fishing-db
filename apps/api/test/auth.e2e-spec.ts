@@ -207,8 +207,8 @@ void describe('Auth API (PostgreSQL e2e)', { concurrency: false }, () => {
         deleteCatchReports: async () => {
           await prisma.catchReport.deleteMany();
         },
-        deleteLocationFish: async () => {
-          await prisma.locationFish.deleteMany();
+        deleteFishingBaseFish: async () => {
+          await prisma.fishingBaseFish.deleteMany();
         },
         deleteLocations: async () => {
           await prisma.location.deleteMany();
@@ -221,6 +221,9 @@ void describe('Auth API (PostgreSQL e2e)', { concurrency: false }, () => {
         },
         deleteBaits: async () => {
           await prisma.bait.deleteMany();
+        },
+        deleteScreenAnchors: async () => {
+          await prisma.screenAnchor.deleteMany();
         },
         deleteSessions: async () => {
           await prisma.session.deleteMany();

@@ -5,14 +5,14 @@ import { useParams } from 'next/navigation';
 import { useCallback } from 'react';
 import styles from '../../../catch-reports.module.css';
 import { CatchReportForm } from '../../_components/catch-report-form';
-import { getCatchReport } from '@/lib/catch-reports-api';
+import { getOwnerCatchReport } from '@/lib/catch-reports-api';
 import { useApiResource } from '@/lib/use-api-resource';
 import { useRequiredUser } from '@/lib/use-required-user';
 
 export default function EditCatchReportPage() {
   const { id: reportId } = useParams<{ id: string }>();
   const loadReport = useCallback(
-    (signal: AbortSignal) => getCatchReport(reportId, signal),
+    (signal: AbortSignal) => getOwnerCatchReport(reportId, signal),
     [reportId],
   );
   const reportResource = useApiResource(
