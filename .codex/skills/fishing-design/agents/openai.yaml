@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Fishing Design'
+  short_description: 'Plan fishing-db changes without editing'
+  default_prompt: 'Use $fishing-design to produce a delta-only design for this fishing-db change without editing files.'

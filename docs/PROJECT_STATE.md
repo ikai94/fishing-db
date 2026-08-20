@@ -1,15 +1,15 @@
 # Fishing DB — Accepted Project State
 
-## Baseline
+## Accepted functional state
 
-- Branch: `main`.
-- Accepted commit: `57b435e6579c00d7f852de991c1fc5fb767864de`.
-- Subject: `add common hole statistics`.
-- `origin/main` points to the same commit; accepted ahead/behind is `0/0`.
-- The baseline guard found a clean worktree before this snapshot was created.
+- Last accepted application milestone: `57b435e6579c00d7f852de991c1fc5fb767864de`
+  (`add common hole statistics`).
+- This historical milestone is NOT the current repository HEAD.
 - Snapshot date: 2026-08-20 (Europe/Moscow).
 
-This file describes the committed state above. It does not certify later uncommitted changes.
+This file records the accepted functional/product state; Git history records commit history.
+
+Use `pnpm verify:state` for the current Git baseline.
 
 ## Runtime
 
@@ -163,7 +163,7 @@ Future Codex tasks should:
 2. read `docs/PROJECT_STATE.md`;
 3. verify the current HEAD and worktree with `pnpm verify:state`;
 4. inspect only modules affected by the task;
-5. treat accepted HEAD as the trusted baseline;
+5. treat the accepted functional state as trusted without re-auditing unrelated phases;
 6. report discrepancies instead of re-auditing accepted phases.
 
 Token-efficient workflow:

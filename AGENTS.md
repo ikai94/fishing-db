@@ -1,237 +1,99 @@
 # Fishing Database Project
 
-## Project purpose
-
-This project is a web application for players of the Russian Fishing game.
-
-It combines:
-
-1. a public collaborative fishing database;
-2. a private fishing archive for every registered user.
-
-Game hierarchy:
-
-Fishing Base -> Location -> Fish.
-
-Users submit catch reports.
-
-A catch report may contain:
-
-- user
-- location
-- fish
-- bait/lure
-- fish weight
-- fishing hole depth
-- location landmark
-- fishing condition/note
-
-Example game notebook entry:
-
-"Шамбардия Валберга 40 грамм. Поймана на Озера Танзании: Берег слоновьего бивня, Мотыль. ямка 6,00 удочка"
-
-Game-generated information:
-
-- fish: Шамбардия Валберга
-- weight: 40 grams
-- fishing base: Озера Танзании
-- location: Берег слоновьего бивня
-- bait: Мотыль
-
-Player-created information:
-
-- hole depth: 6,00
-- landmark: удочка
-
-Another example:
-
-"ямка 7,63 вполводы"
-
-means:
-
-- hole depth: 7.63 meters
-- "вполводы" is NOT a location landmark
-- it is a fishing condition / presentation note
-
-Never use one generic `hint` field for these concepts.
-
-Prefer separate fields such as:
-
-- holeDepthCm
-- spotLandmark
-- fishingNote
-- userNoteRaw
-
-Always preserve the original user-entered note.
-
-## Common fishing holes
-
-One of the main goals is to identify fishing holes that occur for multiple game accounts.
-
-Raw number of catches and unique number of users are different metrics.
-
-Example:
-
-User A reports the same hole 100 times.
-Users B, C and D report another hole once each.
-
-The second hole has more independent confirmations.
-
-Statistics must therefore distinguish:
-
-- reportsCount
-- uniqueUsersCount
-
-For common-hole statistics, uniqueUsersCount is especially important.
-
-Do not use fishing conditions such as "вполводы" as part of a fishing hole identity.
-
-A hole identity may eventually use:
-
-- locationId
-- holeDepthCm
-- normalized spotLandmark
-
-Do not aggressively merge uncertain holes.
-
-## Public and private data
-
-Game catalog is public and maintained by administrators.
-
-Catalog includes:
-
-- FishingBase
-- Location
-- Fish
-- Bait/Lure
-- relations between them
-
-Normal users cannot modify the game catalog.
-
-Users can submit public catch reports.
-
-Users also have a strictly private personal database.
-
-Private user notes must never be exposed through another user's API requests.
-
-## Technology
-
-Use:
-
-- TypeScript
-- Node.js
-- Next.js
-- NestJS
-- PostgreSQL
-- Prisma
-- pnpm
-- Docker Compose
-
-Use a monorepo.
-
-Target structure:
-
-apps/web
-apps/api
-packages/shared
-docs
-
-Use REST between frontend and backend.
-
-Use PostgreSQL as the source of truth.
-
-## Architecture
-
-Prefer a modular monolith.
-
-Do NOT introduce unless explicitly requested:
-
-- microservices
-- Kafka
-- RabbitMQ
-- Kubernetes
-- GraphQL
-- Elasticsearch
-- Redis
-
-Do not over-engineer for the initial user count.
-
-## Database rules
-
-Store fish weight as integer grams.
-
-Do not store kilograms using floating point.
-
-Store fishing hole depth as integer centimeters when it can be parsed.
-
-Examples:
-
-6,00 m -> 600
-7,63 m -> 763
-
-Always preserve raw source text when parsing game notebook entries.
-
-## Authentication
-
-Initial roles:
-
-USER
-ADMIN
-
-Authentication:
-
-- email
-- password
-- nickname
-
-Only emails whose domain ends with `.ru` are allowed.
-
-Security-sensitive validation must always happen on the NestJS backend.
-
-Passwords must never be stored in plaintext.
-
-ADMIN can ban users.
-
-Banned users cannot create public reports.
-
-## Development workflow
-
-Work incrementally.
-
-Before implementing a task:
-
-1. inspect the existing repository;
-2. explain what you found;
-3. make a short implementation plan;
-4. only then modify files.
-
-Never implement future phases unless explicitly requested.
-
-Do not rewrite unrelated code.
-
-When changing the database schema:
-
-- create a Prisma migration;
-- never silently reset development data unless explicitly authorized.
-
-For important domain logic add tests.
-
-After every implementation task run appropriate:
-
-- lint
-- typecheck
-- tests
-- build when appropriate
-
-At the end of every task report:
-
-- what was implemented;
-- files created;
-- files modified;
-- database migrations;
-- commands executed;
-- tests executed;
-- known limitations;
-- recommended next step.
-
-If requirements are ambiguous, ask instead of inventing game mechanics.
+## Scope and canonical sources
+
+This file owns permanent repository-wide engineering and domain rules.
+
+- Use `docs/PROJECT_STATE.md` for the accepted functional/product state.
+- Use `docs/ARCHITECTURE.md` for repository navigation and change-impact guidance.
+- Treat accepted source code, Prisma schema, and committed migrations as implementation truth.
+- Use `pnpm verify:state` as the authority for current Git HEAD, worktree, and runtime state. Report
+  discrepancies instead of silently reconciling docs, code, or mechanics.
+- Treat the unchanged HEAD it reports as the trusted code baseline. Inspect the affected delta; do
+  not re-audit unrelated accepted phases.
+- When touching `apps/api`, read and obey `apps/api/AGENTS.md`.
+- When touching `apps/web`, read and obey `apps/web/AGENTS.md`.
+- Cross-stack work may require both scoped files. Do not load both for an isolated task without need.
+- Use the relevant workflow under `.codex/skills` for design, implementation, or final acceptance;
+  procedural checklists belong there rather than in this file.
+
+## Product and architecture boundary
+
+- The product combines a public collaborative fishing database with a strictly private archive for
+  each registered user.
+- The game catalog is public and administrator-maintained. Normal users cannot modify it.
+- Keep the TypeScript/pnpm monorepo split between the Next.js web app and NestJS REST API, with
+  Prisma and PostgreSQL as the persistence layer.
+- PostgreSQL is the runtime data source of truth. The API remains a modular monolith.
+- Do not introduce microservices, Kafka, RabbitMQ, Kubernetes, GraphQL, Elasticsearch, Redis, or
+  comparable infrastructure unless the task explicitly requires it.
+- Work incrementally and implement only the requested or approved delta. Do not add future phases,
+  rewrite unrelated code, or silently redesign approved mechanics.
+- Inspect existing behavior before proposing a mechanic. Stop and ask when a genuine product or
+  game-domain ambiguity would otherwise require invention.
+
+## Catalog invariants
+
+- `FishingBase` owns `Location` rows.
+- Fish membership belongs to a Base through `FishingBaseFish`; never recreate `LocationFish` or
+  infer per-Location membership. A Base fish is potentially available at all its Locations.
+- Catalog activation and membership describe current availability. They must not rewrite the
+  meaning of historical catches.
+- Preserve public catalog/admin ownership boundaries and accepted active/inactive lifecycle rules.
+
+## CatchReport invariants
+
+- Every `CatchReport` belongs to exactly one `User` and records its Location, Fish, and Bait.
+- A saved report is historical. Catalog deactivation, `FishingBaseFish` unlinking, or author ban
+  must not by itself hide or reinterpret it in reads or statistics.
+- Preserve stored historical classifications. In particular, do not derive a persisted fishing
+  method from today's catalog during reads.
+- Store fish weight as a positive integer number of grams, never floating-point kilograms.
+- Store parsed hole depth as a positive integer number of centimeters when present, never
+  floating-point meters. For example, `6,00 m` becomes `600` and `7,63 m` becomes `763`.
+
+Keep these concepts separate; never collapse them into a generic `hint` field:
+
+- `holeDepthCm` — parsed depth;
+- `spotPositionRaw` — player-entered position or landmark;
+- `fishingNote` — fishing condition or presentation;
+- `userNoteRaw` — player comment;
+- `rawSourceText` — original notebook/source text.
+
+Preserve accepted raw inputs exactly: derived parsing or grouping must not overwrite
+`rawSourceText`, `spotPositionRaw`, or `userNoteRaw`. A phrase such as `вполводы` is a fishing
+condition, not a location landmark.
+
+## Common-hole invariants
+
+- Distinguish `reportsCount` from `uniqueUsersCount`; repeated reports by one account are not
+  independent confirmations.
+- Hole identity uses the accepted Location, exact centimeter depth, and conservatively normalized
+  `spotPositionRaw` semantics.
+- Never include fishing conditions such as `вполводы` in hole identity.
+- Do not aggressively merge punctuation, `е/ё`, aliases, directions, or otherwise uncertain spots.
+
+## Privacy, roles, and bans
+
+- Maintain explicit public and owner response boundaries. Private archive data must never be
+  exposed through another user's request.
+- `rawSourceText` is owner-only and must never enter a public projection. Do not infer privacy from
+  field names: preserve the accepted visibility of every other field from `PROJECT_STATE.md`.
+- Initial roles remain `USER` and `ADMIN`; catalog administration is ADMIN-only.
+- Only email domains ending in `.ru` are accepted, and passwords must never be stored in plaintext.
+- Banned users may authenticate, read their archive, and preview parser output, but cannot create,
+  update, or delete public reports. Banned ADMIN users cannot use ADMIN catalog routes.
+- Do not invent an ADMIN user-management or ban endpoint unless a task explicitly adds one.
+
+## Change and verification discipline
+
+- Preserve unrelated user changes and inspect the current diff before editing.
+- Do not commit unless the user explicitly requests it.
+- Every Prisma schema change requires a checked-in migration. Never use a silent reset or
+  `prisma db push` as the normal schema-change path.
+- Never destroy or replace development data without explicit authorization.
+- Add focused tests for important domain logic and for regressions introduced by the change.
+- Use repository scripts and verification proportional to the affected area. Reserve one full
+  repository acceptance pass for a stable implementation.
+- Report the delta, verification evidence, schema/migration/dependency impact, blockers, and final
+  worktree state; do not restate the whole accepted architecture.

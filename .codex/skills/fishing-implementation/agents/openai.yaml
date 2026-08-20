@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Fishing Implementation'
+  short_description: 'Implement an approved fishing-db change'
+  default_prompt: 'Use $fishing-implementation to implement this approved fishing-db change and verify the affected modules.'

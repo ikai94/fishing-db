@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Fishing Acceptance'
+  short_description: 'Verify stable fishing-db changes for release'
+  default_prompt: 'Use $fishing-acceptance to run one final verification pass for these stable fishing-db changes.'
