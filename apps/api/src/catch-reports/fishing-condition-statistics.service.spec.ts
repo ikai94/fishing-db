@@ -55,7 +55,8 @@ void describe('FishingConditionStatisticsService', () => {
       sqlQuery.text,
       /GROUP BY\s+report\."fishingMethod",\s+report\."fishingNote",\s+report\."spinningSize",\s+report\."spinningSpeed"/,
     );
-    assert.match(sqlQuery.text, /COUNT\(DISTINCT report\."userId"\)/);
+    assert.match(sqlQuery.text, /COUNT\(DISTINCT report\."contributorKey"\)/);
+    assert.equal(sqlQuery.text.includes('report."userId"'), false);
     assert.match(
       sqlQuery.text,
       /ORDER BY\s+"uniqueUsersCount" DESC,\s+"reportsCount" DESC,\s+"latestReportCreatedAt" DESC/,

@@ -35,7 +35,8 @@ Root engines allow Node `>=24.0.0 <25` and pnpm `>=11.0.0 <12`.
 - `apps/api` — NestJS modular monolith and Node test runner suites.
 - `apps/api/src` — auth, catalog, CatchReport, health, security, and Prisma modules.
 - `apps/api/prisma/schema.prisma` — current PostgreSQL domain schema.
-- `apps/api/prisma/migrations` — six accepted migrations, from auth through CatchReport v2.
+- `apps/api/prisma/migrations` — seven accepted migrations, from auth through internal
+  CatchReport contributor/import identity.
 - `apps/api/test` — PostgreSQL e2e, database-safety, and migration-semantic tests.
 - `apps/api/prisma/catalog-data` — deterministic offline catalog inputs and provenance.
 - `docs/phase5-rollout.md` — CatchReport v2 migration and audit procedure.
@@ -52,6 +53,13 @@ The workspace currently includes only `apps/*`; there is no accepted `packages/s
 - `Bait` has historical input type `BAIT` or `LURE`; catalog entities use active/inactive lifecycle.
 - `ScreenAnchor` is parser/catalog assistance. It is not referenced by `CatchReport`.
 - `CatchReport` belongs to one `User` and stores `locationId`, `fishId`, and `baitId` directly.
+- `CatchReport.userId` remains local ownership/authorship. Its immutable internal `contributorKey`
+  is used only for distinct-angler aggregation: native reports derive `local-user:<userId>`, while
+  imported reports may use a deterministic opaque key derived from a stable external member
+  identity, never a display nickname. No external nickname or profile metadata is stored.
+- The immutable nullable unique `importKey` identifies a stable external source
+  observation/candidate for idempotency; it is not an observation-content fingerprint. Both
+  internal keys are excluded from public and owner APIs.
 - Weight is a positive integer in `weightGrams`; parsed hole depth is a positive integer in
   `holeDepthCm` and may be null where the fishing method permits it.
 - `fishingMethod` is stored as historical `BAIT_FISHING` or `SPINNING`, derived from Bait type
@@ -64,7 +72,8 @@ The workspace currently includes only `apps/*`; there is no accepted `packages/s
   from public list/detail and owner list, and cannot be patched.
 - `userNoteRaw` and `spotPositionRaw` are part of the current public CatchReport projection.
 - Common-hole grouping uses exact `locationId`, `holeDepthCm`, and conservatively normalized
-  `spotPositionRaw`; it reports both `reportsCount` and `uniqueUsersCount`.
+  `spotPositionRaw`; it reports both `reportsCount` and contributor-distinct
+  `uniqueUsersCount`.
 - Common-hole output excludes author identity, `fishingNote`, `userNoteRaw`, and `rawSourceText`.
 - Roles are `USER` and `ADMIN`. ADMIN catalog access is enforced by backend guards.
 - Banned users may authenticate, read their archive, and preview parser output, but cannot create,
@@ -85,7 +94,8 @@ The workspace currently includes only `apps/*`; there is no accepted `packages/s
 - Deterministic, additive, idempotent full-catalog seed and read-only CatchReport audit command.
 - Public Base/Location/Fish/Bait navigation, Fish alphabet/search, and searchable Base fish lists.
 - Fish Explorer with URL-backed Base selection and a dense, paginated CatchReport table.
-- Common-hole statistics with multi-user confirmations separated from single-user observations.
+- Common-hole statistics with multi-contributor confirmations separated from repeated
+  observations by one contributor, including ADMIN-owned external observations.
 
 ## Public routes
 
@@ -112,6 +122,9 @@ Important REST families, all below `/api/v1`:
 - Fish membership is Base-scoped, not Location-scoped. Do not recreate `LocationFish`.
 - Existing reports are historical records. Catalog deactivation, Base–Fish unlinking, or author ban
   does not hide them from public reads or statistics.
+- Common-hole, Bait, and Fishing Conditions statistics count reports normally and use immutable
+  contributor identity for `uniqueUsersCount`; multiple imported contributors remain independent
+  even when all reports are owned and displayed as authored by the local ADMIN.
 - Persisted `fishingMethod` is not rederived during reads or unchanged-Bait updates.
 - Position normalization is deliberately conservative: NFKC, trim, whitespace collapse, and
   lowercase. It does not merge punctuation, `е/ё`, aliases, or directional meaning.

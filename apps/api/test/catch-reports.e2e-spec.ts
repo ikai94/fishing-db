@@ -7,6 +7,7 @@ import type { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { config as loadEnvironmentFile } from 'dotenv';
 import request from 'supertest';
+import { nativeContributorKey } from '../src/catch-reports/catch-report-identity.js';
 import {
   clearTestData,
   getTestDatabaseConfiguration,
@@ -73,6 +74,8 @@ interface CatchReportInput {
 }
 
 interface StatisticsReportOverrides {
+  contributorKey?: string;
+  importKey?: string | null;
   locationId?: string;
   fishId?: string;
   baitId?: string;
@@ -254,6 +257,8 @@ function readHoleStatistics(body: unknown): HoleStatisticsItem[] {
       'role',
       'isBanned',
       'rawSourceText',
+      'contributorKey',
+      'importKey',
       'userNoteRaw',
       'normalizedSpotKey',
       'bait',
@@ -307,6 +312,8 @@ function readBaitStatistics(body: unknown): BaitStatisticsItem[] {
       'role',
       'isBanned',
       'rawSourceText',
+      'contributorKey',
+      'importKey',
       'userNoteRaw',
       'spotPositionRaw',
       'fishingNote',
@@ -381,6 +388,8 @@ function readFishingConditionStatistics(body: unknown): FishingConditionStatisti
       'role',
       'isBanned',
       'rawSourceText',
+      'contributorKey',
+      'importKey',
       'userNoteRaw',
       'spotPositionRaw',
       'holeDepthCm',
@@ -433,6 +442,8 @@ function assertPublicReportProjection(report: Record<string, unknown>): void {
     'tokenHash',
     'sessions',
     'rawSourceText',
+    'contributorKey',
+    'importKey',
   ]) {
     assert.equal(serialized.includes(`"${forbiddenField}"`), false);
   }
@@ -625,6 +636,8 @@ async function createStatisticsReport(
   return prisma.catchReport.create({
     data: {
       userId: actor.userId,
+      contributorKey: overrides.contributorKey ?? nativeContributorKey(actor.userId),
+      importKey: overrides.importKey ?? null,
       locationId: overrides.locationId ?? catalog.location.id,
       fishId: overrides.fishId ?? catalog.fish.id,
       baitId: overrides.baitId ?? catalog.bait.id,
@@ -743,6 +756,8 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
 
     for (const forbiddenData of [
       { userId: otherActor.userId },
+      { contributorKey: 'external:forum:spoofed-member' },
+      { importKey: 'external:forum:spoofed-observation' },
       { fishingBaseId: catalog.base.id },
       { fishingMethod: 'SPINNING' },
       { rawSourceText: 'spoofed', unexpected: true },
@@ -788,6 +803,8 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
     });
     assert.equal(stored.userId, actor.userId);
     assert.equal(stored.userId === otherActor.userId, false);
+    assert.equal(stored.contributorKey, nativeContributorKey(actor.userId));
+    assert.equal(stored.importKey, null);
     assert.equal(stored.weightGrams, 1_240);
     assert.equal(stored.holeDepthCm, 763);
     assert.equal(stored.fishingMethod, 'BAIT_FISHING');
@@ -1632,6 +1649,8 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
     const actor = await createActor();
     const baseData = {
       userId: actor.userId,
+      contributorKey: nativeContributorKey(actor.userId),
+      importKey: null,
       locationId: catalog.location.id,
       fishId: catalog.fish.id,
       baitId: catalog.bait.id,
@@ -1952,6 +1971,8 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
         data: {
           id,
           userId: actor.userId,
+          contributorKey: nativeContributorKey(actor.userId),
+          importKey: null,
           locationId: catalog.location.id,
           fishId: catalog.fish.id,
           baitId: catalog.bait.id,
@@ -1978,6 +1999,8 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
       data: {
         id: headId,
         userId: actor.userId,
+        contributorKey: nativeContributorKey(actor.userId),
+        importKey: null,
         locationId: catalog.location.id,
         fishId: catalog.fish.id,
         baitId: catalog.bait.id,
@@ -2009,6 +2032,8 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
     await prisma.catchReport.create({
       data: {
         userId: other.userId,
+        contributorKey: nativeContributorKey(other.userId),
+        importKey: null,
         locationId: catalog.location.id,
         fishId: catalog.fish.id,
         baitId: catalog.bait.id,
@@ -2317,7 +2342,7 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
     assert.deepEqual(duplicatedScope, []);
   });
 
-  void test('Fishing Conditions statistics groups stored method observations with unique users first', async () => {
+  void test('Fishing Conditions statistics groups stored observations with unique contributors first', async () => {
     const catalog = await createCatalog({ baitType: 'BAIT' });
     const otherCatalog = await createCatalog();
     const secondBait = await createBait('BAIT');
@@ -2548,6 +2573,140 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
       ]),
       [['SPINNING', 'SURFACE', 'SMALL', 'FAST', 1, 1]],
     );
+  });
+
+  void test('counts opaque external contributors independently for one ADMIN owner', async () => {
+    const catalog = await createCatalog({ baitType: 'BAIT' });
+    const admin = await createActor('ADMIN');
+    const contributorA = 'external:forum:member:opaque-a';
+    const contributorB = 'external:forum:member:opaque-b';
+    const at = (second: number) =>
+      new Date(`2026-07-01T00:00:${String(second).padStart(2, '0')}.000Z`);
+    const reports: Array<Awaited<ReturnType<typeof createStatisticsReport>>> = [];
+
+    for (const [index, contributorKey, spotPositionRaw] of [
+      [1, contributorA, 'ТОЧКА'],
+      [2, contributorB, 'ТОЧКА'],
+      [3, contributorA, 'точка'],
+      [4, contributorA, 'точка'],
+      [5, contributorA, 'точка'],
+    ] as const) {
+      reports.push(
+        await createStatisticsReport(admin, catalog, {
+          contributorKey,
+          importKey: `external:forum:observation:thread-10:candidate-${index}`,
+          fishingNote: 'MIDWATER',
+          spotPositionRaw,
+          createdAt: at(index),
+        }),
+      );
+    }
+
+    const stored = await prisma.catchReport.findMany({
+      where: { userId: admin.userId },
+      orderBy: { createdAt: 'asc' },
+    });
+    assert.equal(stored.length, 5);
+    assert.deepEqual(new Set(stored.map((report) => report.userId)), new Set([admin.userId]));
+    assert.deepEqual(
+      new Set(stored.map((report) => report.contributorKey)),
+      new Set([contributorA, contributorB]),
+    );
+    assert.equal(
+      stored.every((report) => report.importKey !== null),
+      true,
+    );
+
+    const query = { fishId: catalog.fish.id, baseIds: catalog.base.id };
+    const baitItems = readBaitStatistics(
+      (await api().get('/api/v1/catch-reports/statistics/baits').query(query).expect(200))
+        .body as unknown,
+    );
+    assert.deepEqual(
+      baitItems.map((item) => [item.uniqueUsersCount, item.reportsCount]),
+      [[2, 5]],
+    );
+
+    const conditionItems = readFishingConditionStatistics(
+      (await api().get('/api/v1/catch-reports/statistics/conditions').query(query).expect(200))
+        .body as unknown,
+    );
+    assert.deepEqual(
+      conditionItems.map((item) => [
+        item.fishingMethod,
+        item.fishingNote,
+        item.uniqueUsersCount,
+        item.reportsCount,
+      ]),
+      [['BAIT_FISHING', 'MIDWATER', 2, 5]],
+    );
+
+    const holeItems = readHoleStatistics(
+      (await api().get('/api/v1/catch-reports/statistics/holes').query(query).expect(200))
+        .body as unknown,
+    );
+    assert.deepEqual(
+      holeItems.map((item) => [
+        item.holeDepthCm,
+        item.spotPosition,
+        item.uniqueUsersCount,
+        item.reportsCount,
+      ]),
+      [[600, 'ТОЧКА', 2, 5]],
+    );
+
+    const publicItems = readReportList(
+      (await api().get('/api/v1/catch-reports?limit=100').expect(200)).body as unknown,
+    ).items;
+    assert.equal(publicItems.length, 5);
+    for (const report of publicItems) {
+      assertPublicReportProjection(report);
+      assert.equal(asString(asObject(report.author).id, 'author.id'), admin.userId);
+    }
+
+    const firstReport = reports[0];
+    assert.ok(firstReport);
+    const ownerDetail = readReport(
+      (
+        await api()
+          .get(`/api/v1/me/catch-reports/${firstReport.id}`)
+          .set('Cookie', admin.cookie)
+          .expect(200)
+      ).body as unknown,
+    );
+    assertOwnerReportProjection(ownerDetail);
+    assert.equal(asString(asObject(ownerDetail.author).id, 'author.id'), admin.userId);
+
+    await mutation(api().patch(`/api/v1/catch-reports/${firstReport.id}`), admin.cookie)
+      .send({ weightGrams: 41 })
+      .expect(200);
+    const afterOrdinaryEdit = await prisma.catchReport.findUniqueOrThrow({
+      where: { id: firstReport.id },
+    });
+    assert.equal(afterOrdinaryEdit.contributorKey, contributorA);
+    assert.equal(afterOrdinaryEdit.importKey, 'external:forum:observation:thread-10:candidate-1');
+
+    await assert.rejects(
+      prisma.catchReport.update({
+        where: { id: firstReport.id },
+        data: { contributorKey: contributorB },
+      }),
+    );
+    await assert.rejects(
+      prisma.catchReport.update({
+        where: { id: firstReport.id },
+        data: { importKey: 'external:forum:observation:replacement' },
+      }),
+    );
+    await assert.rejects(
+      createStatisticsReport(admin, catalog, {
+        contributorKey: contributorB,
+        importKey: 'external:forum:observation:thread-10:candidate-1',
+        fishingNote: 'MIDWATER',
+      }),
+      (error: unknown) => prismaErrorCode(error) === 'P2002',
+    );
+    assert.equal(await prisma.catchReport.count(), 5);
   });
 
   void test('validates the required anonymous common-hole statistics scope', async () => {

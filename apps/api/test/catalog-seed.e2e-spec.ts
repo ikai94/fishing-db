@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { after, before, beforeEach, describe, test } from 'node:test';
 import { config as loadEnvironmentFile } from 'dotenv';
 import { normalizeCatalogName } from '../src/catalog/catalog-normalization.js';
+import { nativeContributorKey } from '../src/catch-reports/catch-report-identity.js';
 import type { DraftField } from '../src/catch-reports/parser/catch-report-parser.types.js';
 import { CatchReportParserService } from '../src/catch-reports/parser/catch-report-parser.service.js';
 import { PrismaClient } from '../src/generated/prisma/client.js';
@@ -327,6 +328,8 @@ void describe('Catalog seed (PostgreSQL e2e)', { concurrency: false }, () => {
     const report = await prisma.catchReport.create({
       data: {
         userId: user.id,
+        contributorKey: nativeContributorKey(user.id),
+        importKey: null,
         locationId: amurLocation.id,
         fishId: kizhuch.id,
         baitId: amurBefore.baitId,

@@ -45,6 +45,8 @@ void describe('BaitStatisticsService', () => {
     assert.equal(sqlQuery.text.includes(FISH_ID), false);
     assert.equal(sqlQuery.text.includes(BASE_ID), false);
     assert.match(sqlQuery.text, /GROUP BY\s+report\."baitId",\s+report\."fishingMethod"/);
+    assert.match(sqlQuery.text, /COUNT\(DISTINCT report\."contributorKey"\)/);
+    assert.equal(sqlQuery.text.includes('report."userId"'), false);
     assert.match(sqlQuery.text, /FROM "baitGroups" AS bait_group\s+INNER JOIN "Bait" AS bait/);
     assert.match(
       sqlQuery.text,

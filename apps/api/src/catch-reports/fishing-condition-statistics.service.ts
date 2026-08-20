@@ -62,7 +62,7 @@ export function buildFishingConditionStatisticsQuery(
       report."fishingNote" AS "fishingNote",
       report."spinningSize" AS "spinningSize",
       report."spinningSpeed" AS "spinningSpeed",
-      COUNT(DISTINCT report."userId") AS "uniqueUsersCount",
+      COUNT(DISTINCT report."contributorKey") AS "uniqueUsersCount",
       COUNT(*) AS "reportsCount",
       MAX(report."createdAt") AS "latestReportCreatedAt"
     FROM "CatchReport" AS report

@@ -140,6 +140,8 @@ model ScreenAnchor {
 model CatchReport {
   id              String         @id @default(uuid()) @db.Uuid
   userId          String         @db.Uuid
+  contributorKey  String         @db.VarChar(255)
+  importKey       String?        @unique @db.VarChar(255)
   locationId      String         @db.Uuid
   fishId          String         @db.Uuid
   baitId          String         @db.Uuid

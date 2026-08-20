@@ -35,7 +35,7 @@ export function buildHoleStatisticsQuery(fishId: string, baseIds: readonly strin
         report."locationId",
         report."holeDepthCm",
         report."spotPositionRaw",
-        report."userId",
+        report."contributorKey",
         report."createdAt",
         (
           NULLIF(
@@ -65,7 +65,7 @@ export function buildHoleStatisticsQuery(fishId: string, baseIds: readonly strin
         candidate."holeDepthCm",
         candidate."normalizedSpotKey",
         COUNT(*) AS "reportsCount",
-        COUNT(DISTINCT candidate."userId") AS "uniqueUsersCount",
+        COUNT(DISTINCT candidate."contributorKey") AS "uniqueUsersCount",
         MAX(candidate."createdAt") AS "latestReportCreatedAt"
       FROM "candidateReports" AS candidate
       GROUP BY
@@ -79,7 +79,7 @@ export function buildHoleStatisticsQuery(fishId: string, baseIds: readonly strin
         candidate."holeDepthCm",
         candidate."normalizedSpotKey",
         candidate."spotPositionRaw" COLLATE "C" AS "spotPositionRaw",
-        COUNT(DISTINCT candidate."userId") AS "variantUniqueUsersCount",
+        COUNT(DISTINCT candidate."contributorKey") AS "variantUniqueUsersCount",
         COUNT(*) AS "variantReportsCount",
         MAX(candidate."createdAt") AS "variantLatestReportCreatedAt"
       FROM "candidateReports" AS candidate

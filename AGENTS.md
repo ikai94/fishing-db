@@ -44,6 +44,13 @@ This file owns permanent repository-wide engineering and domain rules.
 ## CatchReport invariants
 
 - Every `CatchReport` belongs to exactly one `User` and records its Location, Fish, and Bait.
+- Keep ownership (`userId`) separate from the immutable internal contributor identity used for
+  distinct-angler statistics. Native reports derive one contributor identity per authenticated
+  User. Imported reports may use a deterministic opaque key derived from a stable external member
+  identity, never a display nickname; do not store external nickname or profile metadata on
+  `CatchReport`.
+- The nullable unique `importKey` identifies one stable external source observation/candidate for
+  idempotent import. It is not a Fish/Location/depth/spot content fingerprint.
 - A saved report is historical. Catalog deactivation, `FishingBaseFish` unlinking, or author ban
   must not by itself hide or reinterpret it in reads or statistics.
 - Preserve stored historical classifications. In particular, do not derive a persisted fishing
@@ -66,8 +73,9 @@ condition, not a location landmark.
 
 ## Common-hole invariants
 
-- Distinguish `reportsCount` from `uniqueUsersCount`; repeated reports by one account are not
-  independent confirmations.
+- Distinguish `reportsCount` from `uniqueUsersCount`; the latter counts immutable contributor
+  identities, so repeated reports by one contributor are not independent confirmations even when
+  imported reports share an ADMIN owner.
 - Hole identity uses the accepted Location, exact centimeter depth, and conservatively normalized
   `spotPositionRaw` semantics.
 - Never include fishing conditions such as `вполводы` in hole identity.
@@ -77,6 +85,7 @@ condition, not a location landmark.
 
 - Maintain explicit public and owner response boundaries. Private archive data must never be
   exposed through another user's request.
+- Never expose `contributorKey` or `importKey` through public or owner API projections.
 - `rawSourceText` is owner-only and must never enter a public projection. Do not infer privacy from
   field names: preserve the accepted visibility of every other field from `PROJECT_STATE.md`.
 - Initial roles remain `USER` and `ADMIN`; catalog administration is ADMIN-only.

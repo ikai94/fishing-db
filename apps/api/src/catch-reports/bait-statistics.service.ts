@@ -29,7 +29,7 @@ export function buildBaitStatisticsQuery(fishId: string, baseIds: readonly strin
       SELECT
         report."baitId",
         report."fishingMethod",
-        COUNT(DISTINCT report."userId") AS "uniqueUsersCount",
+        COUNT(DISTINCT report."contributorKey") AS "uniqueUsersCount",
         COUNT(*) AS "reportsCount",
         MAX(report."createdAt") AS "latestReportCreatedAt"
       FROM "CatchReport" AS report

@@ -8,6 +8,7 @@ import {
   isCatchReportObservationComplete,
   type CatchReportObservation,
 } from './catch-report-observation.js';
+import { nativeContributorKey } from './catch-report-identity.js';
 import {
   buildCatchReportPage,
   catchReportCursorWhere,
@@ -365,6 +366,8 @@ export class CatchReportsService {
         const record = await tx.catchReport.create({
           data: {
             userId: actorUserId,
+            contributorKey: nativeContributorKey(actorUserId),
+            importKey: null,
             locationId: dto.locationId,
             fishId: dto.fishId,
             baitId: dto.baitId,

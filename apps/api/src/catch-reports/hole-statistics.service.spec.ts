@@ -53,7 +53,9 @@ void describe('HoleStatisticsService', () => {
     assert.match(sqlQuery.text, /normalize\(report\."spotPositionRaw", NFKC\)/);
     assert.match(sqlQuery.text, /'\[\[:space:\]\]\+'/);
     assert.match(sqlQuery.text, /NULLIF\([\s\S]+\) COLLATE "C"/);
-    assert.match(sqlQuery.text, /COUNT\(DISTINCT candidate\."userId"\)/);
+    assert.match(sqlQuery.text, /report\."contributorKey"/);
+    assert.equal(sqlQuery.text.match(/COUNT\(DISTINCT candidate\."contributorKey"\)/g)?.length, 2);
+    assert.equal(sqlQuery.text.includes('"userId"'), false);
     assert.equal(sqlQuery.text.includes('"User"'), false);
     assert.equal(sqlQuery.text.includes('"Bait"'), false);
     assert.equal(sqlQuery.text.includes('"FishingBaseFish"'), false);

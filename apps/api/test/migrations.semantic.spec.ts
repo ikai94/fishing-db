@@ -19,6 +19,7 @@ const PHASE_FIVE_COMPATIBILITY_MIGRATIONS = [
   '20260809145137_add_catch_report_v2_compatibility',
 ] as const;
 const PHASE_FIVE_INVARIANT_MIGRATION = '20260809151033_enforce_catch_report_v2_invariant';
+const CONTRIBUTOR_IDENTITY_MIGRATION = '20260820120000_add_catch_report_contributor_identity';
 
 loadEnvironmentFile({ path: `${API_DIRECTORY}/.env`, quiet: true });
 loadEnvironmentFile({ path: `${API_DIRECTORY}/test/.env`, quiet: true });
@@ -36,8 +37,8 @@ async function applyMigration(name: string, targetClient: Client = client): Prom
   await targetClient.query(sql);
 }
 
-async function insertPhaseFourFixture(): Promise<void> {
-  await client.query(`
+async function insertPhaseFourFixture(targetClient: Client = client): Promise<void> {
+  await targetClient.query(`
     INSERT INTO "User" (
       "id", "email", "nickname", "nicknameNormalized", "passwordHash"
     ) VALUES (
@@ -339,6 +340,309 @@ void describe('Phase 5 migration semantics (disposable PostgreSQL schema)', () =
         `DROP SCHEMA IF EXISTS ${quotedIdentifier(conflictSchema)} CASCADE`,
       );
       await conflictClient.end();
+    }
+  });
+});
+
+void describe('CatchReport contributor identity migration semantics', () => {
+  void test('backfills immutable contributor identities and enforces nullable unique import identities', async () => {
+    const configuration = getTestDatabaseConfiguration(process.env);
+    const identitySchema = `contributor_identity_${randomUUID().replaceAll('-', '')}`;
+    const identityClient = new Client({ connectionString: configuration.testDatabaseUrl });
+    await identityClient.connect();
+
+    try {
+      await identityClient.query(`CREATE SCHEMA ${quotedIdentifier(identitySchema)}`);
+      await identityClient.query(`SET search_path TO ${quotedIdentifier(identitySchema)}`);
+
+      for (const migration of PHASE_FOUR_MIGRATIONS) {
+        await applyMigration(migration, identityClient);
+      }
+      await insertPhaseFourFixture(identityClient);
+      for (const migration of PHASE_FIVE_COMPATIBILITY_MIGRATIONS) {
+        await applyMigration(migration, identityClient);
+      }
+
+      await identityClient.query(`
+        UPDATE "CatchReport"
+        SET
+          "spinningSize" = 'MEDIUM',
+          "spinningSpeed" = 'SLOW',
+          "createdAt" = '2026-01-04T05:06:07.123Z',
+          "updatedAt" = '2026-02-04T05:06:07.456Z'
+        WHERE "id" = '00000000-0000-4000-8000-000000000040';
+      `);
+      await applyMigration(PHASE_FIVE_INVARIANT_MIGRATION, identityClient);
+
+      await identityClient.query(`
+        INSERT INTO "User" (
+          "id", "email", "nickname", "nicknameNormalized", "passwordHash"
+        ) VALUES (
+          '00000000-0000-4000-8000-000000000002',
+          'second-migration@example.ru',
+          'SecondMigrationUser',
+          'secondmigrationuser',
+          'not-a-real-password-hash'
+        );
+
+        INSERT INTO "CatchReport" (
+          "id",
+          "userId",
+          "locationId",
+          "fishId",
+          "baitId",
+          "weightGrams",
+          "fishingMethod",
+          "spinningSize",
+          "spinningSpeed",
+          "createdAt",
+          "updatedAt"
+        ) VALUES
+          (
+            '00000000-0000-4000-8000-000000000041',
+            '00000000-0000-4000-8000-000000000001',
+            '00000000-0000-4000-8000-000000000011',
+            '00000000-0000-4000-8000-000000000020',
+            '00000000-0000-4000-8000-000000000030',
+            4100,
+            'SPINNING',
+            'SMALL',
+            'FAST',
+            '2026-01-05T05:06:07.123Z',
+            '2026-02-05T05:06:07.456Z'
+          ),
+          (
+            '00000000-0000-4000-8000-000000000042',
+            '00000000-0000-4000-8000-000000000002',
+            '00000000-0000-4000-8000-000000000011',
+            '00000000-0000-4000-8000-000000000020',
+            '00000000-0000-4000-8000-000000000030',
+            4200,
+            'SPINNING',
+            'LARGE',
+            'MEDIUM',
+            '2026-01-06T05:06:07.123Z',
+            '2026-02-06T05:06:07.456Z'
+          );
+      `);
+
+      const beforeMigration = await identityClient.query<{
+        createdAt: Date;
+        id: string;
+        updatedAt: Date;
+        userId: string;
+      }>(`
+        SELECT "id", "userId", "createdAt", "updatedAt"
+        FROM "CatchReport"
+        ORDER BY "id"
+      `);
+
+      await applyMigration(CONTRIBUTOR_IDENTITY_MIGRATION, identityClient);
+
+      const migratedReports = await identityClient.query<{
+        contributorKey: string;
+        createdAt: Date;
+        id: string;
+        importKey: string | null;
+        updatedAt: Date;
+        userId: string;
+      }>(`
+        SELECT
+          "id",
+          "userId",
+          "contributorKey",
+          "importKey",
+          "createdAt",
+          "updatedAt"
+        FROM "CatchReport"
+        ORDER BY "id"
+      `);
+      assert.deepEqual(
+        migratedReports.rows.map(({ createdAt, id, updatedAt, userId }) => ({
+          createdAt,
+          id,
+          updatedAt,
+          userId,
+        })),
+        beforeMigration.rows,
+      );
+      assert.deepEqual(
+        migratedReports.rows.map(({ contributorKey, importKey, userId }) => ({
+          contributorKey,
+          importKey,
+          userId,
+        })),
+        [
+          {
+            contributorKey: 'local-user:00000000-0000-4000-8000-000000000001',
+            importKey: null,
+            userId: '00000000-0000-4000-8000-000000000001',
+          },
+          {
+            contributorKey: 'local-user:00000000-0000-4000-8000-000000000001',
+            importKey: null,
+            userId: '00000000-0000-4000-8000-000000000001',
+          },
+          {
+            contributorKey: 'local-user:00000000-0000-4000-8000-000000000002',
+            importKey: null,
+            userId: '00000000-0000-4000-8000-000000000002',
+          },
+        ],
+      );
+
+      const identityColumns = await identityClient.query<{
+        characterMaximumLength: number;
+        columnName: string;
+        isNullable: 'NO' | 'YES';
+      }>(`
+        SELECT
+          column_name AS "columnName",
+          is_nullable AS "isNullable",
+          character_maximum_length AS "characterMaximumLength"
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'CatchReport'
+          AND column_name IN ('contributorKey', 'importKey')
+        ORDER BY column_name
+      `);
+      assert.deepEqual(identityColumns.rows, [
+        { characterMaximumLength: 255, columnName: 'contributorKey', isNullable: 'NO' },
+        { characterMaximumLength: 255, columnName: 'importKey', isNullable: 'YES' },
+      ]);
+
+      async function copyReport(
+        id: string,
+        contributorKey: string | null,
+        importKey: string | null,
+      ): Promise<void> {
+        await identityClient.query(
+          `
+            INSERT INTO "CatchReport" (
+              "id",
+              "userId",
+              "contributorKey",
+              "importKey",
+              "locationId",
+              "fishId",
+              "baitId",
+              "weightGrams",
+              "fishingMethod",
+              "holeDepthCm",
+              "spotPositionRaw",
+              "fishingNote",
+              "spinningSize",
+              "spinningSpeed",
+              "userNoteRaw",
+              "rawSourceText",
+              "createdAt",
+              "updatedAt"
+            )
+            SELECT
+              $1::uuid,
+              "userId",
+              $2,
+              $3,
+              "locationId",
+              "fishId",
+              "baitId",
+              "weightGrams",
+              "fishingMethod",
+              "holeDepthCm",
+              "spotPositionRaw",
+              "fishingNote",
+              "spinningSize",
+              "spinningSpeed",
+              "userNoteRaw",
+              "rawSourceText",
+              "createdAt",
+              "updatedAt"
+            FROM "CatchReport"
+            WHERE "id" = '00000000-0000-4000-8000-000000000040'
+          `,
+          [id, contributorKey, importKey],
+        );
+      }
+
+      await assert.rejects(
+        copyReport('00000000-0000-4000-8000-000000000050', '', null),
+        /CatchReport_contributorKey_nonempty_check/u,
+      );
+      await assert.rejects(
+        copyReport(
+          '00000000-0000-4000-8000-000000000051',
+          'external:forum:17aed50d21c258564c67a441a1820e90',
+          '',
+        ),
+        /CatchReport_importKey_nonempty_check/u,
+      );
+
+      await copyReport(
+        '00000000-0000-4000-8000-000000000052',
+        'external:forum:17aed50d21c258564c67a441a1820e90',
+        'forum:observation:05ccba0a319baa17b702',
+      );
+      await copyReport(
+        '00000000-0000-4000-8000-000000000053',
+        'external:forum:17aed50d21c258564c67a441a1820e90',
+        'forum:observation:2e749920f9b6357f04f8',
+      );
+      await copyReport(
+        '00000000-0000-4000-8000-000000000054',
+        'external:forum:e2270c0463822db11286ca442be2d401',
+        'forum:observation:cbba598828e6cd581e36',
+      );
+      await assert.rejects(
+        copyReport(
+          '00000000-0000-4000-8000-000000000055',
+          'external:forum:62106f30bbff7b32dbbcd92f504fe35a',
+          'forum:observation:05ccba0a319baa17b702',
+        ),
+        /CatchReport_importKey_key/u,
+      );
+
+      const nullImportKeys = await identityClient.query<{ count: string }>(`
+        SELECT count(*)::text AS "count"
+        FROM "CatchReport"
+        WHERE "importKey" IS NULL
+      `);
+      assert.equal(nullImportKeys.rows[0]?.count, '3');
+
+      const repeatedContributors = await identityClient.query<{ count: string }>(`
+        SELECT count(*)::text AS "count"
+        FROM "CatchReport"
+        WHERE "contributorKey" = 'external:forum:17aed50d21c258564c67a441a1820e90'
+      `);
+      assert.equal(repeatedContributors.rows[0]?.count, '2');
+
+      await identityClient.query(`
+        UPDATE "CatchReport"
+        SET
+          "contributorKey" = "contributorKey",
+          "importKey" = "importKey"
+        WHERE "id" = '00000000-0000-4000-8000-000000000052'
+      `);
+      await assert.rejects(
+        identityClient.query(`
+          UPDATE "CatchReport"
+          SET "contributorKey" = 'external:forum:changed'
+          WHERE "id" = '00000000-0000-4000-8000-000000000052'
+        `),
+        /CatchReport contributorKey is immutable/u,
+      );
+      await assert.rejects(
+        identityClient.query(`
+          UPDATE "CatchReport"
+          SET "importKey" = 'forum:observation:changed'
+          WHERE "id" = '00000000-0000-4000-8000-000000000052'
+        `),
+        /CatchReport importKey is immutable/u,
+      );
+    } finally {
+      await identityClient.query(
+        `DROP SCHEMA IF EXISTS ${quotedIdentifier(identitySchema)} CASCADE`,
+      );
+      await identityClient.end();
     }
   });
 });

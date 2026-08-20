@@ -5,6 +5,7 @@ import type { PrismaService } from '../prisma/prisma.service.js';
 import { encodeCatchReportCursor } from './catch-report-pagination.js';
 import { CatchReportsService } from './catch-reports.service.js';
 import type { CreateCatchReportDto } from './dto/create-catch-report.dto.js';
+import type { UpdateCatchReportDto } from './dto/update-catch-report.dto.js';
 
 const USER_ID = '10000000-0000-4000-8000-000000000001';
 const OTHER_USER_ID = '10000000-0000-4000-8000-000000000002';
@@ -223,6 +224,8 @@ void describe('CatchReportsService v2', () => {
     const malicious = {
       ...createDto(),
       userId: OTHER_USER_ID,
+      contributorKey: 'external:forum:spoofed-member',
+      importKey: 'forum:observation:spoofed',
       fishingBaseId: OTHER_BASE_ID,
       fishingMethod: 'SPINNING',
     } as unknown as CreateCatchReportDto;
@@ -233,6 +236,8 @@ void describe('CatchReportsService v2', () => {
     assert.deepEqual(mock.calls, ['location', 'fish', 'membership', 'bait', 'create']);
     assert.deepEqual(data, {
       userId: USER_ID,
+      contributorKey: `local-user:${USER_ID}`,
+      importKey: null,
       locationId: LOCATION_ID,
       fishId: FISH_ID,
       baitId: BAIT_ID,
@@ -248,6 +253,8 @@ void describe('CatchReportsService v2', () => {
     });
     assert.equal(result.report.rawSourceText, 'Исходная строка');
     assert.equal('type' in result.report.bait, false);
+    assert.equal('contributorKey' in result.report, false);
+    assert.equal('importKey' in result.report, false);
   });
 
   void it('requires a hole for BAIT and both structured fields for SPINNING', async () => {
@@ -297,6 +304,8 @@ void describe('CatchReportsService v2', () => {
 
     assert.deepEqual(asObject(asObject(query).data), {
       userId: USER_ID,
+      contributorKey: `local-user:${USER_ID}`,
+      importKey: null,
       locationId: LOCATION_ID,
       fishId: FISH_ID,
       baitId: BAIT_ID,
@@ -438,12 +447,35 @@ void describe('CatchReportsService v2', () => {
     assert.deepEqual(asObject(asObject(prisma.lastUpdate()).data), { weightGrams: 50 });
   });
 
-  void it('keeps raw source out of public detail and exposes it only through owner detail', async () => {
-    const record = reportRecord();
+  void it('does not allow update payloads to change internal report identities', async () => {
+    const prisma = updatePrisma();
+    const malicious = {
+      weightGrams: 41,
+      contributorKey: 'external:forum:spoofed-member',
+      importKey: 'forum:observation:spoofed',
+    } as unknown as UpdateCatchReportDto;
+
+    await new CatchReportsService(prisma.value).update(USER_ID, REPORT_ID, malicious);
+
+    assert.deepEqual(asObject(asObject(prisma.lastUpdate()).data), { weightGrams: 41 });
+  });
+
+  void it('keeps internal identities private and exposes raw source only through owner detail', async () => {
+    const record = {
+      ...reportRecord(),
+      contributorKey: `local-user:${USER_ID}`,
+      importKey: 'forum:observation:1',
+    };
+    let publicQuery: unknown;
+    let ownerQuery: unknown;
     const prisma = {
       catchReport: {
-        findUnique: () => Promise.resolve(record),
+        findUnique: (query: unknown) => {
+          publicQuery = query;
+          return Promise.resolve(record);
+        },
         findFirst: (query: unknown) => {
+          ownerQuery = query;
           assert.deepEqual(asObject(query).where, { id: REPORT_ID, userId: USER_ID });
           return Promise.resolve(record);
         },
@@ -455,6 +487,12 @@ void describe('CatchReportsService v2', () => {
     const ownerResult = await service.getMine(USER_ID, REPORT_ID);
     assert.equal('rawSourceText' in publicResult.report, false);
     assert.equal(ownerResult.report.rawSourceText, 'Исходная строка');
+    for (const key of ['contributorKey', 'importKey']) {
+      assert.equal(key in publicResult.report, false);
+      assert.equal(key in ownerResult.report, false);
+      assert.equal(key in asObject(asObject(publicQuery).select), false);
+      assert.equal(key in asObject(asObject(ownerQuery).select), false);
+    }
   });
 
   void it('filters the public list by Fish and multiple Bases in one paginated query', async () => {
@@ -487,6 +525,8 @@ void describe('CatchReportsService v2', () => {
     assert.deepEqual(queryObject.orderBy, [{ createdAt: 'desc' }, { id: 'desc' }]);
     assert.equal(queryObject.take, 3);
     assert.equal('rawSourceText' in asObject(queryObject.select), false);
+    assert.equal('contributorKey' in asObject(queryObject.select), false);
+    assert.equal('importKey' in asObject(queryObject.select), false);
     assert.equal(result.items.length, 1);
     assert.equal(result.nextCursor, null);
   });
@@ -508,6 +548,8 @@ void describe('CatchReportsService v2', () => {
 
     assert.deepEqual(asObject(queries[0]).where, {});
     assert.deepEqual(asObject(queries[1]).where, { userId: USER_ID });
+    assert.equal('contributorKey' in asObject(asObject(queries[1]).select), false);
+    assert.equal('importKey' in asObject(asObject(queries[1]).select), false);
   });
 
   void it('checks ownership before validating an update', async () => {
