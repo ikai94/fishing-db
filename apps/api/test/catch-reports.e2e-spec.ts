@@ -103,6 +103,16 @@ interface BaitStatisticsItem {
   latestReportCreatedAt: string;
 }
 
+interface FishingConditionStatisticsItem {
+  fishingMethod: 'BAIT_FISHING' | 'SPINNING';
+  fishingNote: 'MIDWATER' | 'FROM_BOTTOM' | 'SURFACE' | null;
+  spinningSize: 'SMALL' | 'MEDIUM' | 'LARGE' | null;
+  spinningSpeed: 'SLOW' | 'MEDIUM' | 'FAST' | null;
+  uniqueUsersCount: number;
+  reportsCount: number;
+  latestReportCreatedAt: string;
+}
+
 const originalRuntimeEnvironment = {
   DATABASE_URL: process.env.DATABASE_URL,
   NODE_ENV: process.env.NODE_ENV,
@@ -305,6 +315,80 @@ function readBaitStatistics(body: unknown): BaitStatisticsItem[] {
       'fishingBase',
       'type',
       'nameNormalized',
+    ]) {
+      assert.equal(serialized.includes(`"${forbiddenField}"`), false);
+    }
+
+    return result;
+  });
+}
+
+function readFishingConditionStatistics(body: unknown): FishingConditionStatisticsItem[] {
+  const payload = asObject(body);
+  assert.deepEqual(Object.keys(payload), ['items']);
+
+  return asArray(payload.items).map((value) => {
+    const item = asObject(value);
+    assert.deepEqual(Object.keys(item).sort(), [
+      'fishingMethod',
+      'fishingNote',
+      'latestReportCreatedAt',
+      'reportsCount',
+      'spinningSize',
+      'spinningSpeed',
+      'uniqueUsersCount',
+    ]);
+    assert.ok(item.fishingMethod === 'BAIT_FISHING' || item.fishingMethod === 'SPINNING');
+    assert.ok(
+      item.fishingNote === null ||
+        item.fishingNote === 'MIDWATER' ||
+        item.fishingNote === 'FROM_BOTTOM' ||
+        item.fishingNote === 'SURFACE',
+    );
+
+    if (item.fishingMethod === 'BAIT_FISHING') {
+      assert.equal(item.spinningSize, null);
+      assert.equal(item.spinningSpeed, null);
+    } else {
+      assert.ok(
+        item.spinningSize === 'SMALL' ||
+          item.spinningSize === 'MEDIUM' ||
+          item.spinningSize === 'LARGE',
+      );
+      assert.ok(
+        item.spinningSpeed === 'SLOW' ||
+          item.spinningSpeed === 'MEDIUM' ||
+          item.spinningSpeed === 'FAST',
+      );
+    }
+
+    const result: FishingConditionStatisticsItem = {
+      fishingMethod: item.fishingMethod,
+      fishingNote: item.fishingNote,
+      spinningSize: item.spinningSize,
+      spinningSpeed: item.spinningSpeed,
+      uniqueUsersCount: asNumber(item.uniqueUsersCount, 'uniqueUsersCount'),
+      reportsCount: asNumber(item.reportsCount, 'reportsCount'),
+      latestReportCreatedAt: asString(item.latestReportCreatedAt, 'latestReportCreatedAt'),
+    };
+
+    const serialized = JSON.stringify(result);
+    for (const forbiddenField of [
+      'userId',
+      'author',
+      'nickname',
+      'email',
+      'role',
+      'isBanned',
+      'rawSourceText',
+      'userNoteRaw',
+      'spotPositionRaw',
+      'holeDepthCm',
+      'baitId',
+      'bait',
+      'location',
+      'fishingBase',
+      'type',
     ]) {
       assert.equal(serialized.includes(`"${forbiddenField}"`), false);
     }
@@ -2197,6 +2281,272 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
         item.reportsCount,
       ]),
       [[lure.id, 'SPINNING', 1, 1]],
+    );
+  });
+
+  void test('Fishing Conditions statistics reuses the required anonymous Fish/Base scope validation', async () => {
+    const endpoint = '/api/v1/catch-reports/statistics/conditions';
+    const unknown = readFishingConditionStatistics(
+      (await api().get(endpoint).query({ fishId: randomUUID(), baseIds: randomUUID() }).expect(200))
+        .body as unknown,
+    );
+    assert.deepEqual(unknown, []);
+
+    const baseId = randomUUID();
+    const fishId = randomUUID();
+    for (const url of [
+      endpoint,
+      `${endpoint}?fishId=${fishId}`,
+      `${endpoint}?baseIds=${baseId}`,
+      `${endpoint}?fishId=not-a-uuid&baseIds=${baseId}`,
+      `${endpoint}?fishId=${fishId}&baseIds=`,
+      `${endpoint}?fishId=${fishId}&baseIds=${baseId}&baseIds=${randomUUID()}`,
+    ]) {
+      const invalid = await api().get(url).expect(400);
+      assert.equal(readErrorCode(invalid.body as unknown), 'VALIDATION_ERROR');
+    }
+
+    const duplicatedScope = readFishingConditionStatistics(
+      (
+        await api()
+          .get(endpoint)
+          .query({ fishId, baseIds: `${baseId.toUpperCase()},${baseId}` })
+          .expect(200)
+      ).body as unknown,
+    );
+    assert.deepEqual(duplicatedScope, []);
+  });
+
+  void test('Fishing Conditions statistics groups stored method observations with unique users first', async () => {
+    const catalog = await createCatalog({ baitType: 'BAIT' });
+    const otherCatalog = await createCatalog();
+    const secondBait = await createBait('BAIT');
+    const lure = await createBait('LURE');
+    const [firstUser, secondUser, thirdUser] = await Promise.all([
+      createActor(),
+      createActor(),
+      createActor(),
+    ]);
+    const at = (second: number) =>
+      new Date(`2026-06-01T00:00:${String(second).padStart(2, '0')}.000Z`);
+
+    await createStatisticsReport(firstUser, catalog, {
+      fishingNote: 'MIDWATER',
+      holeDepthCm: 600,
+      spotPositionRaw: 'первая точка',
+      createdAt: at(1),
+    });
+    await createStatisticsReport(secondUser, catalog, {
+      baitId: secondBait.id,
+      fishingNote: 'MIDWATER',
+      holeDepthCm: 700,
+      spotPositionRaw: 'другая точка',
+      createdAt: at(2),
+    });
+    await createStatisticsReport(secondUser, catalog, {
+      fishingNote: 'MIDWATER',
+      holeDepthCm: 800,
+      spotPositionRaw: null,
+      createdAt: at(3),
+    });
+    await createStatisticsReport(firstUser, catalog, {
+      baitId: lure.id,
+      fishingMethod: 'SPINNING',
+      holeDepthCm: null,
+      fishingNote: null,
+      spinningSize: 'MEDIUM',
+      spinningSpeed: 'SLOW',
+      spotPositionRaw: 'спиннинг один',
+      createdAt: at(4),
+    });
+    await createStatisticsReport(secondUser, catalog, {
+      baitId: lure.id,
+      fishingMethod: 'SPINNING',
+      holeDepthCm: 900,
+      fishingNote: null,
+      spinningSize: 'MEDIUM',
+      spinningSpeed: 'SLOW',
+      spotPositionRaw: 'спиннинг два',
+      createdAt: at(5),
+    });
+    for (const second of [6, 7, 8, 9]) {
+      await createStatisticsReport(thirdUser, catalog, {
+        baitId: catalog.bait.id,
+        fishingMethod: 'SPINNING',
+        holeDepthCm: null,
+        fishingNote: 'SURFACE',
+        spinningSize: 'SMALL',
+        spinningSpeed: 'FAST',
+        createdAt: at(second),
+      });
+    }
+    await createStatisticsReport(thirdUser, catalog, {
+      fishingNote: null,
+      createdAt: at(10),
+    });
+    await createStatisticsReport(thirdUser, catalog, {
+      fishId: otherCatalog.fish.id,
+      fishingNote: 'FROM_BOTTOM',
+      createdAt: at(11),
+    });
+    await createStatisticsReport(firstUser, otherCatalog, {
+      fishId: catalog.fish.id,
+      fishingNote: 'FROM_BOTTOM',
+      createdAt: at(12),
+    });
+
+    await prisma.bait.update({
+      where: { id: catalog.bait.id },
+      data: { type: 'LURE', isActive: false },
+    });
+    await prisma.bait.update({
+      where: { id: secondBait.id },
+      data: { type: 'LURE', isActive: false },
+    });
+    await prisma.bait.update({
+      where: { id: lure.id },
+      data: { type: 'BAIT', isActive: false },
+    });
+    await prisma.user.update({ where: { id: firstUser.userId }, data: { isBanned: true } });
+    await prisma.fish.update({ where: { id: catalog.fish.id }, data: { isActive: false } });
+    await prisma.location.update({ where: { id: catalog.location.id }, data: { isActive: false } });
+    await prisma.fishingBase.update({ where: { id: catalog.base.id }, data: { isActive: false } });
+    await prisma.fishingBaseFish.delete({
+      where: {
+        fishingBaseId_fishId: {
+          fishingBaseId: catalog.base.id,
+          fishId: catalog.fish.id,
+        },
+      },
+    });
+
+    const endpoint = '/api/v1/catch-reports/statistics/conditions';
+    const query = { fishId: catalog.fish.id, baseIds: catalog.base.id };
+    const items = readFishingConditionStatistics(
+      (await api().get(endpoint).query(query).expect(200)).body as unknown,
+    );
+
+    assert.deepEqual(
+      items.map((item) => [
+        item.fishingMethod,
+        item.fishingNote,
+        item.spinningSize,
+        item.spinningSpeed,
+        item.uniqueUsersCount,
+        item.reportsCount,
+        item.latestReportCreatedAt,
+      ]),
+      [
+        ['BAIT_FISHING', 'MIDWATER', null, null, 2, 3, at(3).toISOString()],
+        ['SPINNING', null, 'MEDIUM', 'SLOW', 2, 2, at(5).toISOString()],
+        ['SPINNING', 'SURFACE', 'SMALL', 'FAST', 1, 4, at(9).toISOString()],
+        ['BAIT_FISHING', null, null, null, 1, 1, at(10).toISOString()],
+      ],
+    );
+
+    const mixedKnownUnknownScope = readFishingConditionStatistics(
+      (
+        await api()
+          .get(endpoint)
+          .query({ fishId: catalog.fish.id, baseIds: `${catalog.base.id},${randomUUID()}` })
+          .expect(200)
+      ).body as unknown,
+    );
+    assert.deepEqual(mixedKnownUnknownScope, items);
+
+    const bothBases = readFishingConditionStatistics(
+      (
+        await api()
+          .get(endpoint)
+          .query({
+            fishId: catalog.fish.id,
+            baseIds: `${catalog.base.id},${otherCatalog.base.id}`,
+          })
+          .expect(200)
+      ).body as unknown,
+    );
+    const otherBaseGroup = bothBases.find(
+      (item) => item.fishingMethod === 'BAIT_FISHING' && item.fishingNote === 'FROM_BOTTOM',
+    );
+    assert.ok(otherBaseGroup);
+    assert.equal(otherBaseGroup.uniqueUsersCount, 1);
+    assert.equal(otherBaseGroup.reportsCount, 1);
+    assert.equal(otherBaseGroup.latestReportCreatedAt, at(12).toISOString());
+  });
+
+  void test('Fishing Conditions statistics reflects report edits and deletes immediately', async () => {
+    const catalog = await createCatalog({ baitType: 'BAIT' });
+    const lure = await createBait('LURE');
+    const [editor, remover] = await Promise.all([createActor(), createActor()]);
+    const editedReport = await createReport(editor, catalog, { fishingNote: 'MIDWATER' });
+    const removedReport = await createReport(remover, catalog, { fishingNote: 'MIDWATER' });
+    const endpoint = '/api/v1/catch-reports/statistics/conditions';
+    const query = { fishId: catalog.fish.id, baseIds: catalog.base.id };
+
+    const initial = readFishingConditionStatistics(
+      (await api().get(endpoint).query(query).expect(200)).body as unknown,
+    );
+    assert.deepEqual(
+      initial.map((item) => [
+        item.fishingMethod,
+        item.fishingNote,
+        item.spinningSize,
+        item.spinningSpeed,
+        item.uniqueUsersCount,
+        item.reportsCount,
+      ]),
+      [['BAIT_FISHING', 'MIDWATER', null, null, 2, 2]],
+    );
+
+    const editedReportId = asString(editedReport.id, 'editedReport.id');
+    await mutation(api().patch(`/api/v1/catch-reports/${editedReportId}`), editor.cookie)
+      .send({
+        baitId: lure.id,
+        holeDepthCm: null,
+        fishingNote: 'SURFACE',
+        spinningSize: 'SMALL',
+        spinningSpeed: 'FAST',
+      })
+      .expect(200);
+
+    const afterEdit = readFishingConditionStatistics(
+      (await api().get(endpoint).query(query).expect(200)).body as unknown,
+    );
+    assert.deepEqual(
+      afterEdit
+        .map((item) => [
+          item.fishingMethod,
+          item.fishingNote,
+          item.spinningSize,
+          item.spinningSpeed,
+          item.uniqueUsersCount,
+          item.reportsCount,
+        ])
+        .sort((left, right) => String(left[0]).localeCompare(String(right[0]))),
+      [
+        ['BAIT_FISHING', 'MIDWATER', null, null, 1, 1],
+        ['SPINNING', 'SURFACE', 'SMALL', 'FAST', 1, 1],
+      ],
+    );
+
+    const removedReportId = asString(removedReport.id, 'removedReport.id');
+    await mutation(api().delete(`/api/v1/catch-reports/${removedReportId}`), remover.cookie).expect(
+      204,
+    );
+
+    const afterDelete = readFishingConditionStatistics(
+      (await api().get(endpoint).query(query).expect(200)).body as unknown,
+    );
+    assert.deepEqual(
+      afterDelete.map((item) => [
+        item.fishingMethod,
+        item.fishingNote,
+        item.spinningSize,
+        item.spinningSpeed,
+        item.uniqueUsersCount,
+        item.reportsCount,
+      ]),
+      [['SPINNING', 'SURFACE', 'SMALL', 'FAST', 1, 1]],
     );
   });
 

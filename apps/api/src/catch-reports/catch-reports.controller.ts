@@ -25,6 +25,7 @@ import { HoleStatisticsQueryDto } from './dto/hole-statistics-query.dto.js';
 import { ParseCatchReportDto } from './dto/parse-catch-report.dto.js';
 import { PublicCatchReportListQueryDto } from './dto/public-catch-report-list-query.dto.js';
 import { UpdateCatchReportDto } from './dto/update-catch-report.dto.js';
+import { FishingConditionStatisticsService } from './fishing-condition-statistics.service.js';
 import { HoleStatisticsService } from './hole-statistics.service.js';
 import { CatchReportParserService } from './parser/catch-report-parser.service.js';
 
@@ -33,6 +34,8 @@ export class CatchReportsController {
   constructor(
     @Inject(CatchReportsService) private readonly catchReports: CatchReportsService,
     @Inject(BaitStatisticsService) private readonly baitStatistics: BaitStatisticsService,
+    @Inject(FishingConditionStatisticsService)
+    private readonly fishingConditionStatistics: FishingConditionStatisticsService,
     @Inject(HoleStatisticsService) private readonly holeStatistics: HoleStatisticsService,
     @Inject(CatchReportParserService) private readonly parser: CatchReportParserService,
   ) {}
@@ -51,6 +54,14 @@ export class CatchReportsController {
     query: HoleStatisticsQueryDto,
   ) {
     return this.baitStatistics.list(query);
+  }
+
+  @Get('statistics/conditions')
+  listFishingConditionStatistics(
+    @Query(createApplicationValidationPipe(HoleStatisticsQueryDto))
+    query: HoleStatisticsQueryDto,
+  ) {
+    return this.fishingConditionStatistics.list(query);
   }
 
   @Get('statistics/holes')

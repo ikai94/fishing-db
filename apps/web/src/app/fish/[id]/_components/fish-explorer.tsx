@@ -9,9 +9,14 @@ import { type BaitStatistic, listBaitStatistics } from '@/lib/bait-statistics-ap
 import type { PublicFishDetail } from '@/lib/catalog-api';
 import { type CatchReport, listCatchReports } from '@/lib/catch-reports-api';
 import { readFishBaseSelection, writeFishBaseSelection } from '@/lib/fish-base-selection';
+import {
+  type FishingConditionStatistic,
+  listFishingConditionStatistics,
+} from '@/lib/fishing-condition-statistics-api';
 import { type HoleStatistic, listHoleStatistics } from '@/lib/hole-statistics-api';
 import { BaitStatisticsTable } from './bait-statistics-table';
 import { CommonHoleTable } from './common-hole-table';
+import { FishingConditionStatisticsTable } from './fishing-condition-statistics-table';
 import { PublicFishCatchTable } from './public-fish-catch-table';
 
 const REPORT_PAGE_SIZE = 20;
@@ -37,6 +42,12 @@ type BaitStatisticsState =
   | { kind: 'idle'; scopeKey: string }
   | { kind: 'loading'; scopeKey: string }
   | { kind: 'ready'; scopeKey: string; items: BaitStatistic[] }
+  | { kind: 'error'; scopeKey: string; message: string };
+
+type FishingConditionStatisticsState =
+  | { kind: 'idle'; scopeKey: string }
+  | { kind: 'loading'; scopeKey: string }
+  | { kind: 'ready'; scopeKey: string; items: FishingConditionStatistic[] }
   | { kind: 'error'; scopeKey: string; message: string };
 
 type ActiveRequest = {
@@ -122,6 +133,18 @@ function FishExplorerState({
         onToggle={toggleBase}
         onSelectAll={() => updateSelection(availableBaseIds)}
         onClearAll={() => updateSelection([])}
+      />
+
+      <FishConditionStatistics
+        key={`fishing-condition-statistics:${scopeKey}`}
+        fishId={fish.id}
+        selectedBaseIds={canonicalSelectedBaseIds}
+        scopeKey={scopeKey}
+        loadingMessage={
+          hasChangedScope
+            ? 'Обновляем статистику условий ловли…'
+            : 'Загружаем статистику условий ловли…'
+        }
       />
 
       <FishBaitStatistics
@@ -225,6 +248,131 @@ function BaseMembershipSelector({
         </ul>
       )}
     </fieldset>
+  );
+}
+
+export function FishConditionStatistics({
+  fishId,
+  selectedBaseIds,
+  scopeKey,
+  loadingMessage = 'Загружаем статистику условий ловли…',
+}: {
+  fishId: string;
+  selectedBaseIds: readonly string[];
+  scopeKey: string;
+  loadingMessage?: string;
+}) {
+  const revisionRef = useRef(0);
+  const requestRef = useRef<ActiveRequest | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const [state, setState] = useState<FishingConditionStatisticsState>(() =>
+    selectedBaseIds.length === 0 ? { kind: 'idle', scopeKey } : { kind: 'loading', scopeKey },
+  );
+
+  useEffect(() => {
+    const revision = revisionRef.current + 1;
+    revisionRef.current = revision;
+    requestRef.current?.controller.abort();
+    requestRef.current = null;
+
+    if (selectedBaseIds.length === 0) return;
+
+    const controller = new AbortController();
+    const request = { controller, revision, scopeKey };
+    requestRef.current = request;
+
+    async function loadStatistics() {
+      try {
+        const items = await listFishingConditionStatistics({
+          fishId,
+          baseIds: [...selectedBaseIds],
+          signal: controller.signal,
+        });
+        if (!isCurrentRequest(requestRef.current, request, scopeKey, revisionRef.current)) return;
+        setState({ kind: 'ready', scopeKey, items });
+      } catch (error) {
+        if (!isCurrentRequest(requestRef.current, request, scopeKey, revisionRef.current)) return;
+        setState({
+          kind: 'error',
+          scopeKey,
+          message: getApiErrorMessage(
+            error,
+            'Не удалось загрузить статистику условий ловли. Попробуйте ещё раз.',
+          ),
+        });
+      } finally {
+        if (isCurrentRequest(requestRef.current, request, scopeKey, revisionRef.current)) {
+          requestRef.current = null;
+        }
+      }
+    }
+
+    void loadStatistics();
+    return () => {
+      controller.abort();
+      if (requestRef.current === request) requestRef.current = null;
+    };
+  }, [attempt, fishId, scopeKey, selectedBaseIds]);
+
+  useEffect(
+    () => () => {
+      revisionRef.current += 1;
+      requestRef.current?.controller.abort();
+      requestRef.current = null;
+    },
+    [],
+  );
+
+  function retry() {
+    setState({ kind: 'loading', scopeKey });
+    setAttempt((current) => current + 1);
+  }
+
+  const currentState = state.scopeKey === scopeKey ? state : null;
+  const isLoading =
+    selectedBaseIds.length > 0 && (currentState === null || currentState.kind === 'loading');
+
+  return (
+    <section
+      className={styles.resultsRegion}
+      aria-labelledby="fish-fishing-condition-statistics-heading"
+      aria-busy={isLoading}
+    >
+      <div className={styles.sectionHeader}>
+        <h2 className={styles.sectionTitle} id="fish-fishing-condition-statistics-heading">
+          Условия ловли в уловах
+        </h2>
+      </div>
+
+      {selectedBaseIds.length === 0 ? (
+        <p className={styles.statusMessage}>
+          Выберите хотя бы одну базу, чтобы увидеть статистику условий ловли.
+        </p>
+      ) : null}
+
+      {isLoading ? (
+        <p className={styles.statusMessage} role="status">
+          {loadingMessage}
+        </p>
+      ) : null}
+
+      {currentState?.kind === 'error' ? (
+        <div className={`${styles.statusMessage} ${styles.errorMessage}`} role="alert">
+          <p>{currentState.message}</p>
+          <button className={styles.secondaryButton} type="button" onClick={retry}>
+            Повторить загрузку статистики условий ловли
+          </button>
+        </div>
+      ) : null}
+
+      {currentState?.kind === 'ready' && currentState.items.length === 0 ? (
+        <p className={styles.statusMessage}>Для выбранных баз данных об условиях ловли пока нет.</p>
+      ) : null}
+
+      {currentState?.kind === 'ready' && currentState.items.length > 0 ? (
+        <FishingConditionStatisticsTable items={currentState.items} />
+      ) : null}
+    </section>
   );
 }
 

@@ -177,6 +177,7 @@
 }
 
 .holeTableRegion,
+.conditionTableRegion,
 .baitTableRegion {
   max-width: 100%;
   overflow-x: auto;
@@ -184,7 +185,8 @@
   border-bottom: 1px solid #bfcac3;
 }
 
-.baitStatisticsTable {
+.baitStatisticsTable,
+.conditionStatisticsTable {
   width: 100%;
   min-width: 760px;
   border-collapse: collapse;
@@ -195,7 +197,9 @@
 }
 
 .baitStatisticsTable th,
-.baitStatisticsTable td {
+.baitStatisticsTable td,
+.conditionStatisticsTable th,
+.conditionStatisticsTable td {
   padding: 5px 7px;
   border-right: 1px solid #e0e6e2;
   border-bottom: 1px solid #dce4df;
@@ -205,11 +209,14 @@
 }
 
 .baitStatisticsTable th:last-child,
-.baitStatisticsTable td:last-child {
+.baitStatisticsTable td:last-child,
+.conditionStatisticsTable th:last-child,
+.conditionStatisticsTable td:last-child {
   border-right: 0;
 }
 
-.baitStatisticsTable thead th {
+.baitStatisticsTable thead th,
+.conditionStatisticsTable thead th {
   color: #43544a;
   background: #edf2ef;
   font-size: 0.75rem;
@@ -245,6 +252,44 @@
 }
 
 .baitStatisticsCountCell {
+  text-align: right !important;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.conditionStatisticsTable {
+  min-width: 980px;
+}
+
+.conditionStatisticsTable thead th:nth-child(1) {
+  width: 4ch;
+}
+
+.conditionStatisticsTable thead th:nth-child(2) {
+  width: 17%;
+}
+
+.conditionStatisticsTable thead th:nth-child(3),
+.conditionStatisticsTable thead th:nth-child(4),
+.conditionStatisticsTable thead th:nth-child(5) {
+  width: 16%;
+}
+
+.conditionStatisticsTable thead th:nth-child(6),
+.conditionStatisticsTable thead th:nth-child(7) {
+  width: 9ch;
+  text-align: right;
+}
+
+.conditionStatisticsTable thead th:nth-child(8) {
+  width: 13ch;
+}
+
+.conditionStatisticsRow:hover {
+  background: #f7faf8;
+}
+
+.conditionStatisticsCountCell {
   text-align: right !important;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
@@ -748,6 +793,7 @@
 .entityLink:focus-visible,
 .tableRegion:focus-visible,
 .holeTableRegion:focus-visible,
+.conditionTableRegion:focus-visible,
 .baitTableRegion:focus-visible,
 .catchTableRegion:focus-visible,
 .alphabetButton:focus-visible,
