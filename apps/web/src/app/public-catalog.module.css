@@ -176,11 +176,78 @@
   border-bottom: 1px solid #bfcac3;
 }
 
-.holeTableRegion {
+.holeTableRegion,
+.baitTableRegion {
   max-width: 100%;
   overflow-x: auto;
   border-top: 1px solid #bfcac3;
   border-bottom: 1px solid #bfcac3;
+}
+
+.baitStatisticsTable {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.38;
+}
+
+.baitStatisticsTable th,
+.baitStatisticsTable td {
+  padding: 5px 7px;
+  border-right: 1px solid #e0e6e2;
+  border-bottom: 1px solid #dce4df;
+  overflow-wrap: anywhere;
+  text-align: left;
+  vertical-align: top;
+}
+
+.baitStatisticsTable th:last-child,
+.baitStatisticsTable td:last-child {
+  border-right: 0;
+}
+
+.baitStatisticsTable thead th {
+  color: #43544a;
+  background: #edf2ef;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
+}
+
+.baitStatisticsTable thead th:nth-child(1) {
+  width: 4ch;
+}
+
+.baitStatisticsTable thead th:nth-child(2) {
+  width: 28%;
+}
+
+.baitStatisticsTable thead th:nth-child(3) {
+  width: 25%;
+}
+
+.baitStatisticsTable thead th:nth-child(4),
+.baitStatisticsTable thead th:nth-child(5) {
+  width: 9ch;
+  text-align: right;
+}
+
+.baitStatisticsTable thead th:nth-child(6) {
+  width: 13ch;
+}
+
+.baitStatisticsRow:hover {
+  background: #f7faf8;
+}
+
+.baitStatisticsCountCell {
+  text-align: right !important;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .holeTable {
@@ -681,6 +748,7 @@
 .entityLink:focus-visible,
 .tableRegion:focus-visible,
 .holeTableRegion:focus-visible,
+.baitTableRegion:focus-visible,
 .catchTableRegion:focus-visible,
 .alphabetButton:focus-visible,
 .searchInput:focus-visible,

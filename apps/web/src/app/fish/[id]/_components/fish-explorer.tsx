@@ -5,10 +5,12 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import styles from '../../../public-catalog.module.css';
 import { getApiErrorMessage } from '@/lib/api-client';
+import { type BaitStatistic, listBaitStatistics } from '@/lib/bait-statistics-api';
 import type { PublicFishDetail } from '@/lib/catalog-api';
 import { type CatchReport, listCatchReports } from '@/lib/catch-reports-api';
 import { readFishBaseSelection, writeFishBaseSelection } from '@/lib/fish-base-selection';
 import { type HoleStatistic, listHoleStatistics } from '@/lib/hole-statistics-api';
+import { BaitStatisticsTable } from './bait-statistics-table';
 import { CommonHoleTable } from './common-hole-table';
 import { PublicFishCatchTable } from './public-fish-catch-table';
 
@@ -29,6 +31,12 @@ type HoleStatisticsState =
   | { kind: 'idle'; scopeKey: string }
   | { kind: 'loading'; scopeKey: string }
   | { kind: 'ready'; scopeKey: string; items: HoleStatistic[] }
+  | { kind: 'error'; scopeKey: string; message: string };
+
+type BaitStatisticsState =
+  | { kind: 'idle'; scopeKey: string }
+  | { kind: 'loading'; scopeKey: string }
+  | { kind: 'ready'; scopeKey: string; items: BaitStatistic[] }
   | { kind: 'error'; scopeKey: string; message: string };
 
 type ActiveRequest = {
@@ -114,6 +122,18 @@ function FishExplorerState({
         onToggle={toggleBase}
         onSelectAll={() => updateSelection(availableBaseIds)}
         onClearAll={() => updateSelection([])}
+      />
+
+      <FishBaitStatistics
+        key={`bait-statistics:${scopeKey}`}
+        fishId={fish.id}
+        selectedBaseIds={canonicalSelectedBaseIds}
+        scopeKey={scopeKey}
+        loadingMessage={
+          hasChangedScope
+            ? 'Обновляем статистику наживок и приманок…'
+            : 'Загружаем статистику наживок и приманок…'
+        }
       />
 
       <FishHoleStatistics
@@ -205,6 +225,133 @@ function BaseMembershipSelector({
         </ul>
       )}
     </fieldset>
+  );
+}
+
+export function FishBaitStatistics({
+  fishId,
+  selectedBaseIds,
+  scopeKey,
+  loadingMessage = 'Загружаем статистику наживок и приманок…',
+}: {
+  fishId: string;
+  selectedBaseIds: readonly string[];
+  scopeKey: string;
+  loadingMessage?: string;
+}) {
+  const revisionRef = useRef(0);
+  const requestRef = useRef<ActiveRequest | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const [state, setState] = useState<BaitStatisticsState>(() =>
+    selectedBaseIds.length === 0 ? { kind: 'idle', scopeKey } : { kind: 'loading', scopeKey },
+  );
+
+  useEffect(() => {
+    const revision = revisionRef.current + 1;
+    revisionRef.current = revision;
+    requestRef.current?.controller.abort();
+    requestRef.current = null;
+
+    if (selectedBaseIds.length === 0) return;
+
+    const controller = new AbortController();
+    const request = { controller, revision, scopeKey };
+    requestRef.current = request;
+
+    async function loadStatistics() {
+      try {
+        const items = await listBaitStatistics({
+          fishId,
+          baseIds: [...selectedBaseIds],
+          signal: controller.signal,
+        });
+        if (!isCurrentRequest(requestRef.current, request, scopeKey, revisionRef.current)) return;
+        setState({ kind: 'ready', scopeKey, items });
+      } catch (error) {
+        if (!isCurrentRequest(requestRef.current, request, scopeKey, revisionRef.current)) return;
+        setState({
+          kind: 'error',
+          scopeKey,
+          message: getApiErrorMessage(
+            error,
+            'Не удалось загрузить статистику наживок и приманок. Попробуйте ещё раз.',
+          ),
+        });
+      } finally {
+        if (isCurrentRequest(requestRef.current, request, scopeKey, revisionRef.current)) {
+          requestRef.current = null;
+        }
+      }
+    }
+
+    void loadStatistics();
+    return () => {
+      controller.abort();
+      if (requestRef.current === request) requestRef.current = null;
+    };
+  }, [attempt, fishId, scopeKey, selectedBaseIds]);
+
+  useEffect(
+    () => () => {
+      revisionRef.current += 1;
+      requestRef.current?.controller.abort();
+      requestRef.current = null;
+    },
+    [],
+  );
+
+  function retry() {
+    setState({ kind: 'loading', scopeKey });
+    setAttempt((current) => current + 1);
+  }
+
+  const currentState = state.scopeKey === scopeKey ? state : null;
+  const isLoading =
+    selectedBaseIds.length > 0 && (currentState === null || currentState.kind === 'loading');
+
+  return (
+    <section
+      className={styles.resultsRegion}
+      aria-labelledby="fish-bait-statistics-heading"
+      aria-busy={isLoading}
+    >
+      <div className={styles.sectionHeader}>
+        <h2 className={styles.sectionTitle} id="fish-bait-statistics-heading">
+          Наживки и приманки в уловах
+        </h2>
+      </div>
+
+      {selectedBaseIds.length === 0 ? (
+        <p className={styles.statusMessage}>
+          Выберите хотя бы одну базу, чтобы увидеть статистику наживок и приманок.
+        </p>
+      ) : null}
+
+      {isLoading ? (
+        <p className={styles.statusMessage} role="status">
+          {loadingMessage}
+        </p>
+      ) : null}
+
+      {currentState?.kind === 'error' ? (
+        <div className={`${styles.statusMessage} ${styles.errorMessage}`} role="alert">
+          <p>{currentState.message}</p>
+          <button className={styles.secondaryButton} type="button" onClick={retry}>
+            Повторить загрузку статистики наживок и приманок
+          </button>
+        </div>
+      ) : null}
+
+      {currentState?.kind === 'ready' && currentState.items.length === 0 ? (
+        <p className={styles.statusMessage}>
+          Для выбранных баз данных о наживках и приманках пока нет.
+        </p>
+      ) : null}
+
+      {currentState?.kind === 'ready' && currentState.items.length > 0 ? (
+        <BaitStatisticsTable items={currentState.items} />
+      ) : null}
+    </section>
   );
 }
 

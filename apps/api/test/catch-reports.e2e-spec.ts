@@ -95,6 +95,14 @@ interface HoleStatisticsItem {
   latestReportCreatedAt: string;
 }
 
+interface BaitStatisticsItem {
+  bait: { id: string; name: string; isActive: boolean };
+  fishingMethod: 'BAIT_FISHING' | 'SPINNING';
+  uniqueUsersCount: number;
+  reportsCount: number;
+  latestReportCreatedAt: string;
+}
+
 const originalRuntimeEnvironment = {
   DATABASE_URL: process.env.DATABASE_URL,
   NODE_ENV: process.env.NODE_ENV,
@@ -242,6 +250,61 @@ function readHoleStatistics(body: unknown): HoleStatisticsItem[] {
       'fishingMethod',
       'fishingNote',
       'private',
+    ]) {
+      assert.equal(serialized.includes(`"${forbiddenField}"`), false);
+    }
+
+    return result;
+  });
+}
+
+function readBaitStatistics(body: unknown): BaitStatisticsItem[] {
+  const payload = asObject(body);
+  assert.deepEqual(Object.keys(payload), ['items']);
+
+  return asArray(payload.items).map((value) => {
+    const item = asObject(value);
+    assert.deepEqual(Object.keys(item).sort(), [
+      'bait',
+      'fishingMethod',
+      'latestReportCreatedAt',
+      'reportsCount',
+      'uniqueUsersCount',
+    ]);
+    const bait = asObject(item.bait);
+    assert.deepEqual(Object.keys(bait).sort(), ['id', 'isActive', 'name']);
+    assert.equal(typeof bait.isActive, 'boolean');
+    assert.ok(item.fishingMethod === 'BAIT_FISHING' || item.fishingMethod === 'SPINNING');
+
+    const result: BaitStatisticsItem = {
+      bait: {
+        id: asString(bait.id, 'bait.id'),
+        name: asString(bait.name, 'bait.name'),
+        isActive: bait.isActive as boolean,
+      },
+      fishingMethod: item.fishingMethod,
+      uniqueUsersCount: asNumber(item.uniqueUsersCount, 'uniqueUsersCount'),
+      reportsCount: asNumber(item.reportsCount, 'reportsCount'),
+      latestReportCreatedAt: asString(item.latestReportCreatedAt, 'latestReportCreatedAt'),
+    };
+
+    const serialized = JSON.stringify(result);
+    for (const forbiddenField of [
+      'userId',
+      'author',
+      'nickname',
+      'email',
+      'role',
+      'isBanned',
+      'rawSourceText',
+      'userNoteRaw',
+      'spotPositionRaw',
+      'fishingNote',
+      'holeDepthCm',
+      'location',
+      'fishingBase',
+      'type',
+      'nameNormalized',
     ]) {
       assert.equal(serialized.includes(`"${forbiddenField}"`), false);
     }
@@ -1893,6 +1956,248 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
       const invalid = await api().get(`/api/v1/catch-reports?${query}`).expect(400);
       assert.equal(readErrorCode(invalid.body as unknown), 'VALIDATION_ERROR');
     }
+  });
+
+  void test('Bait statistics reuses the required anonymous Fish/Base scope validation', async () => {
+    const endpoint = '/api/v1/catch-reports/statistics/baits';
+    const unknown = readBaitStatistics(
+      (await api().get(endpoint).query({ fishId: randomUUID(), baseIds: randomUUID() }).expect(200))
+        .body as unknown,
+    );
+    assert.deepEqual(unknown, []);
+
+    const baseId = randomUUID();
+    const fishId = randomUUID();
+    for (const url of [
+      endpoint,
+      `${endpoint}?fishId=${fishId}`,
+      `${endpoint}?baseIds=${baseId}`,
+      `${endpoint}?fishId=not-a-uuid&baseIds=${baseId}`,
+      `${endpoint}?fishId=${fishId}&baseIds=${baseId}&baseIds=${randomUUID()}`,
+    ]) {
+      const invalid = await api().get(url).expect(400);
+      assert.equal(readErrorCode(invalid.body as unknown), 'VALIDATION_ERROR');
+    }
+
+    const duplicatedScope = readBaitStatistics(
+      (
+        await api()
+          .get(endpoint)
+          .query({ fishId, baseIds: `${baseId.toUpperCase()},${baseId}` })
+          .expect(200)
+      ).body as unknown,
+    );
+    assert.deepEqual(duplicatedScope, []);
+  });
+
+  void test('Bait statistics ranks scoped historical Bait/method groups without current reclassification', async () => {
+    const catalog = await createCatalog({ baitType: 'BAIT' });
+    const otherCatalog = await createCatalog();
+    const lure = await createBait('LURE');
+    const [firstUser, secondUser, thirdUser] = await Promise.all([
+      createActor(),
+      createActor(),
+      createActor(),
+    ]);
+    const at = (second: number) =>
+      new Date(`2026-05-01T00:00:${String(second).padStart(2, '0')}.000Z`);
+    const spinningObservation = {
+      fishingMethod: 'SPINNING' as const,
+      holeDepthCm: null,
+      spinningSize: 'MEDIUM' as const,
+      spinningSpeed: 'SLOW' as const,
+    };
+
+    await createStatisticsReport(firstUser, catalog, { createdAt: at(1) });
+    await createStatisticsReport(secondUser, catalog, { createdAt: at(2) });
+    await createStatisticsReport(secondUser, catalog, { createdAt: at(3) });
+    await createStatisticsReport(firstUser, catalog, {
+      baitId: lure.id,
+      ...spinningObservation,
+      createdAt: at(4),
+    });
+    await createStatisticsReport(secondUser, catalog, {
+      baitId: lure.id,
+      ...spinningObservation,
+      createdAt: at(5),
+    });
+    for (const second of [6, 7, 8, 9]) {
+      await createStatisticsReport(thirdUser, catalog, {
+        baitId: catalog.bait.id,
+        ...spinningObservation,
+        createdAt: at(second),
+      });
+    }
+    await createStatisticsReport(thirdUser, catalog, {
+      fishId: otherCatalog.fish.id,
+      baitId: lure.id,
+      ...spinningObservation,
+      createdAt: at(10),
+    });
+    await createStatisticsReport(firstUser, otherCatalog, {
+      fishId: catalog.fish.id,
+      baitId: lure.id,
+      ...spinningObservation,
+      createdAt: at(11),
+    });
+
+    const historicalBaitName = 'Переименованная историческая наживка';
+    const historicalLureName = 'Переименованная историческая приманка';
+    await prisma.bait.update({
+      where: { id: catalog.bait.id },
+      data: {
+        name: historicalBaitName,
+        nameNormalized: 'переименованная историческая наживка',
+        type: 'LURE',
+        isActive: false,
+      },
+    });
+    await prisma.bait.update({
+      where: { id: lure.id },
+      data: {
+        name: historicalLureName,
+        nameNormalized: 'переименованная историческая приманка',
+        type: 'BAIT',
+      },
+    });
+    await prisma.user.update({ where: { id: firstUser.userId }, data: { isBanned: true } });
+    await prisma.location.update({ where: { id: catalog.location.id }, data: { isActive: false } });
+    await prisma.fishingBase.update({ where: { id: catalog.base.id }, data: { isActive: false } });
+    await prisma.fishingBaseFish.delete({
+      where: {
+        fishingBaseId_fishId: {
+          fishingBaseId: catalog.base.id,
+          fishId: catalog.fish.id,
+        },
+      },
+    });
+
+    const endpoint = '/api/v1/catch-reports/statistics/baits';
+    const query = { fishId: catalog.fish.id, baseIds: catalog.base.id };
+    const items = readBaitStatistics(
+      (await api().get(endpoint).query(query).expect(200)).body as unknown,
+    );
+
+    assert.deepEqual(
+      items.map((item) => [
+        item.bait.id,
+        item.fishingMethod,
+        item.uniqueUsersCount,
+        item.reportsCount,
+        item.latestReportCreatedAt,
+      ]),
+      [
+        [catalog.bait.id, 'BAIT_FISHING', 2, 3, at(3).toISOString()],
+        [lure.id, 'SPINNING', 2, 2, at(5).toISOString()],
+        [catalog.bait.id, 'SPINNING', 1, 4, at(9).toISOString()],
+      ],
+    );
+    assert.deepEqual(
+      items.filter((item) => item.bait.id === catalog.bait.id).map((item) => item.fishingMethod),
+      ['BAIT_FISHING', 'SPINNING'],
+    );
+    assert.ok(
+      items
+        .filter((item) => item.bait.id === catalog.bait.id)
+        .every((item) => item.bait.name === historicalBaitName && !item.bait.isActive),
+    );
+    const historicalLure = items.find((item) => item.bait.id === lure.id);
+    assert.ok(historicalLure);
+    assert.equal(historicalLure.bait.name, historicalLureName);
+    assert.equal(historicalLure.fishingMethod, 'SPINNING');
+
+    const mixedKnownUnknownScope = readBaitStatistics(
+      (
+        await api()
+          .get(endpoint)
+          .query({ fishId: catalog.fish.id, baseIds: `${catalog.base.id},${randomUUID()}` })
+          .expect(200)
+      ).body as unknown,
+    );
+    assert.deepEqual(mixedKnownUnknownScope, items);
+
+    const bothBases = readBaitStatistics(
+      (
+        await api()
+          .get(endpoint)
+          .query({
+            fishId: catalog.fish.id,
+            baseIds: `${catalog.base.id},${otherCatalog.base.id}`,
+          })
+          .expect(200)
+      ).body as unknown,
+    );
+    const scopedLure = bothBases.find(
+      (item) => item.bait.id === lure.id && item.fishingMethod === 'SPINNING',
+    );
+    assert.ok(scopedLure);
+    assert.equal(scopedLure.uniqueUsersCount, 2);
+    assert.equal(scopedLure.reportsCount, 3);
+    assert.equal(scopedLure.latestReportCreatedAt, at(11).toISOString());
+  });
+
+  void test('Bait statistics reflects report edits and deletes immediately', async () => {
+    const catalog = await createCatalog({ baitType: 'BAIT' });
+    const lure = await createBait('LURE');
+    const [editor, remover] = await Promise.all([createActor(), createActor()]);
+    const editedReport = await createReport(editor, catalog);
+    const removedReport = await createReport(remover, catalog);
+    const endpoint = '/api/v1/catch-reports/statistics/baits';
+    const query = { fishId: catalog.fish.id, baseIds: catalog.base.id };
+
+    const initial = readBaitStatistics(
+      (await api().get(endpoint).query(query).expect(200)).body as unknown,
+    );
+    assert.deepEqual(
+      initial.map((item) => [
+        item.bait.id,
+        item.fishingMethod,
+        item.uniqueUsersCount,
+        item.reportsCount,
+      ]),
+      [[catalog.bait.id, 'BAIT_FISHING', 2, 2]],
+    );
+
+    const editedReportId = asString(editedReport.id, 'editedReport.id');
+    await mutation(api().patch(`/api/v1/catch-reports/${editedReportId}`), editor.cookie)
+      .send({
+        baitId: lure.id,
+        holeDepthCm: null,
+        spinningSize: 'SMALL',
+        spinningSpeed: 'FAST',
+      })
+      .expect(200);
+
+    const afterEdit = readBaitStatistics(
+      (await api().get(endpoint).query(query).expect(200)).body as unknown,
+    );
+    assert.deepEqual(
+      afterEdit
+        .map((item) => [item.bait.id, item.fishingMethod, item.uniqueUsersCount, item.reportsCount])
+        .sort((left, right) => String(left[0]).localeCompare(String(right[0]))),
+      [
+        [catalog.bait.id, 'BAIT_FISHING', 1, 1],
+        [lure.id, 'SPINNING', 1, 1],
+      ].sort((left, right) => String(left[0]).localeCompare(String(right[0]))),
+    );
+
+    const removedReportId = asString(removedReport.id, 'removedReport.id');
+    await mutation(api().delete(`/api/v1/catch-reports/${removedReportId}`), remover.cookie).expect(
+      204,
+    );
+
+    const afterDelete = readBaitStatistics(
+      (await api().get(endpoint).query(query).expect(200)).body as unknown,
+    );
+    assert.deepEqual(
+      afterDelete.map((item) => [
+        item.bait.id,
+        item.fishingMethod,
+        item.uniqueUsersCount,
+        item.reportsCount,
+      ]),
+      [[lure.id, 'SPINNING', 1, 1]],
+    );
   });
 
   void test('validates the required anonymous common-hole statistics scope', async () => {

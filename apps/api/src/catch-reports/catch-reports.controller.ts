@@ -17,6 +17,7 @@ import type { SafeUser } from '../auth/auth.types.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { NotBannedGuard } from '../auth/not-banned.guard.js';
 import { createApplicationValidationPipe } from '../common/validation/validation-exception.factory.js';
+import { BaitStatisticsService } from './bait-statistics.service.js';
 import { CatchReportsService } from './catch-reports.service.js';
 import { CatchReportParamsDto } from './dto/catch-report-params.dto.js';
 import { CreateCatchReportDto } from './dto/create-catch-report.dto.js';
@@ -31,6 +32,7 @@ import { CatchReportParserService } from './parser/catch-report-parser.service.j
 export class CatchReportsController {
   constructor(
     @Inject(CatchReportsService) private readonly catchReports: CatchReportsService,
+    @Inject(BaitStatisticsService) private readonly baitStatistics: BaitStatisticsService,
     @Inject(HoleStatisticsService) private readonly holeStatistics: HoleStatisticsService,
     @Inject(CatchReportParserService) private readonly parser: CatchReportParserService,
   ) {}
@@ -41,6 +43,14 @@ export class CatchReportsController {
     query: PublicCatchReportListQueryDto,
   ) {
     return this.catchReports.listPublic(query);
+  }
+
+  @Get('statistics/baits')
+  listBaitStatistics(
+    @Query(createApplicationValidationPipe(HoleStatisticsQueryDto))
+    query: HoleStatisticsQueryDto,
+  ) {
+    return this.baitStatistics.list(query);
   }
 
   @Get('statistics/holes')
