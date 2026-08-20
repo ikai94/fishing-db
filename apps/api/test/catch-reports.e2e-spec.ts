@@ -72,6 +72,29 @@ interface CatchReportInput {
   rawSourceText?: string | null;
 }
 
+interface StatisticsReportOverrides {
+  locationId?: string;
+  fishId?: string;
+  baitId?: string;
+  fishingMethod?: 'BAIT_FISHING' | 'SPINNING';
+  holeDepthCm?: number | null;
+  spotPositionRaw?: string | null;
+  fishingNote?: 'MIDWATER' | 'FROM_BOTTOM' | 'SURFACE' | null;
+  spinningSize?: 'SMALL' | 'MEDIUM' | 'LARGE' | null;
+  spinningSpeed?: 'SLOW' | 'MEDIUM' | 'FAST' | null;
+  createdAt?: Date;
+}
+
+interface HoleStatisticsItem {
+  fishingBase: { id: string; name: string; isActive: boolean };
+  location: { id: string; number: number; name: string; isActive: boolean };
+  holeDepthCm: number;
+  spotPosition: string | null;
+  uniqueUsersCount: number;
+  reportsCount: number;
+  latestReportCreatedAt: string;
+}
+
 const originalRuntimeEnvironment = {
   DATABASE_URL: process.env.DATABASE_URL,
   NODE_ENV: process.env.NODE_ENV,
@@ -160,6 +183,71 @@ function readReportList(body: unknown): {
     items: asArray(payload.items).map((item) => asObject(item)),
     nextCursor,
   };
+}
+
+function readHoleStatistics(body: unknown): HoleStatisticsItem[] {
+  const payload = asObject(body);
+  assert.deepEqual(Object.keys(payload), ['items']);
+
+  return asArray(payload.items).map((value) => {
+    const item = asObject(value);
+    assert.deepEqual(Object.keys(item).sort(), [
+      'fishingBase',
+      'holeDepthCm',
+      'latestReportCreatedAt',
+      'location',
+      'reportsCount',
+      'spotPosition',
+      'uniqueUsersCount',
+    ]);
+    const fishingBase = asObject(item.fishingBase);
+    const location = asObject(item.location);
+    assert.deepEqual(Object.keys(fishingBase).sort(), ['id', 'isActive', 'name']);
+    assert.deepEqual(Object.keys(location).sort(), ['id', 'isActive', 'name', 'number']);
+    assert.equal(typeof fishingBase.isActive, 'boolean');
+    assert.equal(typeof location.isActive, 'boolean');
+    assert.ok(item.spotPosition === null || typeof item.spotPosition === 'string');
+
+    const result: HoleStatisticsItem = {
+      fishingBase: {
+        id: asString(fishingBase.id, 'fishingBase.id'),
+        name: asString(fishingBase.name, 'fishingBase.name'),
+        isActive: fishingBase.isActive as boolean,
+      },
+      location: {
+        id: asString(location.id, 'location.id'),
+        number: asNumber(location.number, 'location.number'),
+        name: asString(location.name, 'location.name'),
+        isActive: location.isActive as boolean,
+      },
+      holeDepthCm: asNumber(item.holeDepthCm, 'holeDepthCm'),
+      spotPosition: item.spotPosition,
+      uniqueUsersCount: asNumber(item.uniqueUsersCount, 'uniqueUsersCount'),
+      reportsCount: asNumber(item.reportsCount, 'reportsCount'),
+      latestReportCreatedAt: asString(item.latestReportCreatedAt, 'latestReportCreatedAt'),
+    };
+
+    const serialized = JSON.stringify(result);
+    for (const forbiddenField of [
+      'userId',
+      'author',
+      'nickname',
+      'email',
+      'role',
+      'isBanned',
+      'rawSourceText',
+      'userNoteRaw',
+      'normalizedSpotKey',
+      'bait',
+      'fishingMethod',
+      'fishingNote',
+      'private',
+    ]) {
+      assert.equal(serialized.includes(`"${forbiddenField}"`), false);
+    }
+
+    return result;
+  });
 }
 
 function assertPublicReportProjection(report: Record<string, unknown>): void {
@@ -378,6 +466,35 @@ async function createReport(
     .expect(201);
 
   return readReport(response.body as unknown);
+}
+
+async function createStatisticsReport(
+  actor: AuthenticatedActor,
+  catalog: CatalogFixture,
+  overrides: StatisticsReportOverrides = {},
+) {
+  const createdAt = overrides.createdAt ?? new Date('2026-08-13T12:00:00.000Z');
+
+  return prisma.catchReport.create({
+    data: {
+      userId: actor.userId,
+      locationId: overrides.locationId ?? catalog.location.id,
+      fishId: overrides.fishId ?? catalog.fish.id,
+      baitId: overrides.baitId ?? catalog.bait.id,
+      weightGrams: 40,
+      fishingMethod: overrides.fishingMethod ?? 'BAIT_FISHING',
+      holeDepthCm: overrides.holeDepthCm === undefined ? 600 : overrides.holeDepthCm,
+      spotPositionRaw:
+        overrides.spotPositionRaw === undefined ? 'точка' : overrides.spotPositionRaw,
+      fishingNote: overrides.fishingNote ?? null,
+      spinningSize: overrides.spinningSize ?? null,
+      spinningSpeed: overrides.spinningSpeed ?? null,
+      userNoteRaw: 'Личная заметка не для статистики',
+      rawSourceText: 'Исходная строка не для статистики',
+      createdAt,
+      updatedAt: createdAt,
+    },
+  });
 }
 
 function prismaErrorCode(error: unknown): string | undefined {
@@ -1776,5 +1893,528 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
       const invalid = await api().get(`/api/v1/catch-reports?${query}`).expect(400);
       assert.equal(readErrorCode(invalid.body as unknown), 'VALIDATION_ERROR');
     }
+  });
+
+  void test('validates the required anonymous common-hole statistics scope', async () => {
+    const endpoint = '/api/v1/catch-reports/statistics/holes';
+    const unknown = readHoleStatistics(
+      (await api().get(endpoint).query({ fishId: randomUUID(), baseIds: randomUUID() }).expect(200))
+        .body as unknown,
+    );
+    assert.deepEqual(unknown, []);
+
+    const baseId = randomUUID();
+    const fishId = randomUUID();
+    const tooManyBaseIds = Array.from({ length: 101 }, () => randomUUID()).join(',');
+    const invalidUrls = [
+      endpoint,
+      `${endpoint}?fishId=${fishId}`,
+      `${endpoint}?baseIds=${baseId}`,
+      `${endpoint}?fishId=not-a-uuid&baseIds=${baseId}`,
+      `${endpoint}?fishId=${fishId}&baseIds=`,
+      `${endpoint}?fishId=${fishId}&baseIds=${baseId},`,
+      `${endpoint}?fishId=${fishId}&baseIds=${baseId},not-a-uuid`,
+      `${endpoint}?fishId=${fishId}&baseIds=${baseId}&baseIds=${randomUUID()}`,
+      `${endpoint}?fishId=${fishId}&fishId=${randomUUID()}&baseIds=${baseId}`,
+      `${endpoint}?fishId=${fishId}&baseIds=${tooManyBaseIds}`,
+    ];
+
+    for (const url of invalidUrls) {
+      const invalid = await api().get(url).expect(400);
+      assert.equal(readErrorCode(invalid.body as unknown), 'VALIDATION_ERROR');
+    }
+
+    const duplicatedScope = readHoleStatistics(
+      (
+        await api()
+          .get(endpoint)
+          .query({ fishId, baseIds: `${baseId.toUpperCase()},${baseId}` })
+          .expect(200)
+      ).body as unknown,
+    );
+    assert.deepEqual(duplicatedScope, []);
+  });
+
+  void test('groups common holes by exact depth, Location and conservative PostgreSQL normalization', async () => {
+    const catalog = await createCatalog();
+    const otherCatalog = await createCatalog();
+    const [firstUser, secondUser, thirdUser] = await Promise.all([
+      createActor(),
+      createActor(),
+      createActor(),
+    ]);
+    const secondBait = await createBait('BAIT');
+    const lure = await createBait('LURE');
+    const secondLocation = await prisma.location.create({
+      data: {
+        fishingBaseId: catalog.base.id,
+        number: 2,
+        name: 'Catch Second Location',
+        nameNormalized: 'catch second location',
+      },
+    });
+    const at = (second: number) =>
+      new Date(`2026-02-01T00:00:${String(second).padStart(2, '0')}.000Z`);
+
+    await createStatisticsReport(firstUser, catalog, {
+      spotPositionRaw: 'У\u00a0БЛОКНОТА',
+      fishingNote: 'MIDWATER',
+      createdAt: at(1),
+    });
+    await createStatisticsReport(secondUser, catalog, {
+      baitId: lure.id,
+      fishingMethod: 'SPINNING',
+      spotPositionRaw: 'У\u00a0БЛОКНОТА',
+      fishingNote: 'SURFACE',
+      spinningSize: 'MEDIUM',
+      spinningSpeed: 'SLOW',
+      createdAt: at(2),
+    });
+    for (const second of [3, 4, 5]) {
+      await createStatisticsReport(thirdUser, catalog, {
+        baitId: secondBait.id,
+        spotPositionRaw: '  у   блокнота  ',
+        fishingNote: 'FROM_BOTTOM',
+        createdAt: at(second),
+      });
+    }
+
+    await createStatisticsReport(firstUser, catalog, {
+      holeDepthCm: 610,
+      spotPositionRaw: '① место',
+      createdAt: at(6),
+    });
+    await createStatisticsReport(secondUser, catalog, {
+      holeDepthCm: 610,
+      spotPositionRaw: '1 МЕСТО',
+      createdAt: at(7),
+    });
+    await createStatisticsReport(firstUser, catalog, {
+      holeDepthCm: 620,
+      spotPositionRaw: 'точка',
+      createdAt: at(8),
+    });
+    await createStatisticsReport(secondUser, catalog, {
+      holeDepthCm: 620,
+      spotPositionRaw: 'точка!',
+      createdAt: at(9),
+    });
+    await createStatisticsReport(firstUser, catalog, {
+      holeDepthCm: 630,
+      spotPositionRaw: 'береза',
+      createdAt: at(10),
+    });
+    await createStatisticsReport(secondUser, catalog, {
+      holeDepthCm: 630,
+      spotPositionRaw: 'берёза',
+      createdAt: at(11),
+    });
+    await createStatisticsReport(firstUser, catalog, {
+      holeDepthCm: 640,
+      spotPositionRaw: 'уда',
+      createdAt: at(12),
+    });
+    await createStatisticsReport(secondUser, catalog, {
+      holeDepthCm: 640,
+      spotPositionRaw: 'удочка',
+      createdAt: at(13),
+    });
+    await createStatisticsReport(firstUser, catalog, {
+      holeDepthCm: 650,
+      spotPositionRaw: 'левый край',
+      createdAt: at(14),
+    });
+    await createStatisticsReport(secondUser, catalog, {
+      holeDepthCm: 650,
+      spotPositionRaw: 'правый край',
+      createdAt: at(15),
+    });
+    await createStatisticsReport(firstUser, catalog, {
+      holeDepthCm: 660,
+      spotPositionRaw: null,
+      createdAt: at(16),
+    });
+    await createStatisticsReport(secondUser, catalog, {
+      holeDepthCm: 660,
+      spotPositionRaw: null,
+      createdAt: at(17),
+    });
+    await createStatisticsReport(firstUser, catalog, {
+      locationId: secondLocation.id,
+      spotPositionRaw: 'у блокнота',
+      createdAt: at(18),
+    });
+    await createStatisticsReport(firstUser, catalog, {
+      holeDepthCm: 601,
+      spotPositionRaw: 'у блокнота',
+      createdAt: at(19),
+    });
+    await createStatisticsReport(firstUser, catalog, {
+      baitId: lure.id,
+      fishingMethod: 'SPINNING',
+      holeDepthCm: null,
+      spinningSize: 'SMALL',
+      spinningSpeed: 'FAST',
+      spotPositionRaw: 'не должна попасть',
+      createdAt: at(20),
+    });
+    await createStatisticsReport(firstUser, catalog, {
+      fishId: otherCatalog.fish.id,
+      spotPositionRaw: 'чужая рыба',
+      createdAt: at(21),
+    });
+    await createStatisticsReport(firstUser, otherCatalog, {
+      fishId: catalog.fish.id,
+      spotPositionRaw: 'другая база',
+      createdAt: at(22),
+    });
+
+    const endpoint = '/api/v1/catch-reports/statistics/holes';
+    const items = readHoleStatistics(
+      (
+        await api()
+          .get(endpoint)
+          .query({ fishId: catalog.fish.id, baseIds: catalog.base.id })
+          .expect(200)
+      ).body as unknown,
+    );
+    assert.equal(items.length, 13);
+
+    const mainGroup = items.find(
+      (item) =>
+        item.location.id === catalog.location.id &&
+        item.holeDepthCm === 600 &&
+        item.spotPosition === 'У\u00a0БЛОКНОТА',
+    );
+    assert.ok(mainGroup);
+    assert.equal(mainGroup.uniqueUsersCount, 3);
+    assert.equal(mainGroup.reportsCount, 5);
+    assert.equal(mainGroup.latestReportCreatedAt, at(5).toISOString());
+
+    const nfkcGroup = items.find(
+      (item) => item.holeDepthCm === 610 && item.spotPosition === '1 МЕСТО',
+    );
+    assert.ok(nfkcGroup);
+    assert.equal(nfkcGroup.uniqueUsersCount, 2);
+    assert.equal(nfkcGroup.reportsCount, 2);
+    assert.equal(
+      items.filter((item) => item.location.id === catalog.location.id && item.holeDepthCm === 620)
+        .length,
+      2,
+    );
+    assert.deepEqual(
+      items
+        .filter((item) => item.holeDepthCm === 630)
+        .map((item) => item.spotPosition)
+        .sort(),
+      ['береза', 'берёза'].sort(),
+    );
+    assert.deepEqual(
+      items
+        .filter((item) => item.holeDepthCm === 640)
+        .map((item) => item.spotPosition)
+        .sort(),
+      ['уда', 'удочка'],
+    );
+    assert.deepEqual(
+      items
+        .filter((item) => item.holeDepthCm === 650)
+        .map((item) => item.spotPosition)
+        .sort(),
+      ['левый край', 'правый край'],
+    );
+    const missingPosition = items.find(
+      (item) => item.holeDepthCm === 660 && item.spotPosition === null,
+    );
+    assert.ok(missingPosition);
+    assert.equal(missingPosition.uniqueUsersCount, 2);
+    assert.equal(missingPosition.reportsCount, 2);
+    assert.ok(
+      items.some((item) => item.location.id === secondLocation.id && item.holeDepthCm === 600),
+    );
+    assert.ok(
+      items.some((item) => item.location.id === catalog.location.id && item.holeDepthCm === 601),
+    );
+    assert.equal(
+      items.some((item) => item.spotPosition === 'не должна попасть'),
+      false,
+    );
+    assert.equal(
+      items.some((item) => item.spotPosition === 'чужая рыба'),
+      false,
+    );
+    assert.equal(
+      items.some((item) => item.spotPosition === 'другая база'),
+      false,
+    );
+
+    const mixedKnownUnknownScope = readHoleStatistics(
+      (
+        await api()
+          .get(endpoint)
+          .query({
+            fishId: catalog.fish.id,
+            baseIds: `${catalog.base.id},${randomUUID()}`,
+          })
+          .expect(200)
+      ).body as unknown,
+    );
+    assert.equal(mixedKnownUnknownScope.length, 13);
+
+    const bothBases = readHoleStatistics(
+      (
+        await api()
+          .get(endpoint)
+          .query({
+            fishId: catalog.fish.id,
+            baseIds: `${catalog.base.id},${otherCatalog.base.id}`,
+          })
+          .expect(200)
+      ).body as unknown,
+    );
+    assert.equal(bothBases.length, 14);
+    assert.ok(bothBases.some((item) => item.spotPosition === 'другая база'));
+  });
+
+  void test('chooses representative raw variants and ranks groups deterministically', async () => {
+    const catalog = await createCatalog();
+    const [firstUser, secondUser] = await Promise.all([createActor(), createActor()]);
+    const at = (second: number) =>
+      new Date(`2026-03-01T00:00:${String(second).padStart(2, '0')}.000Z`);
+
+    await createStatisticsReport(firstUser, catalog, {
+      holeDepthCm: 700,
+      spotPositionRaw: 'АЛЬФА',
+      createdAt: at(1),
+    });
+    await createStatisticsReport(secondUser, catalog, {
+      holeDepthCm: 700,
+      spotPositionRaw: 'альфа',
+      createdAt: at(1),
+    });
+
+    for (const second of [17, 18, 19, 20]) {
+      await createStatisticsReport(firstUser, catalog, {
+        holeDepthCm: 701,
+        spotPositionRaw: 'бета',
+        createdAt: at(second),
+      });
+    }
+
+    await createStatisticsReport(firstUser, catalog, {
+      holeDepthCm: 702,
+      spotPositionRaw: 'ГАММА',
+      createdAt: at(2),
+    });
+    await createStatisticsReport(firstUser, catalog, {
+      holeDepthCm: 702,
+      spotPositionRaw: 'ГАММА',
+      createdAt: at(3),
+    });
+    await createStatisticsReport(secondUser, catalog, {
+      holeDepthCm: 702,
+      spotPositionRaw: 'гамма',
+      createdAt: at(9),
+    });
+
+    await createStatisticsReport(firstUser, catalog, {
+      holeDepthCm: 703,
+      spotPositionRaw: 'ДЕЛЬТА',
+      createdAt: at(4),
+    });
+    await createStatisticsReport(secondUser, catalog, {
+      holeDepthCm: 703,
+      spotPositionRaw: 'дельта',
+      createdAt: at(5),
+    });
+
+    await createStatisticsReport(firstUser, catalog, {
+      holeDepthCm: 704,
+      spotPositionRaw: null,
+      createdAt: at(6),
+    });
+    await createStatisticsReport(firstUser, catalog, {
+      holeDepthCm: 704,
+      spotPositionRaw: 'я',
+      createdAt: at(6),
+    });
+
+    const lowerIdLocation = await prisma.location.create({
+      data: {
+        id: '30000000-0000-4000-8000-000000000010',
+        fishingBaseId: catalog.base.id,
+        number: 2,
+        name: 'Lower ID ranking location',
+        nameNormalized: 'lower id ranking location',
+      },
+    });
+    const higherIdLocation = await prisma.location.create({
+      data: {
+        id: '30000000-0000-4000-8000-000000000020',
+        fishingBaseId: catalog.base.id,
+        number: 3,
+        name: 'Higher ID ranking location',
+        nameNormalized: 'higher id ranking location',
+      },
+    });
+    await createStatisticsReport(firstUser, catalog, {
+      locationId: lowerIdLocation.id,
+      holeDepthCm: 900,
+      spotPositionRaw: 'я',
+      createdAt: at(7),
+    });
+    await createStatisticsReport(firstUser, catalog, {
+      locationId: higherIdLocation.id,
+      holeDepthCm: 800,
+      spotPositionRaw: 'а',
+      createdAt: at(7),
+    });
+    await createStatisticsReport(firstUser, catalog, {
+      holeDepthCm: 710,
+      spotPositionRaw: 'я',
+      createdAt: at(8),
+    });
+    await createStatisticsReport(firstUser, catalog, {
+      holeDepthCm: 711,
+      spotPositionRaw: 'а',
+      createdAt: at(8),
+    });
+
+    const items = readHoleStatistics(
+      (
+        await api()
+          .get('/api/v1/catch-reports/statistics/holes')
+          .query({ fishId: catalog.fish.id, baseIds: catalog.base.id })
+          .expect(200)
+      ).body as unknown,
+    );
+
+    assert.deepEqual(
+      items.slice(0, 4).map((item) => item.holeDepthCm),
+      [702, 703, 700, 701],
+    );
+    assert.equal(items.find((item) => item.holeDepthCm === 702)?.spotPosition, 'ГАММА');
+    assert.equal(items.find((item) => item.holeDepthCm === 703)?.spotPosition, 'дельта');
+    assert.equal(items.find((item) => item.holeDepthCm === 700)?.spotPosition, 'АЛЬФА');
+    assert.equal(items[0]?.uniqueUsersCount, 2);
+    assert.equal(items[0]?.reportsCount, 3);
+    assert.equal(items[3]?.uniqueUsersCount, 1);
+    assert.equal(items[3]?.reportsCount, 4);
+
+    const nullTieIndex = items.findIndex(
+      (item) => item.holeDepthCm === 704 && item.spotPosition === null,
+    );
+    const textTieIndex = items.findIndex(
+      (item) => item.holeDepthCm === 704 && item.spotPosition === 'я',
+    );
+    assert.ok(nullTieIndex >= 0);
+    assert.equal(textTieIndex, nullTieIndex + 1);
+
+    const lowerIdLocationIndex = items.findIndex((item) => item.location.id === lowerIdLocation.id);
+    const higherIdLocationIndex = items.findIndex(
+      (item) => item.location.id === higherIdLocation.id,
+    );
+    assert.ok(lowerIdLocationIndex >= 0);
+    assert.ok(higherIdLocationIndex > lowerIdLocationIndex);
+
+    const lowerDepthIndex = items.findIndex(
+      (item) => item.location.id === catalog.location.id && item.holeDepthCm === 710,
+    );
+    const higherDepthIndex = items.findIndex(
+      (item) => item.location.id === catalog.location.id && item.holeDepthCm === 711,
+    );
+    assert.ok(lowerDepthIndex >= 0);
+    assert.equal(higherDepthIndex, lowerDepthIndex + 1);
+  });
+
+  void test('keeps historical inactive, removed-membership and banned-user reports while edits and deletes move counts', async () => {
+    const catalog = await createCatalog();
+    const [bannedContributor, editor, remover] = await Promise.all([
+      createActor(),
+      createActor(),
+      createActor(),
+    ]);
+    const bannedReport = await createReport(bannedContributor, catalog, {
+      holeDepthCm: 600,
+      spotPositionRaw: 'у блокнота',
+      userNoteRaw: 'Секретный комментарий',
+      rawSourceText: 'Секретный исходник',
+    });
+    const editedReport = await createReport(editor, catalog, {
+      holeDepthCm: 600,
+      spotPositionRaw: 'у блокнота',
+    });
+    const removedReport = await createReport(remover, catalog, {
+      holeDepthCm: 600,
+      spotPositionRaw: 'у блокнота',
+    });
+
+    await prisma.user.update({
+      where: { id: bannedContributor.userId },
+      data: { isBanned: true },
+    });
+    await prisma.location.update({
+      where: { id: catalog.location.id },
+      data: { isActive: false },
+    });
+    await prisma.fishingBase.update({
+      where: { id: catalog.base.id },
+      data: { isActive: false },
+    });
+    await prisma.fishingBaseFish.delete({
+      where: {
+        fishingBaseId_fishId: {
+          fishingBaseId: catalog.base.id,
+          fishId: catalog.fish.id,
+        },
+      },
+    });
+
+    const endpoint = '/api/v1/catch-reports/statistics/holes';
+    const query = { fishId: catalog.fish.id, baseIds: catalog.base.id };
+    const historical = readHoleStatistics(
+      (await api().get(endpoint).query(query).expect(200)).body as unknown,
+    );
+    assert.equal(historical.length, 1);
+    assert.equal(historical[0]?.uniqueUsersCount, 3);
+    assert.equal(historical[0]?.reportsCount, 3);
+    assert.equal(historical[0]?.fishingBase.isActive, false);
+    assert.equal(historical[0]?.location.isActive, false);
+    assert.ok(bannedReport.id);
+
+    const editedReportId = asString(editedReport.id, 'editedReport.id');
+    await mutation(api().patch(`/api/v1/catch-reports/${editedReportId}`), editor.cookie)
+      .send({ holeDepthCm: 700 })
+      .expect(200);
+
+    const afterEdit = readHoleStatistics(
+      (await api().get(endpoint).query(query).expect(200)).body as unknown,
+    );
+    assert.deepEqual(
+      afterEdit.map((item) => [item.holeDepthCm, item.uniqueUsersCount, item.reportsCount]),
+      [
+        [600, 2, 2],
+        [700, 1, 1],
+      ],
+    );
+
+    const removedReportId = asString(removedReport.id, 'removedReport.id');
+    await mutation(api().delete(`/api/v1/catch-reports/${removedReportId}`), remover.cookie).expect(
+      204,
+    );
+
+    const afterDelete = readHoleStatistics(
+      (await api().get(endpoint).query(query).expect(200)).body as unknown,
+    );
+    assert.deepEqual(
+      afterDelete
+        .map((item) => [item.holeDepthCm, item.uniqueUsersCount, item.reportsCount])
+        .sort((left, right) => (left[0] ?? 0) - (right[0] ?? 0)),
+      [
+        [600, 1, 1],
+        [700, 1, 1],
+      ],
+    );
+    assert.equal(await prisma.catchReport.count({ where: { id: bannedReport.id } }), 1);
   });
 });

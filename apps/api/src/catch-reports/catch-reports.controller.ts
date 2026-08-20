@@ -20,15 +20,18 @@ import { createApplicationValidationPipe } from '../common/validation/validation
 import { CatchReportsService } from './catch-reports.service.js';
 import { CatchReportParamsDto } from './dto/catch-report-params.dto.js';
 import { CreateCatchReportDto } from './dto/create-catch-report.dto.js';
+import { HoleStatisticsQueryDto } from './dto/hole-statistics-query.dto.js';
 import { ParseCatchReportDto } from './dto/parse-catch-report.dto.js';
 import { PublicCatchReportListQueryDto } from './dto/public-catch-report-list-query.dto.js';
 import { UpdateCatchReportDto } from './dto/update-catch-report.dto.js';
+import { HoleStatisticsService } from './hole-statistics.service.js';
 import { CatchReportParserService } from './parser/catch-report-parser.service.js';
 
 @Controller('catch-reports')
 export class CatchReportsController {
   constructor(
     @Inject(CatchReportsService) private readonly catchReports: CatchReportsService,
+    @Inject(HoleStatisticsService) private readonly holeStatistics: HoleStatisticsService,
     @Inject(CatchReportParserService) private readonly parser: CatchReportParserService,
   ) {}
 
@@ -38,6 +41,14 @@ export class CatchReportsController {
     query: PublicCatchReportListQueryDto,
   ) {
     return this.catchReports.listPublic(query);
+  }
+
+  @Get('statistics/holes')
+  listHoleStatistics(
+    @Query(createApplicationValidationPipe(HoleStatisticsQueryDto))
+    query: HoleStatisticsQueryDto,
+  ) {
+    return this.holeStatistics.list(query);
   }
 
   @Get(':reportId')

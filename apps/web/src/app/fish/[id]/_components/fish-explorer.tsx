@@ -8,6 +8,8 @@ import { getApiErrorMessage } from '@/lib/api-client';
 import type { PublicFishDetail } from '@/lib/catalog-api';
 import { type CatchReport, listCatchReports } from '@/lib/catch-reports-api';
 import { readFishBaseSelection, writeFishBaseSelection } from '@/lib/fish-base-selection';
+import { type HoleStatistic, listHoleStatistics } from '@/lib/hole-statistics-api';
+import { CommonHoleTable } from './common-hole-table';
 import { PublicFishCatchTable } from './public-fish-catch-table';
 
 const REPORT_PAGE_SIZE = 20;
@@ -21,6 +23,12 @@ type FeedState =
       items: CatchReport[];
       nextCursor: string | null;
     }
+  | { kind: 'error'; scopeKey: string; message: string };
+
+type HoleStatisticsState =
+  | { kind: 'idle'; scopeKey: string }
+  | { kind: 'loading'; scopeKey: string }
+  | { kind: 'ready'; scopeKey: string; items: HoleStatistic[] }
   | { kind: 'error'; scopeKey: string; message: string };
 
 type ActiveRequest = {
@@ -69,7 +77,16 @@ function FishExplorerState({
     setSelectedBaseIds(urlSelection);
   }
 
-  const selectedSet = useMemo(() => new Set(selectedBaseIds), [selectedBaseIds]);
+  const selectedKey = useMemo(
+    () => [...new Set(selectedBaseIds)].sort().join(','),
+    [selectedBaseIds],
+  );
+  const canonicalSelectedBaseIds = useMemo(
+    () => (selectedKey.length === 0 ? [] : selectedKey.split(',')),
+    [selectedKey],
+  );
+  const scopeKey = `${fish.id}:${selectedKey}`;
+  const selectedSet = useMemo(() => new Set(canonicalSelectedBaseIds), [canonicalSelectedBaseIds]);
 
   function updateSelection(nextIds: Iterable<string>) {
     const nextSet = new Set(nextIds);
@@ -99,21 +116,21 @@ function FishExplorerState({
         onClearAll={() => updateSelection([])}
       />
 
-      {fish.bases.length === 0 ? (
-        <section className={styles.resultsRegion} aria-labelledby="fish-catches-heading">
-          <h2 className={styles.sectionTitle} id="fish-catches-heading">
-            Уловы
-          </h2>
-          <p className={styles.statusMessage}>Выберите хотя бы одну базу, чтобы увидеть уловы.</p>
-        </section>
-      ) : (
-        <FishReportFeed
-          key={`${fish.id}:${[...selectedBaseIds].sort().join(',')}`}
-          fishId={fish.id}
-          selectedBaseIds={selectedBaseIds}
-          loadingMessage={hasChangedScope ? 'Обновляем уловы…' : 'Загружаем уловы…'}
-        />
-      )}
+      <FishHoleStatistics
+        key={`statistics:${scopeKey}`}
+        fishId={fish.id}
+        selectedBaseIds={canonicalSelectedBaseIds}
+        scopeKey={scopeKey}
+        loadingMessage={hasChangedScope ? 'Обновляем статистику…' : 'Загружаем статистику…'}
+      />
+
+      <FishReportFeed
+        key={`reports:${scopeKey}`}
+        fishId={fish.id}
+        selectedBaseIds={canonicalSelectedBaseIds}
+        scopeKey={scopeKey}
+        loadingMessage={hasChangedScope ? 'Обновляем уловы…' : 'Загружаем уловы…'}
+      />
     </>
   );
 }
@@ -191,28 +208,148 @@ function BaseMembershipSelector({
   );
 }
 
+export function FishHoleStatistics({
+  fishId,
+  selectedBaseIds,
+  scopeKey,
+  loadingMessage = 'Загружаем статистику…',
+}: {
+  fishId: string;
+  selectedBaseIds: readonly string[];
+  scopeKey: string;
+  loadingMessage?: string;
+}) {
+  const revisionRef = useRef(0);
+  const requestRef = useRef<ActiveRequest | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const [state, setState] = useState<HoleStatisticsState>(() =>
+    selectedBaseIds.length === 0 ? { kind: 'idle', scopeKey } : { kind: 'loading', scopeKey },
+  );
+
+  useEffect(() => {
+    const revision = revisionRef.current + 1;
+    revisionRef.current = revision;
+    requestRef.current?.controller.abort();
+    requestRef.current = null;
+
+    if (selectedBaseIds.length === 0) return;
+
+    const controller = new AbortController();
+    const request = { controller, revision, scopeKey };
+    requestRef.current = request;
+
+    async function loadStatistics() {
+      try {
+        const items = await listHoleStatistics({
+          fishId,
+          baseIds: selectedBaseIds,
+          signal: controller.signal,
+        });
+        if (!isCurrentRequest(requestRef.current, request, scopeKey, revisionRef.current)) return;
+        setState({ kind: 'ready', scopeKey, items });
+      } catch (error) {
+        if (!isCurrentRequest(requestRef.current, request, scopeKey, revisionRef.current)) return;
+        setState({
+          kind: 'error',
+          scopeKey,
+          message: getApiErrorMessage(
+            error,
+            'Не удалось загрузить статистику точек. Попробуйте ещё раз.',
+          ),
+        });
+      } finally {
+        if (isCurrentRequest(requestRef.current, request, scopeKey, revisionRef.current)) {
+          requestRef.current = null;
+        }
+      }
+    }
+
+    void loadStatistics();
+    return () => {
+      controller.abort();
+      if (requestRef.current === request) requestRef.current = null;
+    };
+  }, [attempt, fishId, scopeKey, selectedBaseIds]);
+
+  useEffect(
+    () => () => {
+      revisionRef.current += 1;
+      requestRef.current?.controller.abort();
+      requestRef.current = null;
+    },
+    [],
+  );
+
+  function retry() {
+    setState({ kind: 'loading', scopeKey });
+    setAttempt((current) => current + 1);
+  }
+
+  const currentState = state.scopeKey === scopeKey ? state : null;
+  const isLoading =
+    selectedBaseIds.length > 0 && (currentState === null || currentState.kind === 'loading');
+
+  return (
+    <section
+      className={styles.resultsRegion}
+      aria-labelledby="fish-hole-statistics-heading"
+      aria-busy={isLoading}
+    >
+      <div className={styles.sectionHeader}>
+        <h2 className={styles.sectionTitle} id="fish-hole-statistics-heading">
+          Общие ямы и точки
+        </h2>
+      </div>
+
+      {selectedBaseIds.length === 0 ? (
+        <p className={styles.statusMessage}>
+          Выберите хотя бы одну базу, чтобы увидеть статистику.
+        </p>
+      ) : null}
+
+      {isLoading ? (
+        <p className={styles.statusMessage} role="status">
+          {loadingMessage}
+        </p>
+      ) : null}
+
+      {currentState?.kind === 'error' ? (
+        <div className={`${styles.statusMessage} ${styles.errorMessage}`} role="alert">
+          <p>{currentState.message}</p>
+          <button className={styles.secondaryButton} type="button" onClick={retry}>
+            Повторить загрузку статистики
+          </button>
+        </div>
+      ) : null}
+
+      {currentState?.kind === 'ready' && currentState.items.length === 0 ? (
+        <p className={styles.statusMessage}>Для выбранных баз пока недостаточно данных.</p>
+      ) : null}
+
+      {currentState?.kind === 'ready' && currentState.items.length > 0 ? (
+        <CommonHoleTable items={currentState.items} />
+      ) : null}
+    </section>
+  );
+}
+
 export function FishReportFeed({
   fishId,
   selectedBaseIds,
+  scopeKey,
   loadingMessage = 'Загружаем уловы…',
 }: {
   fishId: string;
   selectedBaseIds: readonly string[];
+  scopeKey: string;
   loadingMessage?: string;
 }) {
-  const selectedKey = [...new Set(selectedBaseIds)].sort().join(',');
-  const sortedBaseIds = useMemo(
-    () => (selectedKey.length === 0 ? [] : selectedKey.split(',')),
-    [selectedKey],
-  );
-  const scopeKey = `${fishId}:${selectedKey}`;
-
   const revisionRef = useRef(0);
   const initialRequestRef = useRef<ActiveRequest | null>(null);
   const loadMoreRequestRef = useRef<ActiveRequest | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<FeedState>(() =>
-    sortedBaseIds.length === 0 ? { kind: 'idle', scopeKey } : { kind: 'loading', scopeKey },
+    selectedBaseIds.length === 0 ? { kind: 'idle', scopeKey } : { kind: 'loading', scopeKey },
   );
   const [loadingMoreScope, setLoadingMoreScope] = useState<string | null>(null);
   const [paginationError, setPaginationError] = useState<{
@@ -229,7 +366,7 @@ export function FishReportFeed({
     initialRequestRef.current = null;
     loadMoreRequestRef.current = null;
 
-    if (sortedBaseIds.length === 0) {
+    if (selectedBaseIds.length === 0) {
       return;
     }
 
@@ -241,7 +378,7 @@ export function FishReportFeed({
       try {
         const page = await listCatchReports({
           fishId,
-          baseIds: sortedBaseIds,
+          baseIds: [...selectedBaseIds],
           limit: REPORT_PAGE_SIZE,
           signal: controller.signal,
         });
@@ -276,7 +413,7 @@ export function FishReportFeed({
       controller.abort();
       if (initialRequestRef.current === request) initialRequestRef.current = null;
     };
-  }, [attempt, fishId, scopeKey, sortedBaseIds]);
+  }, [attempt, fishId, scopeKey, selectedBaseIds]);
 
   useEffect(
     () => () => {
@@ -315,7 +452,7 @@ export function FishReportFeed({
     try {
       const page = await listCatchReports({
         fishId,
-        baseIds: sortedBaseIds,
+        baseIds: [...selectedBaseIds],
         cursor,
         limit: REPORT_PAGE_SIZE,
         signal: controller.signal,
@@ -354,7 +491,7 @@ export function FishReportFeed({
   const currentPaginationError =
     paginationError?.scopeKey === scopeKey ? paginationError.message : null;
   const isRefreshing =
-    sortedBaseIds.length > 0 && (currentState === null || currentState.kind === 'loading');
+    selectedBaseIds.length > 0 && (currentState === null || currentState.kind === 'loading');
 
   return (
     <section
@@ -368,11 +505,11 @@ export function FishReportFeed({
         </h2>
       </div>
 
-      {sortedBaseIds.length === 0 ? (
+      {selectedBaseIds.length === 0 ? (
         <p className={styles.statusMessage}>Выберите хотя бы одну базу, чтобы увидеть уловы.</p>
       ) : null}
 
-      {sortedBaseIds.length > 0 && (currentState === null || currentState.kind === 'loading') ? (
+      {selectedBaseIds.length > 0 && (currentState === null || currentState.kind === 'loading') ? (
         <p className={styles.statusMessage} role="status">
           {loadingMessage}
         </p>
