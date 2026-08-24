@@ -1,13 +1,20 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { CatalogBaitType } from '../catalog/catalog.constants.js';
-import { catalogErrors, isPrismaError } from '../catalog/catalog-errors.js';
+import { isPrismaError } from '../catalog/catalog-errors.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
-  catchReportObservationErrors,
   isCatchReportObservationComplete,
   type CatchReportObservation,
 } from './catch-report-observation.js';
+import {
+  assertCatchReportObservation,
+  deriveFishingMethod,
+  prepareCatchReportCreate,
+  validateCatchReportBait,
+  validateCatchReportFish,
+  validateCatchReportFishingBaseFish,
+  validateCatchReportLocation,
+} from './catch-report-create-domain.js';
 import { nativeContributorKey } from './catch-report-identity.js';
 import {
   buildCatchReportPage,
@@ -16,11 +23,7 @@ import {
   InvalidCatchReportCursorError,
   type CatchReportCursorWhere,
 } from './catch-report-pagination.js';
-import {
-  normalizeRawSourceText,
-  normalizeSpotPositionRaw,
-  normalizeUserNoteRaw,
-} from './catch-report-raw-note.js';
+import { normalizeSpotPositionRaw, normalizeUserNoteRaw } from './catch-report-raw-note.js';
 import {
   CATCH_REPORT_DEFAULT_LIMIT,
   type CatchReportFishingMethod,
@@ -298,10 +301,6 @@ function buildUpdateData(dto: UpdateCatchReportDto): CatchReportWriteData {
   return data;
 }
 
-function deriveFishingMethod(type: CatalogBaitType): CatchReportFishingMethod {
-  return type === 'BAIT' ? 'BAIT_FISHING' : 'SPINNING';
-}
-
 function currentObservation(current: CurrentCatchReportState): CatchReportObservation {
   return {
     fishingMethod: current.fishingMethod,
@@ -350,36 +349,14 @@ export class CatchReportsService {
     try {
       return await this.runSerializableTransaction(async (tx) => {
         await this.assertActorCanMutate(tx, actorUserId);
-        const location = await this.validateLocation(tx, dto.locationId);
-        await this.validateFish(tx, dto.fishId);
-        await this.validateFishingBaseFish(tx, location.fishingBaseId, dto.fishId);
-        const bait = await this.validateBait(tx, dto.baitId);
-        const fishingMethod = deriveFishingMethod(bait.type);
-        const observation: CatchReportObservation = {
-          fishingMethod,
-          holeDepthCm: dto.holeDepthCm ?? null,
-          spinningSize: dto.spinningSize ?? null,
-          spinningSpeed: dto.spinningSpeed ?? null,
-        };
-        this.assertObservation(observation);
+        const prepared = await prepareCatchReportCreate(tx, dto);
 
         const record = await tx.catchReport.create({
           data: {
             userId: actorUserId,
             contributorKey: nativeContributorKey(actorUserId),
             importKey: null,
-            locationId: dto.locationId,
-            fishId: dto.fishId,
-            baitId: dto.baitId,
-            weightGrams: dto.weightGrams,
-            fishingMethod,
-            holeDepthCm: observation.holeDepthCm,
-            spotPositionRaw: normalizeSpotPositionRaw(dto.spotPositionRaw),
-            fishingNote: dto.fishingNote ?? null,
-            spinningSize: observation.spinningSize,
-            spinningSpeed: observation.spinningSpeed,
-            userNoteRaw: normalizeUserNoteRaw(dto.userNoteRaw),
-            rawSourceText: normalizeRawSourceText(dto.rawSourceText),
+            ...prepared.data,
           },
           select: { id: true },
         });
@@ -424,16 +401,16 @@ export class CatchReportsService {
         if (locationChanged || fishChanged) {
           const resultingLocationId = dto.locationId ?? current.locationId;
           const resultingFishId = dto.fishId ?? current.fishId;
-          const location = await this.validateLocation(tx, resultingLocationId);
-          await this.validateFish(tx, resultingFishId);
-          await this.validateFishingBaseFish(tx, location.fishingBaseId, resultingFishId);
+          const location = await validateCatchReportLocation(tx, resultingLocationId);
+          await validateCatchReportFish(tx, resultingFishId);
+          await validateCatchReportFishingBaseFish(tx, location.fishingBaseId, resultingFishId);
         }
 
         let fishingMethod: CatchReportFishingMethod = current.fishingMethod;
         const data = buildUpdateData(dto);
 
         if (baitChanged) {
-          const bait = await this.validateBait(tx, dto.baitId ?? current.baitId);
+          const bait = await validateCatchReportBait(tx, dto.baitId ?? current.baitId);
           fishingMethod = deriveFishingMethod(bait.type);
           data.fishingMethod = fishingMethod;
         }
@@ -464,7 +441,7 @@ export class CatchReportsService {
           methodFieldsTouched ||
           isCatchReportObservationComplete(currentObservation(current))
         ) {
-          this.assertObservation(observation);
+          assertCatchReportObservation(observation);
         }
 
         if (baitChanged && fishingMethod === 'BAIT_FISHING') {
@@ -583,25 +560,6 @@ export class CatchReportsService {
     }
   }
 
-  private async validateLocation(
-    database: Prisma.TransactionClient,
-    locationId: string,
-  ): Promise<{ fishingBaseId: string }> {
-    const location = await database.location.findUnique({
-      where: { id: locationId },
-      select: {
-        fishingBaseId: true,
-        isActive: true,
-        fishingBase: { select: { isActive: true } },
-      },
-    });
-
-    if (location === null) throw catalogErrors.locationNotFound();
-    if (!location.fishingBase.isActive) throw catalogErrors.fishingBaseInactive();
-    if (!location.isActive) throw catalogErrors.locationInactive();
-    return { fishingBaseId: location.fishingBaseId };
-  }
-
   private async assertActorCanMutate(
     database: Prisma.TransactionClient,
     actorUserId: string,
@@ -688,49 +646,5 @@ export class CatchReportsService {
     };
 
     return { report: toOwnerCatchReport(ownerRecord) };
-  }
-
-  private async validateFish(database: Prisma.TransactionClient, fishId: string): Promise<void> {
-    const fish = await database.fish.findUnique({
-      where: { id: fishId },
-      select: { isActive: true },
-    });
-
-    if (fish === null) throw catalogErrors.fishNotFound();
-    if (!fish.isActive) throw catalogErrors.fishInactive();
-  }
-
-  private async validateBait(
-    database: Prisma.TransactionClient,
-    baitId: string,
-  ): Promise<{ type: CatalogBaitType }> {
-    const bait = await database.bait.findUnique({
-      where: { id: baitId },
-      select: { isActive: true, type: true },
-    });
-
-    if (bait === null) throw catalogErrors.baitNotFound();
-    if (!bait.isActive) throw catalogErrors.baitInactive();
-    return { type: bait.type };
-  }
-
-  private async validateFishingBaseFish(
-    database: Prisma.TransactionClient,
-    fishingBaseId: string,
-    fishId: string,
-  ): Promise<void> {
-    const relation = await database.fishingBaseFish.findUnique({
-      where: { fishingBaseId_fishId: { fishingBaseId, fishId } },
-      select: { fishingBaseId: true },
-    });
-
-    if (relation === null) throw catalogErrors.fishNotAvailableAtFishingBase();
-  }
-
-  private assertObservation(observation: CatchReportObservation): void {
-    const errors = catchReportObservationErrors(observation);
-    if (Object.keys(errors).length > 0) {
-      throw catchReportErrors.observationValidation(errors);
-    }
   }
 }

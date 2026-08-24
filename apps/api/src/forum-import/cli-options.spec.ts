@@ -16,6 +16,7 @@ void describe('forum import CLI options', () => {
         scope: { mode: 'SUBFORUM', subforumId: '70', limitPosts: 100 },
         delayMs: 3_000,
         rebaseIdentities: false,
+        dryRun: false,
       },
     );
     assert.equal(parseForumCliOptions(['scan', '--all']).scope.mode, 'ALL');
@@ -37,6 +38,9 @@ void describe('forum import CLI options', () => {
       ['stage', '--all', '--rebase-identities=true'],
       ['stage', '--all', '--rebase-identities', '--rebase-identities'],
       ['scan', '--all', '--cache-dir=.local-test'],
+      ['stage', '--all', '--dry-run'],
+      ['import-complete', '--all', '--dry-run=true'],
+      ['import-complete', '--all', '--dry-run', '--dry-run'],
     ]) {
       assert.throws(
         () => parseForumCliOptions(arguments_),
@@ -61,5 +65,16 @@ void describe('forum import CLI options', () => {
 
     assert.equal(parsed.rebaseIdentities, true);
     assert.equal(parsed.scope.mode, 'SUBFORUM');
+  });
+
+  void it('accepts dry-run only for the COMPLETE importer', () => {
+    assert.deepEqual(parseForumCliOptions(['import-complete', '--all', '--dry-run']), {
+      command: 'import-complete',
+      scope: { mode: 'ALL', parentForumId: '69', limitPosts: null },
+      delayMs: 2_000,
+      rebaseIdentities: false,
+      dryRun: true,
+    });
+    assert.equal(parseForumCliOptions(['import-complete', '--all']).dryRun, false);
   });
 });

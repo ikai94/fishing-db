@@ -24,6 +24,7 @@ import { loadCatalogSnapshot } from './catalog-source.js';
 import { parseForumPost } from './forum-post-parser.js';
 import { ForumHttpClient } from './http-client.js';
 import { EXTERNAL_IMPORT_KEY_PREFIX } from './identity.js';
+import { ForumCompleteImportError, importCompleteForumCandidates } from './complete-importer.js';
 import { getForumIdFromUrl, getTopicIdFromUrl } from './invision-html.js';
 import { readTechnicalPosts, scanForum, topicUrl, type TechnicalScanManifest } from './scanner.js';
 import { getScopeKey, PARENT_FORUM_ID, SOURCE_ORIGIN } from './scope.js';
@@ -34,6 +35,7 @@ import {
   toStagingCandidate,
   writeStagingFiles,
 } from './staging.js';
+import { readVerifiedForumStagingBundle } from './staging-reader.js';
 
 const USER_AGENT = 'fishing-db-forum-scanner/1 (public read-only research)';
 
@@ -77,6 +79,9 @@ export async function runForumCli(
   if (options.command === 'stage') {
     return stageScope(options, store, environment);
   }
+  if (options.command === 'import-complete') {
+    return importCompleteScope(options, store, environment);
+  }
   if (options.command === 'audit') {
     return readRequiredJson<ForumImportAudit>(artifactPath(store, options, 'audit/audit.json'));
   }
@@ -88,6 +93,37 @@ export async function runForumCli(
     ...bundle,
     technicalPostsFile: artifactPath(store, options, 'review/posts.jsonl'),
   };
+}
+
+async function importCompleteScope(
+  options: ForumCliOptions,
+  store: ForumLocalStore,
+  environment: NodeJS.ProcessEnv,
+): Promise<unknown> {
+  const databaseUrl = environment.DATABASE_URL;
+  if (databaseUrl === undefined || databaseUrl.trim() === '') {
+    throw new ForumPipelineError('CATALOG_DATABASE_REQUIRED', 'DATABASE_URL is required');
+  }
+  const adminEmail = environment.ADMIN_EMAIL;
+  if (adminEmail === undefined || adminEmail.trim() === '') {
+    throw new ForumCompleteImportError(
+      'ADMIN_ACCOUNT_INVALID',
+      'ADMIN_EMAIL is required for COMPLETE candidate import',
+    );
+  }
+  const stagingDirectory = artifactPath(store, options, 'staging');
+  const bundle = await readVerifiedForumStagingBundle(stagingDirectory);
+  const { PrismaClient } = await import('../generated/prisma/client.js');
+  const prisma = new PrismaClient({ adapter: createPrismaAdapter(databaseUrl) });
+  try {
+    return await importCompleteForumCandidates(prisma, {
+      adminEmail,
+      dryRun: options.dryRun,
+      bundle,
+    });
+  } finally {
+    await prisma.$disconnect();
+  }
 }
 
 async function stageScope(
@@ -333,6 +369,12 @@ if (entryPoint !== undefined && import.meta.url === pathToFileURL(entryPoint).hr
       console.info(serializeDeterministicJson(result).trimEnd());
     })
     .catch((error: unknown) => {
+      if (error instanceof ForumCompleteImportError && error.summary !== undefined) {
+        console.error(serializeDeterministicJson(error.summary).trimEnd());
+      }
+      if (error instanceof ForumCompleteImportError && error.details.length > 0) {
+        console.error(serializeDeterministicJson({ details: error.details }).trimEnd());
+      }
       const code = error instanceof Error && 'code' in error ? ` (${String(error.code)})` : '';
       const message = error instanceof Error ? error.message : 'Unknown forum pipeline error';
       console.error(`Forum pipeline failed${code}: ${message}`);

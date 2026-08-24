@@ -33,6 +33,7 @@
     "forum:stage": "pnpm db:generate && pnpm --filter @fishing-db/api run forum:stage",
     "forum:audit": "pnpm --filter @fishing-db/api run forum:audit",
     "forum:review": "pnpm --filter @fishing-db/api run forum:review",
+    "forum:import-complete": "pnpm db:generate && pnpm --filter @fishing-db/api run forum:import-complete",
     "db:test:up": "docker compose --profile test up -d --wait postgres-test",
     "db:test:down": "docker compose --profile test stop postgres-test",
     "db:test:logs": "docker compose --profile test logs -f postgres-test",

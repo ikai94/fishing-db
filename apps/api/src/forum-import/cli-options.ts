@@ -1,12 +1,13 @@
 import { parseScanScopeArgs, type ScanScope } from './scope.js';
 
-export type ForumCliCommand = 'scan' | 'stage' | 'audit' | 'review';
+export type ForumCliCommand = 'scan' | 'stage' | 'audit' | 'review' | 'import-complete';
 
 export interface ForumCliOptions {
   command: ForumCliCommand;
   scope: ScanScope;
   delayMs: number;
   rebaseIdentities: boolean;
+  dryRun: boolean;
 }
 
 export class ForumCliArgumentError extends Error {
@@ -18,7 +19,7 @@ export class ForumCliArgumentError extends Error {
   }
 }
 
-const COMMANDS = new Set<ForumCliCommand>(['scan', 'stage', 'audit', 'review']);
+const COMMANDS = new Set<ForumCliCommand>(['scan', 'stage', 'audit', 'review', 'import-complete']);
 const DEFAULT_DELAY_MS = 2_000;
 const MINIMUM_DELAY_MS = 1_000;
 const MAXIMUM_DELAY_MS = 60_000;
@@ -26,7 +27,9 @@ const MAXIMUM_DELAY_MS = 60_000;
 export function parseForumCliOptions(arguments_: readonly string[]): ForumCliOptions {
   const [rawCommand, ...forwardedOptions] = arguments_;
   if (rawCommand === undefined || !COMMANDS.has(rawCommand as ForumCliCommand)) {
-    throw new ForumCliArgumentError('Command must be scan, stage, audit, or review');
+    throw new ForumCliArgumentError(
+      'Command must be scan, stage, audit, review, or import-complete',
+    );
   }
   const command = rawCommand as ForumCliCommand;
   const rawOptions = forwardedOptions[0] === '--' ? forwardedOptions.slice(1) : forwardedOptions;
@@ -37,6 +40,9 @@ export function parseForumCliOptions(arguments_: readonly string[]): ForumCliOpt
   if (command !== 'stage' && extracted.rebaseIdentities) {
     throw new ForumCliArgumentError('--rebase-identities is only valid for stage');
   }
+  if (command !== 'import-complete' && extracted.dryRun) {
+    throw new ForumCliArgumentError('--dry-run is only valid for import-complete');
+  }
 
   try {
     return {
@@ -45,6 +51,7 @@ export function parseForumCliOptions(arguments_: readonly string[]): ForumCliOpt
       delayMs:
         extracted.delayValue === undefined ? DEFAULT_DELAY_MS : parseDelay(extracted.delayValue),
       rebaseIdentities: extracted.rebaseIdentities,
+      dryRun: extracted.dryRun,
     };
   } catch (error: unknown) {
     if (error instanceof ForumCliArgumentError) throw error;
@@ -56,10 +63,12 @@ function extractLocalOptions(arguments_: readonly string[]): {
   scopeArguments: string[];
   delayValue: string | undefined;
   rebaseIdentities: boolean;
+  dryRun: boolean;
 } {
   const scopeArguments: string[] = [];
   let delayValue: string | undefined;
   let rebaseIdentities = false;
+  let dryRun = false;
 
   for (let index = 0; index < arguments_.length; index += 1) {
     const argument = arguments_[index];
@@ -70,6 +79,16 @@ function extractLocalOptions(arguments_: readonly string[]): {
       }
       rebaseIdentities = true;
       continue;
+    }
+    if (argument === '--dry-run') {
+      if (dryRun) {
+        throw new ForumCliArgumentError('Duplicate option: --dry-run');
+      }
+      dryRun = true;
+      continue;
+    }
+    if (argument.startsWith('--dry-run=')) {
+      throw new ForumCliArgumentError('--dry-run does not accept a value');
     }
     if (argument.startsWith('--rebase-identities=')) {
       throw new ForumCliArgumentError('--rebase-identities does not accept a value');
@@ -98,7 +117,7 @@ function extractLocalOptions(arguments_: readonly string[]): {
     delayValue = value;
   }
 
-  return { scopeArguments, delayValue, rebaseIdentities };
+  return { scopeArguments, delayValue, rebaseIdentities, dryRun };
 }
 
 function parseDelay(value: string): number {

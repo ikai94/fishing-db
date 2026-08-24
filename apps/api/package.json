@@ -22,6 +22,7 @@
     "forum:stage": "tsx src/forum-import/cli.ts stage",
     "forum:audit": "tsx src/forum-import/cli.ts audit",
     "forum:review": "tsx src/forum-import/cli.ts review",
+    "forum:import-complete": "tsx src/forum-import/cli.ts import-complete",
     "prisma:studio": "prisma studio"
   },
   "dependencies": {
