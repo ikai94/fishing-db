@@ -23,6 +23,7 @@ next-env.d.ts
 
 # Logs and local tooling
 *.log
+apps/api/.local/forum-import/
 .DS_Store
 .idea/
 .vscode/

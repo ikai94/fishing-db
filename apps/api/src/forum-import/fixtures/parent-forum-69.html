@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ru">
+  <body>
+    <nav data-role="breadcrumb"><a href="/forum/">Forum root</a></nav>
+    <h1 data-role="pageTitle">Fish discussions</h1>
+
+    <a href="https://unrelated.example/forum/999-outside/">Unrelated navigation</a>
+    <ol data-role="forums" data-parent-forum-id="69">
+      <li class="cForumRow" data-forumid="00071" data-parent-forum-id="69">
+        <a href="/forum/index.php?/forum/71-c-d/">C–D</a>
+      </li>
+      <li class="cForumRow" data-forumid="70" data-parent-forum-id="069">
+        <a href="/forum/index.php?/forum/070-a-b/">A–B</a>
+        <ol data-role="forums" data-parent-forum-id="70">
+          <li class="cForumRow" data-forumid="700" data-parent-forum-id="70">
+            <a href="/forum/index.php?/forum/700-nested/">Nested forum</a>
+          </li>
+        </ol>
+      </li>
+      <li class="cForumRow" data-forumid="72" data-parent-forum-id="70">
+        <a href="/forum/index.php?/forum/72-not-direct/">Not a direct child</a>
+      </li>
+      <li class="cForumRow" data-forumid="73" data-parent-forum-id="69" data-redirect="true">
+        <a href="https://elsewhere.example/forum/73-redirect/">External redirect</a>
+      </li>
+    </ol>
+  </body>
+</html>
