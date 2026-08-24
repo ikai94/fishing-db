@@ -453,6 +453,120 @@
   width: 9ch;
 }
 
+.observedFishTable {
+  min-width: 620px;
+}
+
+.observedFishTable th:nth-child(1) {
+  width: 4ch;
+}
+
+.observedFishTable th:nth-child(3) {
+  width: 23ch;
+}
+
+.observedFishCounts {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.observedFishSelector {
+  position: relative;
+}
+
+.observedFishSelectorSummary {
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid #8fa298;
+  border-radius: 5px;
+  color: #245c3a;
+  background: #fff;
+  font-weight: 700;
+  cursor: pointer;
+  list-style-position: inside;
+}
+
+.observedFishSelectorMenu {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 4px);
+  right: 0;
+  width: min(88vw, 360px);
+  max-height: 420px;
+  overflow-y: auto;
+  padding: 8px;
+  border: 1px solid #9dada3;
+  border-radius: 5px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgb(20 45 30 / 16%);
+}
+
+.observedFishSelectorToolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+
+.observedFishSelectorFieldset {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.observedFishSelectorOption {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: center;
+  min-height: 34px;
+  padding: 2px 4px;
+  border-bottom: 1px solid #e5ebe7;
+  cursor: pointer;
+}
+
+.observedFishSelectorOption:last-child {
+  border-bottom: 0;
+}
+
+.locationCatchTable {
+  min-width: 1120px;
+}
+
+.locationCatchTable th:nth-child(1) {
+  width: 4ch;
+  text-align: center;
+}
+
+.locationCatchTable th:nth-child(2) {
+  width: 15%;
+  text-align: left;
+}
+
+.locationCatchTable th:nth-child(3) {
+  width: 9ch;
+  text-align: right;
+}
+
+.locationCatchTable th:nth-child(4) {
+  width: 13%;
+}
+
+.locationCatchTable th:nth-child(5) {
+  width: 20%;
+}
+
+.locationCatchTable th:nth-child(6) {
+  width: 23%;
+}
+
+.locationCatchTable th:nth-child(7) {
+  width: 12ch;
+}
+
+.locationCatchTable th:nth-child(8) {
+  width: 9ch;
+}
+
 .catchRow:hover,
 .catchCommentRow:hover {
   background: #f7faf8;
@@ -796,6 +910,7 @@
 .conditionTableRegion:focus-visible,
 .baitTableRegion:focus-visible,
 .catchTableRegion:focus-visible,
+.observedFishSelectorSummary:focus-visible,
 .alphabetButton:focus-visible,
 .searchInput:focus-visible,
 .checkbox:focus-visible,
@@ -853,6 +968,16 @@
 
   .membershipGrid {
     grid-template-columns: 1fr;
+  }
+
+  .observedFishSelector {
+    width: 100%;
+  }
+
+  .observedFishSelectorMenu {
+    position: static;
+    width: 100%;
+    margin-top: 4px;
   }
 
   .catalogTable th,

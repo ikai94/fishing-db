@@ -34,6 +34,17 @@ export type CatchReportPage = {
   nextCursor: string | null;
 };
 
+export type ObservedFish = {
+  fish: { id: string; name: string; isActive: boolean };
+  contributorCount: number;
+  reportCount: number;
+};
+
+export type LocationObservations = {
+  observedFish: ObservedFish[];
+  reports: CatchReport[];
+};
+
 export type CreateCatchReportInput = {
   locationId: string;
   fishId: string;
@@ -171,6 +182,8 @@ export function decodePublicCatchReport(value: unknown): CatchReport {
   if (
     !isRecord(value) ||
     'rawSourceText' in value ||
+    'contributorKey' in value ||
+    'importKey' in value ||
     typeof value.id !== 'string' ||
     !isRecord(value.author) ||
     typeof value.author.id !== 'string' ||
@@ -208,6 +221,66 @@ export function decodePublicCatchReport(value: unknown): CatchReport {
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
   };
+}
+
+function readObservedFish(value: unknown): ObservedFish {
+  if (
+    !isRecord(value) ||
+    'contributorKey' in value ||
+    'importKey' in value ||
+    'rawSourceText' in value ||
+    !isRecord(value.fish) ||
+    typeof value.fish.isActive !== 'boolean'
+  ) {
+    invalidReport();
+  }
+
+  const contributorCount = readPositiveInteger(value.contributorCount);
+  const reportCount = readPositiveInteger(value.reportCount);
+  if (contributorCount > reportCount) invalidReport();
+
+  return {
+    fish: { ...readNamedItem(value.fish), isActive: value.fish.isActive },
+    contributorCount,
+    reportCount,
+  };
+}
+
+export function decodeLocationObservations(
+  payload: unknown,
+  locationId: string,
+): LocationObservations {
+  if (
+    !isRecord(payload) ||
+    !Array.isArray(payload.observedFish) ||
+    !Array.isArray(payload.reports)
+  ) {
+    throw new Error('Сервер вернул некорректные наблюдения локации');
+  }
+
+  const observedFish = payload.observedFish.map(readObservedFish);
+  const reports = payload.reports.map(decodePublicCatchReport);
+  const observedByFishId = new Map<string, ObservedFish>();
+  const reportCounts = new Map<string, number>();
+
+  for (const item of observedFish) {
+    if (observedByFishId.has(item.fish.id)) invalidReport();
+    observedByFishId.set(item.fish.id, item);
+  }
+
+  for (const report of reports) {
+    if (report.location.id !== locationId) invalidReport();
+    const observed = observedByFishId.get(report.fish.id);
+    if (observed === undefined || observed.fish.name !== report.fish.name) invalidReport();
+    reportCounts.set(report.fish.id, (reportCounts.get(report.fish.id) ?? 0) + 1);
+  }
+
+  if (observedByFishId.size !== reportCounts.size) invalidReport();
+  for (const item of observedFish) {
+    if (reportCounts.get(item.fish.id) !== item.reportCount) invalidReport();
+  }
+
+  return { observedFish, reports };
 }
 
 export function decodeOwnerCatchReport(value: unknown): OwnerCatchReport {
@@ -467,6 +540,17 @@ export async function listCatchReports(
     signal: options.signal,
   });
   return readCatchReportPage(payload);
+}
+
+export async function getLocationObservations(
+  locationId: string,
+  signal?: AbortSignal,
+): Promise<LocationObservations> {
+  const payload = await apiRequest<unknown>(
+    `/catch-reports/locations/${encodeURIComponent(locationId)}/observations`,
+    { signal },
+  );
+  return decodeLocationObservations(payload, locationId);
 }
 
 export async function listMyCatchReports(

@@ -10,8 +10,10 @@ vi.mock('./api-client', () => ({
 
 import {
   decodeCatchReportDraft,
+  decodeLocationObservations,
   decodeOwnerCatchReport,
   decodePublicCatchReport,
+  getLocationObservations,
   listCatchReports,
   listMyCatchReports,
   parseCatchReport,
@@ -45,6 +47,10 @@ describe('decodePublicCatchReport', () => {
     expect(() => decodePublicCatchReport({ ...publicReport, rawSourceText: 'приватно' })).toThrow();
   });
 
+  test.each(['contributorKey', 'importKey'])('rejects leaked internal %s identity', (field) => {
+    expect(() => decodePublicCatchReport({ ...publicReport, [field]: 'private' })).toThrow();
+  });
+
   test('rejects live bait type in a historical report projection', () => {
     expect(() =>
       decodePublicCatchReport({ ...publicReport, bait: { ...publicReport.bait, type: 'LURE' } }),
@@ -55,6 +61,81 @@ describe('decodePublicCatchReport', () => {
     expect(
       decodeOwnerCatchReport({ ...publicReport, rawSourceText: 'Кижуч 7,242 кг' }).rawSourceText,
     ).toBe('Кижуч 7,242 кг');
+  });
+});
+
+describe('Location observations', () => {
+  beforeEach(() => mocks.apiRequest.mockReset());
+
+  test('decodes the ranked Fish summary and exact-Location public reports', async () => {
+    const payload = {
+      observedFish: [
+        {
+          fish: { id: 'fish', name: 'Кижуч', isActive: true },
+          contributorCount: 2,
+          reportCount: 1,
+        },
+      ],
+      reports: [publicReport],
+    };
+    const validPayload = {
+      ...payload,
+      observedFish: [{ ...payload.observedFish[0], contributorCount: 1 }],
+    };
+    mocks.apiRequest.mockResolvedValue(validPayload);
+    const controller = new AbortController();
+
+    await expect(getLocationObservations('location', controller.signal)).resolves.toEqual(
+      validPayload,
+    );
+    expect(mocks.apiRequest).toHaveBeenCalledWith(
+      '/catch-reports/locations/location/observations',
+      { signal: controller.signal },
+    );
+    expect(() => decodeLocationObservations(payload, 'location')).toThrow();
+  });
+
+  test('rejects mismatched locations, duplicate or uncaught Fish, wrong counts, and private fields', () => {
+    const observed = {
+      fish: { id: 'fish', name: 'Кижуч', isActive: true },
+      contributorCount: 1,
+      reportCount: 1,
+    };
+    const valid = { observedFish: [observed], reports: [publicReport] };
+
+    expect(decodeLocationObservations(valid, 'location')).toEqual(valid);
+    expect(() => decodeLocationObservations(valid, 'other-location')).toThrow();
+    expect(() =>
+      decodeLocationObservations({ ...valid, observedFish: [observed, observed] }, 'location'),
+    ).toThrow();
+    expect(() =>
+      decodeLocationObservations(
+        {
+          ...valid,
+          observedFish: [
+            ...valid.observedFish,
+            {
+              fish: { id: 'uncaught', name: 'Непойманная', isActive: true },
+              contributorCount: 1,
+              reportCount: 1,
+            },
+          ],
+        },
+        'location',
+      ),
+    ).toThrow();
+    expect(() =>
+      decodeLocationObservations(
+        { ...valid, observedFish: [{ ...observed, reportCount: 2 }] },
+        'location',
+      ),
+    ).toThrow();
+    expect(() =>
+      decodeLocationObservations(
+        { ...valid, reports: [{ ...publicReport, contributorKey: 'private' }] },
+        'location',
+      ),
+    ).toThrow();
   });
 });
 

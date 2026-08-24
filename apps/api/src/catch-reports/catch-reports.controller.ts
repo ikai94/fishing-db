@@ -22,6 +22,7 @@ import { CatchReportsService } from './catch-reports.service.js';
 import { CatchReportParamsDto } from './dto/catch-report-params.dto.js';
 import { CreateCatchReportDto } from './dto/create-catch-report.dto.js';
 import { HoleStatisticsQueryDto } from './dto/hole-statistics-query.dto.js';
+import { LocationObservationsParamsDto } from './dto/location-observations-params.dto.js';
 import { ParseCatchReportDto } from './dto/parse-catch-report.dto.js';
 import { PublicCatchReportListQueryDto } from './dto/public-catch-report-list-query.dto.js';
 import { UpdateCatchReportDto } from './dto/update-catch-report.dto.js';
@@ -70,6 +71,14 @@ export class CatchReportsController {
     query: HoleStatisticsQueryDto,
   ) {
     return this.holeStatistics.list(query);
+  }
+
+  @Get('locations/:locationId/observations')
+  listLocationObservations(
+    @Param(createApplicationValidationPipe(LocationObservationsParamsDto))
+    params: LocationObservationsParamsDto,
+  ) {
+    return this.catchReports.listLocationObservations(params.locationId);
   }
 
   @Get(':reportId')

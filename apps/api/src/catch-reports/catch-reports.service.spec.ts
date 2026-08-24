@@ -531,6 +531,109 @@ void describe('CatchReportsService v2', () => {
     assert.equal(result.nextCursor, null);
   });
 
+  void it('builds complete exact-Location observations from contributor identity without catalog membership filters', async () => {
+    let query: unknown;
+    const secondReportId = '20000000-0000-4000-8000-000000000002';
+    const thirdReportId = '20000000-0000-4000-8000-000000000003';
+    const fourthReportId = '20000000-0000-4000-8000-000000000004';
+    const adminOwner = { id: USER_ID, nickname: 'Импорт' };
+    const prisma = {
+      catchReport: {
+        findMany: (input: unknown) => {
+          query = input;
+          return Promise.resolve([
+            {
+              ...reportRecord(),
+              id: fourthReportId,
+              contributorKey: `local-user:${USER_ID}`,
+              fish: {
+                id: OTHER_FISH_ID,
+                name: 'Белуга',
+                nameNormalized: 'белуга',
+                isActive: true,
+              },
+            },
+            {
+              ...reportRecord(),
+              id: thirdReportId,
+              contributorKey: 'external:forum:member-b',
+              user: adminOwner,
+              fish: {
+                id: FISH_ID,
+                name: 'Сом',
+                nameNormalized: 'сом',
+                isActive: false,
+              },
+            },
+            {
+              ...reportRecord(),
+              id: secondReportId,
+              contributorKey: 'external:forum:member-a',
+              user: adminOwner,
+              fish: {
+                id: FISH_ID,
+                name: 'Сом',
+                nameNormalized: 'сом',
+                isActive: false,
+              },
+            },
+            {
+              ...reportRecord(),
+              contributorKey: 'external:forum:member-a',
+              user: adminOwner,
+              fish: {
+                id: FISH_ID,
+                name: 'Сом',
+                nameNormalized: 'сом',
+                isActive: false,
+              },
+            },
+          ]);
+        },
+      },
+    } as unknown as PrismaService;
+
+    const result = await new CatchReportsService(prisma).listLocationObservations(LOCATION_ID);
+    const queryObject = asObject(query);
+
+    assert.deepEqual(queryObject.where, { locationId: LOCATION_ID });
+    assert.deepEqual(queryObject.orderBy, [
+      { fish: { nameNormalized: 'asc' } },
+      { fishId: 'asc' },
+      { createdAt: 'desc' },
+      { id: 'desc' },
+    ]);
+    assert.equal('take' in queryObject, false);
+    assert.equal('fishingBaseFish' in queryObject, false);
+    const select = asObject(queryObject.select);
+    assert.equal(select.contributorKey, true);
+    assert.equal('importKey' in select, false);
+    assert.equal('rawSourceText' in select, false);
+    assert.deepEqual(result.observedFish, [
+      {
+        fish: { id: FISH_ID, name: 'Сом', isActive: false },
+        contributorCount: 2,
+        reportCount: 3,
+      },
+      {
+        fish: { id: OTHER_FISH_ID, name: 'Белуга', isActive: true },
+        contributorCount: 1,
+        reportCount: 1,
+      },
+    ]);
+    assert.deepEqual(
+      result.reports.map((report) => report.id),
+      [fourthReportId, thirdReportId, secondReportId, REPORT_ID],
+    );
+    for (const report of result.reports) {
+      assert.equal('contributorKey' in report, false);
+      assert.equal('importKey' in report, false);
+      assert.equal('rawSourceText' in report, false);
+      assert.equal('nameNormalized' in report.fish, false);
+      assert.equal('isActive' in report.fish, false);
+    }
+  });
+
   void it('keeps omitted public filters and owner list queries unfiltered', async () => {
     const queries: unknown[] = [];
     const prisma = {

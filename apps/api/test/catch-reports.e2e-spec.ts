@@ -1947,6 +1947,127 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
     );
   });
 
+  void test('returns every exact-Location observed Fish and report with contributor-distinct historical counts', async () => {
+    const catalog = await createCatalog();
+    const otherCatalog = await createCatalog();
+    const admin = await createActor('ADMIN');
+    const suffix = ++catalogSequence;
+    const alphaFish = await prisma.fish.create({
+      data: {
+        name: `Альфа ${suffix}`,
+        nameNormalized: `альфа ${suffix}`,
+      },
+    });
+    const uncaughtBaseFish = await prisma.fish.create({
+      data: {
+        name: `Непойманная ${suffix}`,
+        nameNormalized: `непойманная ${suffix}`,
+      },
+    });
+    const historicalFish = await prisma.fish.update({
+      where: { id: catalog.fish.id },
+      data: {
+        name: `Язь ${suffix}`,
+        nameNormalized: `язь ${suffix}`,
+      },
+    });
+    await prisma.fishingBaseFish.create({
+      data: { fishingBaseId: catalog.base.id, fishId: uncaughtBaseFish.id },
+    });
+
+    const alphaReport = await createStatisticsReport(admin, catalog, {
+      contributorKey: nativeContributorKey(admin.userId),
+      fishId: alphaFish.id,
+      createdAt: new Date('2026-08-20T08:00:00.000Z'),
+    });
+    const firstImported = await createStatisticsReport(admin, catalog, {
+      contributorKey: 'external:forum:location-member-a',
+      importKey: 'external:forum:location-observation-1',
+      fishId: historicalFish.id,
+      createdAt: new Date('2026-08-20T09:00:00.000Z'),
+    });
+    const repeatedImported = await createStatisticsReport(admin, catalog, {
+      contributorKey: 'external:forum:location-member-a',
+      importKey: 'external:forum:location-observation-2',
+      fishId: historicalFish.id,
+      createdAt: new Date('2026-08-20T10:00:00.000Z'),
+    });
+    const secondImported = await createStatisticsReport(admin, catalog, {
+      contributorKey: 'external:forum:location-member-b',
+      importKey: 'external:forum:location-observation-3',
+      fishId: historicalFish.id,
+      createdAt: new Date('2026-08-20T11:00:00.000Z'),
+    });
+    await createStatisticsReport(admin, otherCatalog, {
+      contributorKey: 'external:forum:other-location-member',
+      importKey: 'external:forum:other-location-observation',
+      fishId: historicalFish.id,
+    });
+
+    await prisma.fishingBaseFish.delete({
+      where: {
+        fishingBaseId_fishId: {
+          fishingBaseId: catalog.base.id,
+          fishId: historicalFish.id,
+        },
+      },
+    });
+    await prisma.fish.update({ where: { id: historicalFish.id }, data: { isActive: false } });
+    await prisma.user.update({ where: { id: admin.userId }, data: { isBanned: true } });
+
+    const response = await api()
+      .get(`/api/v1/catch-reports/locations/${catalog.location.id}/observations`)
+      .expect(200);
+    const payload = asObject(response.body as unknown);
+    assert.deepEqual(Object.keys(payload).sort(), ['observedFish', 'reports']);
+    const observedFish = asArray(payload.observedFish).map((value) => asObject(value));
+    const reports = asArray(payload.reports).map((value) => asObject(value));
+
+    assert.deepEqual(
+      observedFish.map((item) => ({
+        fish: asObject(item.fish),
+        contributorCount: asNumber(item.contributorCount, 'contributorCount'),
+        reportCount: asNumber(item.reportCount, 'reportCount'),
+      })),
+      [
+        {
+          fish: { id: historicalFish.id, name: historicalFish.name, isActive: false },
+          contributorCount: 2,
+          reportCount: 3,
+        },
+        {
+          fish: { id: alphaFish.id, name: alphaFish.name, isActive: true },
+          contributorCount: 1,
+          reportCount: 1,
+        },
+      ],
+    );
+    assert.deepEqual(
+      reports.map((report) => asString(report.id, 'report.id')),
+      [alphaReport.id, secondImported.id, repeatedImported.id, firstImported.id],
+    );
+    for (const report of reports) {
+      assertPublicReportProjection(report);
+      assert.equal(asString(asObject(report.author).id, 'author.id'), admin.userId);
+    }
+    assert.equal(
+      observedFish.some(
+        (item) => asString(asObject(item.fish).id, 'fish.id') === uncaughtBaseFish.id,
+      ),
+      false,
+    );
+
+    const unknown = asObject(
+      (await api().get(`/api/v1/catch-reports/locations/${randomUUID()}/observations`).expect(200))
+        .body as unknown,
+    );
+    assert.deepEqual(unknown, { observedFish: [], reports: [] });
+    const malformed = await api()
+      .get('/api/v1/catch-reports/locations/not-a-uuid/observations')
+      .expect(400);
+    assert.equal(readErrorCode(malformed.body as unknown), 'VALIDATION_ERROR');
+  });
+
   void test('paginates deterministically across equal timestamps and concurrent head inserts', async () => {
     const catalog = await createCatalog();
     const actor = await createActor();

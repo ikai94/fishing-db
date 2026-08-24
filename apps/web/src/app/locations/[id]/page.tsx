@@ -4,13 +4,21 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback } from 'react';
 import styles from '../../public-catalog.module.css';
+import { LocationObservations } from './_components/location-observations';
 import { getLocation } from '@/lib/catalog-api';
+import { getLocationObservations } from '@/lib/catch-reports-api';
 import { useApiResource } from '@/lib/use-api-resource';
 
 export default function LocationPage() {
   const { id: locationId } = useParams<{ id: string }>();
   const loadLocation = useCallback(
-    (signal: AbortSignal) => getLocation(locationId, signal),
+    async (signal: AbortSignal) => {
+      const [location, observations] = await Promise.all([
+        getLocation(locationId, signal),
+        getLocationObservations(locationId, signal),
+      ]);
+      return { location, observations };
+    },
     [locationId],
   );
   const { state, reload } = useApiResource(
@@ -20,7 +28,7 @@ export default function LocationPage() {
 
   return (
     <main className={styles.page}>
-      <div className={styles.narrowContainer}>
+      <div className={styles.container}>
         <nav className={styles.topNav} aria-label="Навигация по каталогу">
           <Link className={styles.backLink} href="/bases">
             ← Все базы
@@ -60,26 +68,32 @@ export default function LocationPage() {
             <header className={styles.header}>
               <p className={styles.eyebrow}>Локация</p>
               <h1 className={styles.title}>
-                {state.data.number}. {state.data.name}
+                {state.data.location.number}. {state.data.location.name}
               </h1>
               <p className={styles.metadata}>
                 Рыболовная база:{' '}
-                <Link className={styles.entityLink} href={`/bases/${state.data.fishingBase.id}`}>
-                  {state.data.fishingBase.name}
+                <Link
+                  className={styles.entityLink}
+                  href={`/bases/${state.data.location.fishingBase.id}`}
+                >
+                  {state.data.location.fishingBase.name}
+                </Link>
+              </p>
+              <p className={styles.metadata}>
+                <Link
+                  className={styles.entityLink}
+                  href={`/bases/${state.data.location.fishingBase.id}#fish`}
+                >
+                  Каталог рыб базы «{state.data.location.fishingBase.name}»
                 </Link>
               </p>
             </header>
 
-            <section className={styles.section}>
-              <h2 className={styles.sectionTitle}>Рыбы на базе</h2>
-              <p className={styles.sectionLead}>
-                Рыба, связанная с базой «{state.data.fishingBase.name}», теоретически доступна на
-                всех её локациях.
-              </p>
-              <Link className={styles.entityLink} href={`/bases/${state.data.fishingBase.id}#fish`}>
-                Рыбы базы «{state.data.fishingBase.name}»
-              </Link>
-            </section>
+            <LocationObservations
+              baseId={state.data.location.fishingBase.id}
+              data={state.data.observations}
+              key={state.data.location.id}
+            />
           </>
         ) : null}
       </div>

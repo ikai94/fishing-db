@@ -128,6 +128,19 @@ const OWNER_CATCH_REPORT_SELECT = {
   },
 } as const;
 
+const LOCATION_OBSERVATION_SELECT = {
+  ...PUBLIC_CATCH_REPORT_SELECT,
+  contributorKey: true,
+  fish: {
+    select: {
+      id: true,
+      name: true,
+      nameNormalized: true,
+      isActive: true,
+    },
+  },
+} as const;
+
 const OWNER_CATCH_REPORT_SCALAR_SELECT = {
   id: true,
   userId: true,
@@ -174,6 +187,22 @@ interface PublicCatchReportRecord {
 
 interface OwnerCatchReportRecord extends PublicCatchReportRecord {
   rawSourceText: string | null;
+}
+
+interface LocationObservationRecord extends Omit<PublicCatchReportRecord, 'fish'> {
+  contributorKey: string;
+  fish: {
+    id: string;
+    name: string;
+    nameNormalized: string;
+    isActive: boolean;
+  };
+}
+
+interface ObservedFishAccumulator {
+  fish: LocationObservationRecord['fish'];
+  contributorKeys: Set<string>;
+  reportCount: number;
 }
 
 interface CurrentCatchReportState {
@@ -310,6 +339,12 @@ function currentObservation(current: CurrentCatchReportState): CatchReportObserv
   };
 }
 
+function compareStableStrings(left: string, right: string): number {
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
+}
+
 @Injectable()
 export class CatchReportsService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
@@ -323,6 +358,58 @@ export class CatchReportsService {
 
   async listMine(actorUserId: string, query: CatchReportListQueryDto) {
     return this.list(query, actorUserId);
+  }
+
+  async listLocationObservations(locationId: string) {
+    const records = await this.prisma.catchReport.findMany({
+      where: { locationId },
+      orderBy: [
+        { fish: { nameNormalized: 'asc' } },
+        { fishId: 'asc' },
+        { createdAt: 'desc' },
+        { id: 'desc' },
+      ],
+      select: LOCATION_OBSERVATION_SELECT,
+    });
+    const observedFishById = new Map<string, ObservedFishAccumulator>();
+
+    for (const record of records) {
+      const existing = observedFishById.get(record.fish.id);
+
+      if (existing === undefined) {
+        observedFishById.set(record.fish.id, {
+          fish: record.fish,
+          contributorKeys: new Set([record.contributorKey]),
+          reportCount: 1,
+        });
+      } else {
+        existing.contributorKeys.add(record.contributorKey);
+        existing.reportCount += 1;
+      }
+    }
+
+    const observedFish = [...observedFishById.values()]
+      .sort(
+        (left, right) =>
+          right.contributorKeys.size - left.contributorKeys.size ||
+          right.reportCount - left.reportCount ||
+          compareStableStrings(left.fish.nameNormalized, right.fish.nameNormalized) ||
+          compareStableStrings(left.fish.id, right.fish.id),
+      )
+      .map((item) => ({
+        fish: {
+          id: item.fish.id,
+          name: item.fish.name,
+          isActive: item.fish.isActive,
+        },
+        contributorCount: item.contributorKeys.size,
+        reportCount: item.reportCount,
+      }));
+
+    return {
+      observedFish,
+      reports: records.map(toPublicCatchReport),
+    };
   }
 
   async getPublic(reportId: string) {
