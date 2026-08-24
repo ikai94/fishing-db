@@ -56,6 +56,7 @@ interface TextSource {
   text: string;
   /** Offset relative to the start of the candidate segment. */
   offset: number;
+  restrictSpinningToStart?: boolean;
 }
 
 interface ParsedDepth {
@@ -172,6 +173,13 @@ const COMPACT_SPINNING =
   /(?<![\p{L}\p{N}])(\u043c\u0430\u043b(?:\.|\u0435\u043d\u044c\u043a\u0430\u044f|\u0435\u043d\u044c\u043a\u0438\u0439)?|\u043c|\u0441\u0440(?:\u0435\u0434)?\.?|\u0441\u0440\u0435\u0434\u043d(?:\u044f\u044f|\u0438\u0439)|\u0441|\u0431\u043e\u043b(?:\.|\u044c\u0448\u0430\u044f|\u044c\u0448\u043e\u0439)?|\u0431)\s*[/\\]\s*(\u043c\u0435\u0434(?:\.|\u043b(?:\u0435\u043d\u043d\u0430\u044f|\u0435\u043d\u043d\u043e|\.)?)?|\u043c|\u0441\u0440(?:\u0435\u0434)?\.?|\u0441\u0440\u0435\u0434\u043d(?:\u044f\u044f|\u0435)|\u0431\u044b\u0441\u0442\u0440(?:\u0430\u044f|\u043e|\.)?|\u0431)(?![\p{L}\p{N}])/giu;
 const TEXT_SPINNING =
   /(?<![\p{L}\p{N}])(\u043c\u0430\u043b\u0435\u043d\u044c\u043a(?:\u0430\u044f|\u0438\u0439)|\u043c\u0430\u043b(?:\.|\u044b\u0439)?|\u0441\u0440\u0435\u0434\u043d(?:\u044f\u044f|\u0438\u0439)|\u0441\u0440(?:\u0435\u0434|\.)?|\u0431\u043e\u043b\u044c\u0448(?:\u0430\u044f|\u043e\u0439)|\u0431\u043e\u043b\.?)(?:\s*,\s*|\s+)(?:\u043f\u0440\u043e\u0432\u043e\u0434\u043a\u0430\s+)?(\u043c\u0435\u0434\u043b(?:\u0435\u043d\u043d\u0430\u044f|\u0435\u043d\u043d\u043e|\.)?|\u0441\u0440\u0435\u0434\u043d(?:\u044f\u044f|\u0435)|\u0441\u0440(?:\u0435\u0434|\.)?|\u0431\u044b\u0441\u0442\u0440(?:\u0430\u044f|\u043e|\.))(?![\p{L}\p{N}])/giu;
+const STRUCTURAL_SPINNING =
+  /(?<![\p{L}\p{N}])(\u043c\u0430\u043b\u0435\u043d\u044c\u043a(?:\u0430\u044f|\u0438\u0439)|\u043c\u0430\u043b(?:\.|\u044b\u0439)?|\u043c|\u0441\u0440\u0435\u0434\u043d(?:\u044f\u044f|\u0438\u0439)|\u0441\u0440(?:\u0435\u0434|\.)?|\u0441|\u0431\u043e\u043b\u044c\u0448(?:\u0430\u044f|\u043e\u0439)|\u0431\u043e\u043b\.?|\u0431)(?:\s*[,.;:/\\\u2013\u2014-]\s*|\s+)(?:\u043f\u0440\u043e\u0432\u043e\u0434\u043a\u0430(?:\s*[,.;:=\u2013\u2014-]\s*|\s+))?(\u043c\u0435\u0434\u043b(?:\u0435\u043d\u043d\u0430\u044f|\u0435\u043d\u043d\u043e|\.)?|\u043c\u0435\u0434\.?|\u043c|\u0441\u0440\u0435\u0434\u043d(?:\u044f\u044f|\u0435)|\u0441\u0440(?:\u0435\u0434|\.)?|\u0431\u044b\u0441\u0442\u0440(?:\u0430\u044f|\u043e|\.)?|\u0431)(?![\p{L}\p{N}])/giu;
+const SPINNING_PATTERNS = [COMPACT_SPINNING, TEXT_SPINNING, STRUCTURAL_SPINNING] as const;
+const IMMEDIATE_BARE_DEPTH =
+  /^(\d+[,.]\d{1,2})(?:\s*\u043c(?![\p{L}\p{N}]))?(?!\d|[,.]\d|\s*(?:\u043a\u0433|\u0433\u0440\.?|\u0433\u0440\u0430\u043c))/iu;
+const IMMEDIATE_SPOT_POSITION =
+  /^[.\p{White_Space},;:\u2013\u2014-]*(?:\(\s*)?(?:\u043d\u0430\u0434|\u043c\u0435\u0436\u0434\u0443|\u043f\u0435\u0440\u0435\u0434|\u0442\u043e\u0447\u043a\u0430|\u043b\u0435\u0432(?:\u0435\u0435|\u044b\u0439|\u043e)?|\u043f\u0440\u0430\u0432(?:\u0435\u0435|\u044b\u0439|\u043e)?|\u0446\u0435\u043d\u0442\u0440|\u043a\u0440\u0430\u0439|\u0448\u043a(?:\u0430\u043b\u0430)?|\u0440\u044e\u043a\u0437\u0430\u043a|\u0430\u043b\u043a(?:\u043e\u0433\u043e\u043b\u044c)?|\u0431\u043b\u043e\u043a\u043d\u043e\u0442|\u0447\u0430\u0442|\u0443\u0434(?:\u0430|\u043e\u0447\u043a\u0430|\u043e\u0439|\u044b)|\u043a\u0430\u0442(?:\u0430|\u0443\u0448\u043a\u0430)|\u043b\u0435\u0441\u043a\u0430|\u0431\u0430\u0440\u043e\u043c\u0435\u0442\u0440|\u0438\u043d\u0432\u0435\u043d\u0442\u0430\u0440\u044c|\u0441\u043d\u0430\u0441\u0442\u0438|\u044d\u043a\u0440\u0430\u043d|\u044f\u0449\u0438\u043a|\u0435\u0434\u0430|\u0441\u043e\u0431\u044b\u0442\u0438\u044f|\u0438\u0433\u0440\u043e\u043a\u0438|\u0437\u0430\u043c\u0435\u0442\u043a\u0438)(?![\p{L}\p{N}])/iu;
 
 const EXCLUDED_OBSERVATION_NUMBERS = [
   /(?<![\p{L}\p{N}])(?:\u0432\u0440\u0435\u043c\u044f\s*(?::|=|-)?\s*|\u0432\s+)(?:[01]?\d|2[0-3])[.:,][0-5]\d(?!\d)/giu,
@@ -546,11 +554,13 @@ function beginsObservation(source: string): boolean {
     );
   if (beginsWithField) return true;
 
-  for (const pattern of [COMPACT_SPINNING, TEXT_SPINNING]) {
+  for (const pattern of SPINNING_PATTERNS) {
     pattern.lastIndex = 0;
     const match = pattern.exec(trimmed);
     if (match?.index === 0) return true;
   }
+
+  if (beginsUniqueImmediateDepth(trimmed, false)) return true;
 
   const beginsWithApprovedMetadata =
     /^(?:\u0432\s+(?:[01]?\d|2[0-3])[:.][0-5]\d|\u0432\u0440\u0435\u043c\u044f|\u0441\u0435\u0440\u0432\u0435\u0440|\u043f\u0440\u0438\u043c\u0430\u043d\u043a\u0430|\u0432\u0435\u0441)(?![\p{L}\p{N}])/iu.test(
@@ -560,6 +570,33 @@ function beginsObservation(source: string): boolean {
 
   const depth = parseDepth(trimmed);
   return depth.value !== null && depth.issues.length === 0;
+}
+
+function beginsUniqueImmediateDepth(source: string, allowExplicit: boolean): boolean {
+  const trimmed = source.trimStart().replace(/^\(\s*/u, '');
+  const beginsExplicit =
+    /^(?:\u0433\u043b\u0443\u0431\u0438\u043d\u0430|\u044f\u043c(?:\u0430|\u043a\u0430|\u043a\u0435|\u043a\u0438|\u043a\u0443)|\u043f\u043e\u043b\u043e\u0447\u043a\u0430)(?![\p{L}\p{N}])/iu.test(
+      trimmed,
+    );
+  const beginsCompact = /^\d{3,}(?![\p{L}\p{N}])/u.test(trimmed);
+  const beginsBare = IMMEDIATE_BARE_DEPTH.test(trimmed);
+  if (!(allowExplicit && beginsExplicit) && !beginsCompact && !beginsBare) return false;
+
+  const parsed = parseDepth(trimmed, beginsCompact);
+  if (
+    parsed.value === null ||
+    parsed.range === null ||
+    (!beginsExplicit && parsed.range.start !== 0) ||
+    parsed.issues.length > 0
+  )
+    return false;
+  return beginsExplicit || IMMEDIATE_SPOT_POSITION.test(trimmed.slice(parsed.range.end));
+}
+
+function beginsNewAnchoredBareDepth(source: string): boolean {
+  const trimmed = source.trimStart().replace(/^\(\s*/u, '');
+  const alreadySupported = /^\d+[,.]\d{1,2}(?:\s*\u043c)?(?:\s|$)/iu.test(trimmed);
+  return !alreadySupported && beginsUniqueImmediateDepth(trimmed, false);
 }
 
 function immediateObservation(source: string, start: number, offset: number): TextSource {
@@ -573,10 +610,30 @@ function immediateObservation(source: string, start: number, offset: number): Te
   return { text: source.slice(contentStart, end), offset: offset + contentStart };
 }
 
-function inlineSpinningObservationStart(source: string): number | null {
-  let earliest: number | null = null;
+function spinningPairAtStart(source: string): { end: number; structuralOnly: boolean } | null {
+  let structuralEnd: number | null = null;
+
+  STRUCTURAL_SPINNING.lastIndex = 0;
+  const structural = STRUCTURAL_SPINNING.exec(source);
+  if (structural?.index === 0) structuralEnd = structural[0].length;
 
   for (const pattern of [COMPACT_SPINNING, TEXT_SPINNING]) {
+    pattern.lastIndex = 0;
+    const existing = pattern.exec(source);
+    if (existing?.index === 0) {
+      return { end: existing[0].length, structuralOnly: false };
+    }
+  }
+
+  return structuralEnd === null ? null : { end: structuralEnd, structuralOnly: true };
+}
+
+function inlineSpinningObservationStart(
+  source: string,
+): { start: number; structuralEnd: number | null } | null {
+  let earliest: number | null = null;
+
+  for (const pattern of SPINNING_PATTERNS) {
     pattern.lastIndex = 0;
     for (const match of source.matchAll(pattern)) {
       if (match.index === 0 || !/[\s,;]/u.test(source[match.index - 1] ?? '')) continue;
@@ -584,7 +641,39 @@ function inlineSpinningObservationStart(source: string): number | null {
     }
   }
 
-  return earliest;
+  if (earliest === null) return null;
+  const pair = spinningPairAtStart(source.slice(earliest));
+  return {
+    start: earliest,
+    structuralEnd: pair?.structuralOnly === true ? earliest + pair.end : null,
+  };
+}
+
+function boundedObservation(
+  source: string,
+  start: number,
+  end: number,
+  offset: number,
+): TextSource {
+  return { text: source.slice(start, end), offset: offset + start, restrictSpinningToStart: true };
+}
+
+function structuralSpinningObservation(
+  source: string,
+  start: number,
+  pairEnd: number,
+  offset: number,
+): TextSource {
+  const depthStart =
+    pairEnd +
+    (/^[\p{White_Space}.,;:\u2013\u2014-]*/u.exec(source.slice(pairEnd))?.[0].length ?? 0);
+  if (beginsUniqueImmediateDepth(source.slice(depthStart), true)) {
+    const observation = immediateObservation(source, start, offset);
+    observation.restrictSpinningToStart = true;
+    return observation;
+  }
+
+  return boundedObservation(source, start, pairEnd, offset);
 }
 
 function splitBaitAndObservation(
@@ -614,27 +703,65 @@ function splitBaitAndObservation(
   );
   if (spinningObservationStart !== null) {
     return {
-      baitRaw: trimStructuralValue(source.slice(0, spinningObservationStart)),
-      observation: immediateObservation(source, spinningObservationStart, offset),
+      baitRaw: trimStructuralValue(source.slice(0, spinningObservationStart.start)),
+      observation:
+        spinningObservationStart.structuralEnd === null
+          ? immediateObservation(source, spinningObservationStart.start, offset)
+          : structuralSpinningObservation(
+              source,
+              spinningObservationStart.start,
+              spinningObservationStart.structuralEnd,
+              offset,
+            ),
     };
   }
 
-  const separators = /[.,;]|\r\n|[\n\r]/gu;
+  const separators = /[.,;]+(?:[\t ]*[\u2013\u2014-])?|\r\n|[\n\r]/gu;
 
   for (const match of source.matchAll(separators)) {
     const suffixStart = match.index + match[0].length;
     const rawSuffix = source.slice(suffixStart);
     const leading = rawSuffix.length - rawSuffix.trimStart().length;
     const observationStart = suffixStart + leading;
+    const observationSource = source.slice(observationStart);
+    const spinningPair = spinningPairAtStart(observationSource);
+    const newStructuralSeparator =
+      /[\u2013\u2014-]/u.test(match[0]) || /^[.,;]{2,}$/u.test(match[0]);
 
-    if (beginsObservation(source.slice(observationStart))) {
+    if (spinningPair !== null && (spinningPair.structuralOnly || newStructuralSeparator)) {
       return {
         baitRaw: trimStructuralValue(source.slice(0, match.index)),
-        observation: immediateObservation(source, observationStart, offset),
+        observation: structuralSpinningObservation(
+          source,
+          observationStart,
+          observationStart + spinningPair.end,
+          offset,
+        ),
       };
     }
 
-    if (match[0] === '.' || /\r\n|[\n\r]/u.test(match[0])) {
+    if (newStructuralSeparator) {
+      if (beginsUniqueImmediateDepth(observationSource, true)) {
+        const observation = immediateObservation(source, observationStart, offset);
+        observation.restrictSpinningToStart = true;
+        return {
+          baitRaw: trimStructuralValue(source.slice(0, match.index)),
+          observation,
+        };
+      }
+    } else if (beginsObservation(observationSource)) {
+      const observation = immediateObservation(source, observationStart, offset);
+      if (beginsNewAnchoredBareDepth(observationSource)) {
+        observation.restrictSpinningToStart = true;
+      }
+
+      return {
+        baitRaw: trimStructuralValue(source.slice(0, match.index)),
+        observation,
+      };
+    }
+
+    if (/\.|\r\n|[\n\r]/u.test(match[0])) {
       return { baitRaw: trimStructuralValue(source.slice(0, match.index)), observation: null };
     }
   }
@@ -1022,6 +1149,7 @@ function parseSpinning(
   source: string,
   sizeLabel: LabelEntry | null,
   speedLabel: LabelEntry | null,
+  restrictToStart = false,
 ): {
   size: ParsedEnum<CatchReportSpinningSize>;
   speed: ParsedEnum<CatchReportSpinningSpeed>;
@@ -1031,9 +1159,12 @@ function parseSpinning(
   const speeds: Array<{ value: CatchReportSpinningSpeed; range: RelativeRange }> = [];
   const ranges: RelativeRange[] = [];
 
-  for (const pattern of [COMPACT_SPINNING, TEXT_SPINNING]) {
+  for (const pattern of SPINNING_PATTERNS) {
     pattern.lastIndex = 0;
     for (const match of source.matchAll(pattern)) {
+      if (restrictToStart && match.index !== 0) continue;
+      if (pattern === STRUCTURAL_SPINNING && match.index !== 0) continue;
+
       const rawSize = match[1];
       const rawSpeed = match[2];
       if (rawSize === undefined || rawSpeed === undefined) continue;
@@ -1251,7 +1382,12 @@ function parseCandidate(
     spinningLabel === null
       ? semanticObservation
       : { text: spinningLabel.value, offset: spinningLabel.range.start };
-  const parsedSpinning = parseSpinning(spinningSource.text, spinningSizeLabel, spinningSpeedLabel);
+  const parsedSpinning = parseSpinning(
+    spinningSource.text,
+    spinningSizeLabel,
+    spinningSpeedLabel,
+    spinningSource.restrictSpinningToStart === true,
+  );
   if (parsedSpinning.size.ambiguous) {
     issues.push({ code: 'AMBIGUOUS_SPINNING_SIZE', field: 'spinningSize' });
   }

@@ -331,6 +331,12 @@ void describe('rus-fishsoft forum post parser', () => {
       ['Vib-oyster, ср/быстро', 'Vib-oyster', 'MEDIUM', 'FAST'],
       ['Tvis-101 средний,средняя', 'Tvis-101', 'MEDIUM', 'MEDIUM'],
       ['Pilk-107 с\\м', 'Pilk-107', 'MEDIUM', 'SLOW'],
+      ['Pilk-109.м.м', 'Pilk-109', 'SMALL', 'SLOW'],
+      ['Waterplane-3. Маленький. Медленно', 'Waterplane-3', 'SMALL', 'SLOW'],
+      ['Pilk-115. б. ср', 'Pilk-115', 'LARGE', 'MEDIUM'],
+      ['PopperPlug-5. б-м', 'PopperPlug-5', 'LARGE', 'SLOW'],
+      ['Vob-3014.-маленький, проводка медленная', 'Vob-3014', 'SMALL', 'SLOW'],
+      ['Deep-102.б.проводка быстрая', 'Deep-102', 'LARGE', 'FAST'],
     ] as const;
 
     for (const [baitAndSettings, bait, size, speed] of cases) {
@@ -339,6 +345,72 @@ void describe('rus-fishsoft forum post parser', () => {
       assert.equal(candidate?.baitRaw, bait, baitAndSettings);
       assert.equal(candidate?.spinningSize, size, baitAndSettings);
       assert.equal(candidate?.spinningSpeed, speed, baitAndSettings);
+    }
+  });
+
+  void it('does not split incomplete or unsupported spinning suffixes from the bait', () => {
+    for (const [baitAndSuffix, expectedBait] of [
+      ['Pilk-111,м', 'Pilk-111,м'],
+      ['Pilk-100. б. с', 'Pilk-100'],
+    ] as const) {
+      const [candidate] = parseForumPost(
+        post(`Белорыбица 850 грамм. Поймана на Амур: Протока, ${baitAndSuffix}`),
+      );
+      assert.equal(candidate?.baitRaw, expectedBait, baitAndSuffix);
+      assert.equal(candidate?.spinningSize, null, baitAndSuffix);
+      assert.equal(candidate?.spinningSpeed, null, baitAndSuffix);
+    }
+  });
+
+  void it('preserves one immediate anchored depth after structural spinning settings', () => {
+    const cases = [
+      ['PopperPlug-5 м-б, 8,18 над книгой', 'SMALL', 'FAST', 818, 'над книгой'],
+      ['Creatures-10 м-м. 91.56 точка заброса', 'SMALL', 'SLOW', 9_156, 'точка заброса'],
+    ] as const;
+
+    for (const [baitAndObservation, size, speed, depth, spot] of cases) {
+      const [candidate] = parseForumPost(
+        post(`Белорыбица 850 грамм. Поймана на Амур: Протока, ${baitAndObservation}`),
+      );
+      assert.equal(candidate?.spinningSize, size, baitAndObservation);
+      assert.equal(candidate?.spinningSpeed, speed, baitAndObservation);
+      assert.equal(candidate?.holeDepthCm, depth, baitAndObservation);
+      assert.equal(candidate?.spotPositionRaw, spot, baitAndObservation);
+    }
+
+    const [timeOnly] = parseForumPost(
+      post('Белорыбица 850 грамм. Поймана на Амур: Протока, Pilk-100. б.м. 3.42 ночью'),
+    );
+    assert.equal(timeOnly?.holeDepthCm, null);
+    assert.equal(timeOnly?.spotPositionRaw, null);
+  });
+
+  void it('parses one immediate anchored depth behind repeated structural punctuation', () => {
+    const cases = [
+      ['Мидия.6.55(леска)', 'Мидия', 655, '(леска)'],
+      ['Живец. 2,88(рюкзак)', 'Живец', 288, '(рюкзак)'],
+      ['Икра.33.36м(леска)', 'Икра', 3_336, '(леска)'],
+      ['Морской червь., ямка 55,71 леска/чат', 'Морской червь', 5_571, 'леска/чат'],
+      ['Мясо кальмара.. Ямка 8,14 удочка', 'Мясо кальмара', 814, 'удочка'],
+    ] as const;
+
+    for (const [baitAndObservation, bait, depth, spot] of cases) {
+      const [candidate] = parseForumPost(
+        post(`Белорыбица 850 грамм. Поймана на Амур: Протока, ${baitAndObservation}`),
+      );
+      assert.equal(candidate?.baitRaw, bait, baitAndObservation);
+      assert.equal(candidate?.holeDepthCm, depth, baitAndObservation);
+      assert.equal(candidate?.spotPositionRaw, spot, baitAndObservation);
+    }
+  });
+
+  void it('does not promote unanchored or multiple immediate decimals to a hole', () => {
+    for (const baitAndSuffix of ['Мотыль.05.30.', 'Мотыль. 8,84 и 8,09 леска']) {
+      const [candidate] = parseForumPost(
+        post(`Белорыбица 850 грамм. Поймана на Амур: Протока, ${baitAndSuffix}`),
+      );
+      assert.equal(candidate?.holeDepthCm, null, baitAndSuffix);
+      assert.equal(candidate?.spotPositionRaw, null, baitAndSuffix);
     }
   });
 
@@ -360,6 +432,14 @@ void describe('rus-fishsoft forum post parser', () => {
     assert.equal(prose?.baitRaw, 'Deep-103');
     assert.equal(prose?.spinningSize, null);
     assert.equal(prose?.spinningSpeed, null);
+  });
+
+  void it('does not read structural spinning pairs later inside a depth and spot observation', () => {
+    const [candidate] = parseForumPost(post(generated('6.55 леска, м.м на другую снасть')));
+
+    assert.equal(candidate?.holeDepthCm, 655);
+    assert.equal(candidate?.spinningSize, null);
+    assert.equal(candidate?.spinningSpeed, null);
   });
 
   void it('drops only sentence punctuation before an open raw spot', () => {
