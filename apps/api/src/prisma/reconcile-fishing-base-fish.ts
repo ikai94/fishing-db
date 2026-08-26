@@ -255,6 +255,24 @@ function assertApprovedPreState(plan: ReconciliationPlan): void {
   if (issues.length > 0) throw new FishingBaseFishReconciliationError(issues);
 }
 
+function isApprovedPostState(plan: ReconciliationPlan): boolean {
+  return (
+    plan.currentMemberships === AUTHORITATIVE_CATALOG_COUNTS.fishingBaseFish &&
+    plan.keepPairs.length === AUTHORITATIVE_CATALOG_COUNTS.fishingBaseFish &&
+    plan.addPairs.length === 0 &&
+    plan.removePairs.length === 0 &&
+    plan.currentCatchReports === APPROVED_RECONCILIATION_PRE_STATE.finalCatchReports &&
+    plan.validCatchReports === APPROVED_RECONCILIATION_PRE_STATE.finalCatchReports &&
+    plan.invalidImportedIds.length === 0 &&
+    plan.invalidNativeIds.length === 0
+  );
+}
+
+function assertApprovedDryRunState(plan: ReconciliationPlan): void {
+  if (isApprovedPostState(plan)) return;
+  assertApprovedPreState(plan);
+}
+
 function toSummary(
   mode: 'dry-run' | 'apply',
   plan: ReconciliationPlan,
@@ -292,7 +310,7 @@ export async function auditFishingBaseFishReconciliation(
 ): Promise<FishingBaseFishReconciliationSummary> {
   await verifyLocalWorkbook();
   const plan = await buildPlan(prisma);
-  assertApprovedPreState(plan);
+  assertApprovedDryRunState(plan);
   return toSummary('dry-run', plan);
 }
 

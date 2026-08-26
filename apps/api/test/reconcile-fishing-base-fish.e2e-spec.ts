@@ -10,6 +10,7 @@ import { createPrismaAdapter } from '../src/prisma/prisma-adapter.js';
 import {
   applyFishingBaseFishReconciliation,
   auditFishingBaseFishReconciliation,
+  FishingBaseFishReconciliationError,
 } from '../src/prisma/reconcile-fishing-base-fish.js';
 import {
   clearTestData,
@@ -249,6 +250,31 @@ void describe('FishingBaseFish reconciliation (PostgreSQL e2e)', { concurrency: 
       fishingBaseFish: 3_230,
       catchReports: 3_194,
     });
+
+    const afterApply = await relevantCounts();
+    const postApplyDryRun = await auditFishingBaseFishReconciliation(prisma);
+    assert.deepEqual(postApplyDryRun.memberships, {
+      current: 3_230,
+      keep: 3_230,
+      add: 0,
+      remove: 0,
+      expectedFinal: 3_230,
+    });
+    assert.deepEqual(postApplyDryRun.catchReports, {
+      current: 3_194,
+      valid: 3_194,
+      invalidImported: 0,
+      invalidNative: 0,
+      expectedFinal: 3_194,
+    });
+    assert.equal(postApplyDryRun.writesPerformed, false);
+    assert.deepEqual(await relevantCounts(), afterApply);
+
+    await assert.rejects(
+      applyFishingBaseFishReconciliation(prisma, postApplyDryRun.preStateFingerprint),
+      FishingBaseFishReconciliationError,
+    );
+    assert.deepEqual(await relevantCounts(), afterApply);
 
     const seedRerun = await seedCatalog(prisma);
     assert.deepEqual(seedRerun.fishingBaseFish, { created: 0, reused: 3_230 });
