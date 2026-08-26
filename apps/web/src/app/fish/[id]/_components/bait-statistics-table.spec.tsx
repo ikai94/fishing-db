@@ -1,76 +1,52 @@
 import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, test } from 'vitest';
 import type { BaitStatistic } from '@/lib/bait-statistics-api';
 import { BaitStatisticsTable } from './bait-statistics-table';
 
-const baitFishing: BaitStatistic = {
-  bait: { id: 'bait-shared', name: 'Историческая наживка', isActive: true },
-  fishingMethod: 'BAIT_FISHING',
-  uniqueUsersCount: 7,
-  reportsCount: 18,
-  latestReportCreatedAt: '2026-08-12T22:30:00.000Z',
-};
-
-const spinning: BaitStatistic = {
-  ...baitFishing,
-  fishingMethod: 'SPINNING',
-  uniqueUsersCount: 3,
-  reportsCount: 5,
-  latestReportCreatedAt: '2026-08-11T10:00:00.000Z',
-};
-
-const inactive: BaitStatistic = {
-  bait: { id: 'bait-inactive', name: 'Старая приманка', isActive: false },
-  fishingMethod: 'SPINNING',
-  uniqueUsersCount: 1,
-  reportsCount: 100,
-  latestReportCreatedAt: '2026-08-10T10:00:00.000Z',
-};
+function statistic(index: number): BaitStatistic {
+  return {
+    bait: { id: `bait-${index}`, name: `Наживка ${index}`, isActive: index !== 1 },
+    reportsCount: 20 - index,
+  };
+}
 
 describe('BaitStatisticsTable', () => {
-  test('renders a dense accessible reference table in the server-provided order', () => {
-    render(<BaitStatisticsTable items={[baitFishing, spinning, inactive]} />);
+  test('renders the first five server-sorted Baits and expands locally', async () => {
+    const user = userEvent.setup();
+    const items = Array.from({ length: 7 }, (_, index) => statistic(index + 1));
+    render(<BaitStatisticsTable items={items} />);
 
-    const region = screen.getByRole('region', {
-      name: 'Таблица статистики наживок и приманок',
-    });
     const table = screen.getByRole('table', {
-      name: 'Наживки и приманки в уловах выбранной рыбы на выбранных базах',
+      name: 'На что ловится выбранная рыба на выбранной базе',
     });
-
-    expect(region).toHaveAttribute('tabindex', '0');
     expect(
       within(table)
         .getAllByRole('columnheader')
         .map((header) => header.textContent),
-    ).toEqual([
-      '№',
-      'Наживка / приманка',
-      'Способ ловли в отчётах',
-      'Рыбаков',
-      'Уловов',
-      'Последний отчёт',
-    ]);
-    expect(screen.getByText(/сначала по числу разных рыбаков/i)).toBeVisible();
+    ).toEqual(['№', 'Наживка / приманка', 'Уловов']);
+    expect(within(table).getAllByRole('row')).toHaveLength(6);
+    expect(screen.getByText('Наживка 1').parentElement).toHaveTextContent('Сейчас неактивна');
+    expect(screen.queryByText('Наживка 6')).not.toBeInTheDocument();
 
-    const rows = within(table).getAllByRole('row');
-    expect(rows).toHaveLength(4);
-    expect(rows[1]).toHaveTextContent('1Историческая наживкаЛовля на наживку718');
-    expect(rows[2]).toHaveTextContent('2Историческая наживкаСпиннинг35');
-    expect(rows[3]).toHaveTextContent('3Старая приманкаСейчас неактивнаСпиннинг1100');
-    expect(within(table).getByText('13.08.26').closest('time')).toHaveAttribute(
-      'datetime',
-      baitFishing.latestReportCreatedAt,
+    const showAll = screen.getByRole('button', { name: 'Показать все' });
+    expect(showAll).toHaveAttribute('aria-expanded', 'false');
+    await user.click(showAll);
+    expect(within(table).getAllByRole('row')).toHaveLength(8);
+    expect(screen.getByText('Наживка 7')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Свернуть' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
     );
-    expect(table.querySelector('article')).toBeNull();
-    expect(within(table).queryByRole('link')).not.toBeInTheDocument();
   });
 
-  test('exposes transparent raw counts without recommendation or score wording', () => {
-    render(<BaitStatisticsTable items={[baitFishing]} />);
+  test('shows raw report counts and no expansion control for five items', () => {
+    render(
+      <BaitStatisticsTable items={Array.from({ length: 5 }, (_, index) => statistic(index + 1))} />,
+    );
 
-    expect(screen.getByTitle('7 разных рыбаков')).toHaveTextContent('7');
-    expect(screen.getByTitle('18 отчётов об уловах')).toHaveTextContent('18');
-    expect(screen.queryByText(/best|лучш|рекоменд|интенсив|скор/i)).not.toBeInTheDocument();
+    expect(screen.getByTitle('19 отчётов об уловах')).toHaveTextContent('19');
+    expect(screen.queryByRole('button', { name: 'Показать все' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/рыбаков|способ ловли|последний отчёт/i)).not.toBeInTheDocument();
   });
 });

@@ -5,6 +5,7 @@ import { BaitStatisticsService } from './bait-statistics.service.js';
 import { CatchReportsController } from './catch-reports.controller.js';
 import { CatchReportsService } from './catch-reports.service.js';
 import { FishingConditionStatisticsService } from './fishing-condition-statistics.service.js';
+import { FishCatchAggregatesService } from './fish-catch-aggregates.service.js';
 import { HoleStatisticsService } from './hole-statistics.service.js';
 import { MyCatchReportsController } from './my-catch-reports.controller.js';
 import { CatchReportParserService } from './parser/catch-report-parser.service.js';
@@ -15,6 +16,7 @@ import { CatchReportParserService } from './parser/catch-report-parser.service.j
   providers: [
     CatchReportsService,
     BaitStatisticsService,
+    FishCatchAggregatesService,
     FishingConditionStatisticsService,
     HoleStatisticsService,
     CatchReportParserService,

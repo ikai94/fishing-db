@@ -1,18 +1,22 @@
+'use client';
+
+import { useState } from 'react';
 import styles from '../../../public-catalog.module.css';
-import { fishingMethodLabel } from '@/lib/catch-report-form';
 import type { BaitStatistic } from '@/lib/bait-statistics-api';
-import { formatPublicFishCatchDate } from './public-fish-catch-table';
 
 type BaitStatisticsTableProps = {
   items: readonly BaitStatistic[];
 };
 
+const COMPACT_ITEM_COUNT = 5;
+
 export function BaitStatisticsTable({ items }: BaitStatisticsTableProps) {
+  const [expanded, setExpanded] = useState(false);
+  const visibleItems = expanded ? items : items.slice(0, COMPACT_ITEM_COUNT);
+  const hasHiddenItems = items.length > COMPACT_ITEM_COUNT;
+
   return (
     <>
-      <p className={styles.statisticsNote}>
-        Порядок: сначала по числу разных рыбаков, затем по числу уловов.
-      </p>
       <div
         className={styles.baitTableRegion}
         role="region"
@@ -21,28 +25,18 @@ export function BaitStatisticsTable({ items }: BaitStatisticsTableProps) {
       >
         <table className={styles.baitStatisticsTable}>
           <caption className={styles.visuallyHidden}>
-            Наживки и приманки в уловах выбранной рыбы на выбранных базах
+            На что ловится выбранная рыба на выбранной базе
           </caption>
           <thead>
             <tr>
               <th scope="col">№</th>
               <th scope="col">Наживка / приманка</th>
-              <th scope="col">Способ ловли в отчётах</th>
-              <th scope="col" title="Количество разных рыбаков">
-                Рыбаков
-              </th>
-              <th scope="col" title="Количество отчётов об уловах">
-                Уловов
-              </th>
-              <th scope="col">Последний отчёт</th>
+              <th scope="col">Уловов</th>
             </tr>
           </thead>
           <tbody>
-            {items.map((item, index) => (
-              <tr
-                className={styles.baitStatisticsRow}
-                key={`${item.bait.id}:${item.fishingMethod}`}
-              >
+            {visibleItems.map((item, index) => (
+              <tr className={styles.baitStatisticsRow} key={item.bait.id}>
                 <th className={styles.reportNumber} scope="row">
                   {index + 1}
                 </th>
@@ -52,29 +46,27 @@ export function BaitStatisticsTable({ items }: BaitStatisticsTableProps) {
                     <span className={styles.secondaryText}>Сейчас неактивна</span>
                   ) : null}
                 </td>
-                <td>{fishingMethodLabel(item.fishingMethod)}</td>
-                <td
-                  className={styles.baitStatisticsCountCell}
-                  title={`${item.uniqueUsersCount} разных рыбаков`}
-                >
-                  {item.uniqueUsersCount}
-                </td>
                 <td
                   className={styles.baitStatisticsCountCell}
                   title={`${item.reportsCount} отчётов об уловах`}
                 >
                   {item.reportsCount}
                 </td>
-                <td className={styles.dateCell}>
-                  <time dateTime={item.latestReportCreatedAt}>
-                    {formatPublicFishCatchDate(item.latestReportCreatedAt)}
-                  </time>
-                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      {hasHiddenItems ? (
+        <button
+          className={styles.loadMore}
+          type="button"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((current) => !current)}
+        >
+          {expanded ? 'Свернуть' : 'Показать все'}
+        </button>
+      ) : null}
     </>
   );
 }

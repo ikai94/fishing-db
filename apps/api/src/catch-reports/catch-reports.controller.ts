@@ -19,14 +19,17 @@ import { NotBannedGuard } from '../auth/not-banned.guard.js';
 import { createApplicationValidationPipe } from '../common/validation/validation-exception.factory.js';
 import { BaitStatisticsService } from './bait-statistics.service.js';
 import { CatchReportsService } from './catch-reports.service.js';
+import { BaitStatisticsQueryDto } from './dto/bait-statistics-query.dto.js';
 import { CatchReportParamsDto } from './dto/catch-report-params.dto.js';
 import { CreateCatchReportDto } from './dto/create-catch-report.dto.js';
 import { HoleStatisticsQueryDto } from './dto/hole-statistics-query.dto.js';
+import { FishCatchAggregateQueryDto } from './dto/fish-catch-aggregate-query.dto.js';
 import { LocationObservationsParamsDto } from './dto/location-observations-params.dto.js';
 import { ParseCatchReportDto } from './dto/parse-catch-report.dto.js';
 import { PublicCatchReportListQueryDto } from './dto/public-catch-report-list-query.dto.js';
 import { UpdateCatchReportDto } from './dto/update-catch-report.dto.js';
 import { FishingConditionStatisticsService } from './fishing-condition-statistics.service.js';
+import { FishCatchAggregatesService } from './fish-catch-aggregates.service.js';
 import { HoleStatisticsService } from './hole-statistics.service.js';
 import { CatchReportParserService } from './parser/catch-report-parser.service.js';
 
@@ -35,6 +38,8 @@ export class CatchReportsController {
   constructor(
     @Inject(CatchReportsService) private readonly catchReports: CatchReportsService,
     @Inject(BaitStatisticsService) private readonly baitStatistics: BaitStatisticsService,
+    @Inject(FishCatchAggregatesService)
+    private readonly fishCatchAggregates: FishCatchAggregatesService,
     @Inject(FishingConditionStatisticsService)
     private readonly fishingConditionStatistics: FishingConditionStatisticsService,
     @Inject(HoleStatisticsService) private readonly holeStatistics: HoleStatisticsService,
@@ -51,10 +56,18 @@ export class CatchReportsController {
 
   @Get('statistics/baits')
   listBaitStatistics(
-    @Query(createApplicationValidationPipe(HoleStatisticsQueryDto))
-    query: HoleStatisticsQueryDto,
+    @Query(createApplicationValidationPipe(BaitStatisticsQueryDto))
+    query: BaitStatisticsQueryDto,
   ) {
     return this.baitStatistics.list(query);
+  }
+
+  @Get('statistics/fish-catches')
+  listFishCatchAggregates(
+    @Query(createApplicationValidationPipe(FishCatchAggregateQueryDto))
+    query: FishCatchAggregateQueryDto,
+  ) {
+    return this.fishCatchAggregates.list(query);
   }
 
   @Get('statistics/conditions')

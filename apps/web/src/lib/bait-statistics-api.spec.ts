@@ -1,12 +1,8 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({
-  apiRequest: vi.fn(),
-}));
+const mocks = vi.hoisted(() => ({ apiRequest: vi.fn() }));
 
-vi.mock('./api-client', () => ({
-  apiRequest: mocks.apiRequest,
-}));
+vi.mock('./api-client', () => ({ apiRequest: mocks.apiRequest }));
 
 import {
   decodeBaitStatistic,
@@ -16,28 +12,21 @@ import {
 
 const statistic = {
   bait: { id: 'bait-a', name: 'Мотыль', isActive: false },
-  fishingMethod: 'BAIT_FISHING' as const,
-  uniqueUsersCount: 7,
   reportsCount: 18,
-  latestReportCreatedAt: '2026-08-13T12:34:56.000Z',
 };
 
 describe('bait statistics decoder', () => {
-  test('accepts both historical methods for one Bait ID and preserves the public values', () => {
-    const spinning = { ...statistic, fishingMethod: 'SPINNING' as const };
-
-    expect(decodeBaitStatisticsResponse({ items: [statistic, spinning] })).toEqual([
-      statistic,
-      spinning,
-    ]);
+  test('accepts one report count per Bait and preserves public values', () => {
+    expect(decodeBaitStatisticsResponse({ items: [statistic] })).toEqual([statistic]);
     expect(decodeBaitStatisticsResponse({ items: [] })).toEqual([]);
   });
 
   test.each([
+    { ...statistic, fishingMethod: 'SPINNING' },
+    { ...statistic, uniqueUsersCount: 7 },
+    { ...statistic, latestReportCreatedAt: '2026-08-13T12:34:56.000Z' },
     { ...statistic, author: { id: 'user-1', nickname: 'Скрытый автор' } },
-    { ...statistic, userId: 'user-1' },
     { ...statistic, rawSourceText: 'исходная строка' },
-    { ...statistic, userNoteRaw: 'личный комментарий' },
     { ...statistic, bait: { ...statistic.bait, type: 'LURE' } },
     { ...statistic, bait: { ...statistic.bait, nameNormalized: 'мотыль' } },
   ])('rejects fields outside the aggregate allowlist', (value) => {
@@ -47,12 +36,8 @@ describe('bait statistics decoder', () => {
   });
 
   test.each([
-    { ...statistic, fishingMethod: 'LURE' },
-    { ...statistic, uniqueUsersCount: 0 },
-    { ...statistic, uniqueUsersCount: 19 },
+    { ...statistic, reportsCount: 0 },
     { ...statistic, reportsCount: Number.MAX_SAFE_INTEGER + 1 },
-    { ...statistic, latestReportCreatedAt: 'not-a-date' },
-    { ...statistic, latestReportCreatedAt: '2026-08-13' },
     { ...statistic, bait: { ...statistic.bait, id: '' } },
     { ...statistic, bait: { ...statistic.bait, isActive: 'no' } },
   ])('rejects malformed aggregate values', (value) => {
@@ -61,7 +46,7 @@ describe('bait statistics decoder', () => {
     );
   });
 
-  test('rejects duplicate aggregate identities and malformed wrappers', () => {
+  test('rejects duplicate Baits and malformed wrappers', () => {
     expect(() => decodeBaitStatisticsResponse({ items: [statistic, statistic] })).toThrow();
     expect(() => decodeBaitStatisticsResponse([])).toThrow();
     expect(() => decodeBaitStatisticsResponse({ items: 'not-an-array' })).toThrow();
@@ -75,34 +60,23 @@ describe('bait statistics request', () => {
     mocks.apiRequest.mockResolvedValue({ items: [statistic] });
   });
 
-  test('serializes one deterministic Fish/Base scope and forwards the abort signal', async () => {
+  test('serializes exactly one Fish/Base scope and forwards the abort signal', async () => {
     const controller = new AbortController();
 
     await expect(
-      listBaitStatistics({
-        fishId: 'fish id',
-        baseIds: ['base-b', 'base-a', 'base-b'],
-        signal: controller.signal,
-      }),
+      listBaitStatistics({ fishId: 'fish id', baseId: 'base id', signal: controller.signal }),
     ).resolves.toEqual([statistic]);
 
     expect(mocks.apiRequest).toHaveBeenCalledWith(
-      '/catch-reports/statistics/baits?fishId=fish+id&baseIds=base-a%2Cbase-b',
+      '/catch-reports/statistics/baits?fishId=fish+id&baseId=base+id',
       { signal: controller.signal },
     );
   });
 
-  test('rejects zero and more than 100 unique Bases without sending a request', async () => {
-    await expect(listBaitStatistics({ fishId: 'fish-1', baseIds: [] })).rejects.toThrow(
-      'хотя бы одну рыболовную базу',
+  test('rejects an empty Base without sending a request', async () => {
+    await expect(listBaitStatistics({ fishId: 'fish-1', baseId: '' })).rejects.toThrow(
+      'одну рыболовную базу',
     );
-    await expect(
-      listBaitStatistics({
-        fishId: 'fish-1',
-        baseIds: Array.from({ length: 101 }, (_, index) => `base-${index}`),
-      }),
-    ).rejects.toThrow('не более 100');
-
     expect(mocks.apiRequest).not.toHaveBeenCalled();
   });
 });

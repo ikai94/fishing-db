@@ -1,5 +1,4 @@
 import { apiRequest } from './api-client';
-import type { FishingMethod } from './catch-reports-api';
 
 export type BaitStatistic = {
   bait: {
@@ -7,29 +6,18 @@ export type BaitStatistic = {
     name: string;
     isActive: boolean;
   };
-  fishingMethod: FishingMethod;
-  uniqueUsersCount: number;
   reportsCount: number;
-  latestReportCreatedAt: string;
 };
 
 export type ListBaitStatisticsOptions = {
   fishId: string;
-  baseIds: readonly string[];
+  baseId: string;
   signal?: AbortSignal;
 };
 
-const MAX_BASE_IDS = 100;
 const RESPONSE_KEYS = ['items'] as const;
-const ITEM_KEYS = [
-  'bait',
-  'fishingMethod',
-  'uniqueUsersCount',
-  'reportsCount',
-  'latestReportCreatedAt',
-] as const;
+const ITEM_KEYS = ['bait', 'reportsCount'] as const;
 const BAIT_KEYS = ['id', 'name', 'isActive'] as const;
-const FISHING_METHODS = new Set<FishingMethod>(['BAIT_FISHING', 'SPINNING']);
 
 function invalidResponse(): never {
   throw new Error('Сервер вернул некорректную статистику наживок и приманок');
@@ -52,25 +40,6 @@ function readPositiveInteger(value: unknown): number {
   return value;
 }
 
-function readTimestamp(value: unknown): string {
-  if (typeof value !== 'string') invalidResponse();
-
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime()) || parsed.toISOString() !== value) {
-    invalidResponse();
-  }
-
-  return value;
-}
-
-function readFishingMethod(value: unknown): FishingMethod {
-  if (typeof value !== 'string' || !FISHING_METHODS.has(value as FishingMethod)) {
-    invalidResponse();
-  }
-
-  return value as FishingMethod;
-}
-
 function readBait(value: unknown): BaitStatistic['bait'] {
   if (
     !isRecord(value) ||
@@ -90,16 +59,11 @@ function readBait(value: unknown): BaitStatistic['bait'] {
 export function decodeBaitStatistic(value: unknown): BaitStatistic {
   if (!isRecord(value) || !hasExactKeys(value, ITEM_KEYS)) invalidResponse();
 
-  const uniqueUsersCount = readPositiveInteger(value.uniqueUsersCount);
   const reportsCount = readPositiveInteger(value.reportsCount);
-  if (uniqueUsersCount > reportsCount) invalidResponse();
 
   return {
     bait: readBait(value.bait),
-    fishingMethod: readFishingMethod(value.fishingMethod),
-    uniqueUsersCount,
     reportsCount,
-    latestReportCreatedAt: readTimestamp(value.latestReportCreatedAt),
   };
 }
 
@@ -115,7 +79,7 @@ export function decodeBaitStatisticsResponse(payload: unknown): BaitStatistic[] 
   const identities = new Set<string>();
   return payload.items.map((value) => {
     const item = decodeBaitStatistic(value);
-    const identity = `${item.bait.id}\u0000${item.fishingMethod}`;
+    const identity = item.bait.id;
     if (identities.has(identity)) invalidResponse();
     identities.add(identity);
     return item;
@@ -124,18 +88,14 @@ export function decodeBaitStatisticsResponse(payload: unknown): BaitStatistic[] 
 
 export async function listBaitStatistics({
   fishId,
-  baseIds,
+  baseId,
   signal,
 }: ListBaitStatisticsOptions): Promise<BaitStatistic[]> {
-  const canonicalBaseIds = [...new Set(baseIds)].sort();
-  if (canonicalBaseIds.length === 0) {
-    throw new Error('Для статистики укажите хотя бы одну рыболовную базу');
-  }
-  if (canonicalBaseIds.length > MAX_BASE_IDS) {
-    throw new Error(`Для статистики можно выбрать не более ${MAX_BASE_IDS} рыболовных баз`);
+  if (baseId.length === 0) {
+    throw new Error('Для статистики укажите одну рыболовную базу');
   }
 
-  const query = new URLSearchParams({ fishId, baseIds: canonicalBaseIds.join(',') });
+  const query = new URLSearchParams({ fishId, baseId });
   const payload = await apiRequest<unknown>(`/catch-reports/statistics/baits?${query}`, { signal });
   return decodeBaitStatisticsResponse(payload);
 }

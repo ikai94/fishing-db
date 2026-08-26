@@ -196,6 +196,10 @@
   line-height: 1.38;
 }
 
+.baitStatisticsTable {
+  min-width: 420px;
+}
+
 .baitStatisticsTable th,
 .baitStatisticsTable td,
 .conditionStatisticsTable th,
@@ -230,21 +234,12 @@
 }
 
 .baitStatisticsTable thead th:nth-child(2) {
-  width: 28%;
+  width: auto;
 }
 
 .baitStatisticsTable thead th:nth-child(3) {
-  width: 25%;
-}
-
-.baitStatisticsTable thead th:nth-child(4),
-.baitStatisticsTable thead th:nth-child(5) {
   width: 9ch;
   text-align: right;
-}
-
-.baitStatisticsTable thead th:nth-child(6) {
-  width: 13ch;
 }
 
 .baitStatisticsRow:hover {
@@ -389,7 +384,7 @@
 
 .catchTable {
   width: 100%;
-  min-width: 1060px;
+  min-width: 720px;
   border-collapse: collapse;
   table-layout: fixed;
   font-size: 0.8125rem;
@@ -425,32 +420,21 @@
 }
 
 .catchTable th:nth-child(2) {
-  width: 9ch;
-  text-align: right;
+  width: 32%;
 }
 
 .catchTable th:nth-child(3) {
-  width: 19%;
+  width: 24%;
 }
 
 .catchTable th:nth-child(4) {
-  width: 12%;
+  width: 14ch;
+  text-align: right;
 }
 
 .catchTable th:nth-child(5) {
-  width: 22%;
-}
-
-.catchTable th:nth-child(6) {
-  width: 19%;
-}
-
-.catchTable th:nth-child(7) {
-  width: 12ch;
-}
-
-.catchTable th:nth-child(8) {
-  width: 9ch;
+  width: 19ch;
+  text-align: right;
 }
 
 .observedFishTable {
@@ -600,6 +584,12 @@
 
 .weightCell {
   text-align: right !important;
+}
+
+.aggregateCountCell {
+  text-align: right !important;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .placeCell span,

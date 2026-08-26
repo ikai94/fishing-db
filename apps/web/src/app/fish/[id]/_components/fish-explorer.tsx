@@ -7,7 +7,7 @@ import styles from '../../../public-catalog.module.css';
 import { getApiErrorMessage } from '@/lib/api-client';
 import { type BaitStatistic, listBaitStatistics } from '@/lib/bait-statistics-api';
 import type { PublicFishDetail } from '@/lib/catalog-api';
-import { type CatchReport, listCatchReports } from '@/lib/catch-reports-api';
+import { type FishCatchAggregate, listFishCatchAggregates } from '@/lib/fish-catch-aggregates-api';
 import { readFishBaseSelection, writeFishBaseSelection } from '@/lib/fish-base-selection';
 import {
   type FishingConditionStatistic,
@@ -19,7 +19,7 @@ import { CommonHoleTable } from './common-hole-table';
 import { FishingConditionStatisticsTable } from './fishing-condition-statistics-table';
 import { PublicFishCatchTable } from './public-fish-catch-table';
 
-const REPORT_PAGE_SIZE = 20;
+const AGGREGATE_PAGE_SIZE = 20;
 
 type FeedState =
   | { kind: 'idle'; scopeKey: string }
@@ -27,7 +27,7 @@ type FeedState =
   | {
       kind: 'ready';
       scopeKey: string;
-      items: CatchReport[];
+      items: FishCatchAggregate[];
       nextCursor: string | null;
     }
   | { kind: 'error'; scopeKey: string; message: string };
@@ -391,7 +391,7 @@ export function FishBaitStatistics({
   const requestRef = useRef<ActiveRequest | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<BaitStatisticsState>(() =>
-    selectedBaseIds.length === 0 ? { kind: 'idle', scopeKey } : { kind: 'loading', scopeKey },
+    selectedBaseIds.length !== 1 ? { kind: 'idle', scopeKey } : { kind: 'loading', scopeKey },
   );
 
   useEffect(() => {
@@ -400,7 +400,7 @@ export function FishBaitStatistics({
     requestRef.current?.controller.abort();
     requestRef.current = null;
 
-    if (selectedBaseIds.length === 0) return;
+    if (selectedBaseIds.length !== 1) return;
 
     const controller = new AbortController();
     const request = { controller, revision, scopeKey };
@@ -410,7 +410,7 @@ export function FishBaitStatistics({
       try {
         const items = await listBaitStatistics({
           fishId,
-          baseIds: [...selectedBaseIds],
+          baseId: selectedBaseIds[0]!,
           signal: controller.signal,
         });
         if (!isCurrentRequest(requestRef.current, request, scopeKey, revisionRef.current)) return;
@@ -455,7 +455,7 @@ export function FishBaitStatistics({
 
   const currentState = state.scopeKey === scopeKey ? state : null;
   const isLoading =
-    selectedBaseIds.length > 0 && (currentState === null || currentState.kind === 'loading');
+    selectedBaseIds.length === 1 && (currentState === null || currentState.kind === 'loading');
 
   return (
     <section
@@ -465,13 +465,17 @@ export function FishBaitStatistics({
     >
       <div className={styles.sectionHeader}>
         <h2 className={styles.sectionTitle} id="fish-bait-statistics-heading">
-          Наживки и приманки в уловах
+          На что ловится
         </h2>
       </div>
 
       {selectedBaseIds.length === 0 ? (
+        <p className={styles.statusMessage}>Выберите одну базу, чтобы увидеть статистику.</p>
+      ) : null}
+
+      {selectedBaseIds.length > 1 ? (
         <p className={styles.statusMessage}>
-          Выберите хотя бы одну базу, чтобы увидеть статистику наживок и приманок.
+          Оставьте выбранной одну базу: статистика разных баз не объединяется.
         </p>
       ) : null}
 
@@ -492,7 +496,7 @@ export function FishBaitStatistics({
 
       {currentState?.kind === 'ready' && currentState.items.length === 0 ? (
         <p className={styles.statusMessage}>
-          Для выбранных баз данных о наживках и приманках пока нет.
+          Для выбранной базы данных о наживках и приманках пока нет.
         </p>
       ) : null}
 
@@ -671,10 +675,10 @@ export function FishReportFeed({
 
     async function loadInitialPage() {
       try {
-        const page = await listCatchReports({
+        const page = await listFishCatchAggregates({
           fishId,
           baseIds: [...selectedBaseIds],
-          limit: REPORT_PAGE_SIZE,
+          limit: AGGREGATE_PAGE_SIZE,
           signal: controller.signal,
         });
         if (!isCurrentRequest(initialRequestRef.current, request, scopeKey, revisionRef.current))
@@ -745,11 +749,11 @@ export function FishReportFeed({
     setPaginationError(null);
 
     try {
-      const page = await listCatchReports({
+      const page = await listFishCatchAggregates({
         fishId,
         baseIds: [...selectedBaseIds],
         cursor,
-        limit: REPORT_PAGE_SIZE,
+        limit: AGGREGATE_PAGE_SIZE,
         signal: controller.signal,
       });
       if (!isCurrentRequest(loadMoreRequestRef.current, request, scopeKey, revisionRef.current))
@@ -759,7 +763,7 @@ export function FishReportFeed({
           ? {
               kind: 'ready',
               scopeKey,
-              items: mergeReports(current.items, page.items),
+              items: mergeAggregateRows(current.items, page.items),
               nextCursor: page.nextCursor,
             }
           : current,
@@ -825,7 +829,7 @@ export function FishReportFeed({
 
       {currentState?.kind === 'ready' && currentState.items.length > 0 ? (
         <>
-          <PublicFishCatchTable reports={currentState.items} />
+          <PublicFishCatchTable rows={currentState.items} />
           {currentPaginationError ? (
             <div className={`${styles.statusMessage} ${styles.errorMessage}`} role="alert">
               <p>{currentPaginationError}</p>
@@ -867,9 +871,16 @@ function isCurrentRequest(
   );
 }
 
-function mergeReports(current: CatchReport[], next: CatchReport[]): CatchReport[] {
-  const knownIds = new Set(current.map((report) => report.id));
-  return [...current, ...next.filter((report) => !knownIds.has(report.id))];
+function aggregateIdentity(row: FishCatchAggregate): string {
+  return [row.fish.id, row.fishingBase.id, row.location.id, row.bait.id].join('\0');
+}
+
+function mergeAggregateRows(
+  current: FishCatchAggregate[],
+  next: FishCatchAggregate[],
+): FishCatchAggregate[] {
+  const knownIds = new Set(current.map(aggregateIdentity));
+  return [...current, ...next.filter((row) => !knownIds.has(aggregateIdentity(row)))];
 }
 
 function sameSelection(current: readonly string[], next: readonly string[]): boolean {

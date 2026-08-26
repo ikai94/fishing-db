@@ -1,63 +1,48 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import type { HoleStatisticsQueryDto } from './dto/hole-statistics-query.dto.js';
+import type { BaitStatisticsQueryDto } from './dto/bait-statistics-query.dto.js';
 
 interface BaitStatisticsDatabaseRow {
   baitId: string;
   baitName: string;
   baitIsActive: boolean;
-  fishingMethod: 'BAIT_FISHING' | 'SPINNING';
-  uniqueUsersCount: bigint;
   reportsCount: bigint;
-  latestReportCreatedAt: Date;
 }
 
-function toSafeCount(value: bigint, field: 'uniqueUsersCount' | 'reportsCount'): number {
-  if (value < 0n || value > BigInt(Number.MAX_SAFE_INTEGER)) {
-    throw new RangeError(`${field} exceeds the JavaScript safe integer range`);
+function toSafeCount(value: bigint): number {
+  if (value < 1n || value > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new RangeError('reportsCount exceeds the JavaScript safe positive integer range');
   }
 
   return Number(value);
 }
 
-export function buildBaitStatisticsQuery(fishId: string, baseIds: readonly string[]): Prisma.Sql {
-  const baseIdParameters = Prisma.join(baseIds.map((baseId) => Prisma.sql`${baseId}::uuid`));
-
+export function buildBaitStatisticsQuery(fishId: string, baseId: string): Prisma.Sql {
   return Prisma.sql`
     WITH "baitGroups" AS (
       SELECT
         report."baitId",
-        report."fishingMethod",
-        COUNT(DISTINCT report."contributorKey") AS "uniqueUsersCount",
-        COUNT(*) AS "reportsCount",
-        MAX(report."createdAt") AS "latestReportCreatedAt"
+        COUNT(*) AS "reportsCount"
       FROM "CatchReport" AS report
       INNER JOIN "Location" AS source_location
         ON source_location."id" = report."locationId"
       WHERE report."fishId" = ${fishId}::uuid
-        AND source_location."fishingBaseId" IN (${baseIdParameters})
-      GROUP BY
-        report."baitId",
-        report."fishingMethod"
+        AND source_location."fishingBaseId" = ${baseId}::uuid
+      GROUP BY report."baitId"
     )
     SELECT
       bait."id" AS "baitId",
       bait."name" AS "baitName",
       bait."isActive" AS "baitIsActive",
-      bait_group."fishingMethod" AS "fishingMethod",
-      bait_group."uniqueUsersCount" AS "uniqueUsersCount",
-      bait_group."reportsCount" AS "reportsCount",
-      bait_group."latestReportCreatedAt" AS "latestReportCreatedAt"
+      bait_group."reportsCount" AS "reportsCount"
     FROM "baitGroups" AS bait_group
     INNER JOIN "Bait" AS bait
       ON bait."id" = bait_group."baitId"
     ORDER BY
-      bait_group."uniqueUsersCount" DESC,
       bait_group."reportsCount" DESC,
-      bait_group."latestReportCreatedAt" DESC,
-      bait_group."baitId" ASC,
-      bait_group."fishingMethod"::text COLLATE "C" ASC
+      bait."nameNormalized" COLLATE "C" ASC,
+      bait_group."baitId" ASC
   `;
 }
 
@@ -65,9 +50,9 @@ export function buildBaitStatisticsQuery(fishId: string, baseIds: readonly strin
 export class BaitStatisticsService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
-  async list(query: HoleStatisticsQueryDto) {
+  async list(query: BaitStatisticsQueryDto) {
     const rows = await this.prisma.$queryRaw<BaitStatisticsDatabaseRow[]>(
-      buildBaitStatisticsQuery(query.fishId, query.baseIds),
+      buildBaitStatisticsQuery(query.fishId, query.baseId),
     );
 
     return {
@@ -77,10 +62,7 @@ export class BaitStatisticsService {
           name: row.baitName,
           isActive: row.baitIsActive,
         },
-        fishingMethod: row.fishingMethod,
-        uniqueUsersCount: toSafeCount(row.uniqueUsersCount, 'uniqueUsersCount'),
-        reportsCount: toSafeCount(row.reportsCount, 'reportsCount'),
-        latestReportCreatedAt: row.latestReportCreatedAt,
+        reportsCount: toSafeCount(row.reportsCount),
       })),
     };
   }
