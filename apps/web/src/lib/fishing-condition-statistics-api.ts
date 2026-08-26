@@ -16,8 +16,8 @@ export type FishingConditionStatistic =
     })
   | (FishingConditionStatisticCounts & {
       fishingMethod: 'SPINNING';
-      spinningSize: SpinningSize;
-      spinningSpeed: SpinningSpeed;
+      spinningSize: SpinningSize | null;
+      spinningSpeed: SpinningSpeed | null;
     });
 
 export type ListFishingConditionStatisticsOptions = {
@@ -107,6 +107,14 @@ function readSpinningSpeed(value: unknown): SpinningSpeed {
   return value as SpinningSpeed;
 }
 
+function readNullableSpinningSize(value: unknown): SpinningSize | null {
+  return value === null ? null : readSpinningSize(value);
+}
+
+function readNullableSpinningSpeed(value: unknown): SpinningSpeed | null {
+  return value === null ? null : readSpinningSpeed(value);
+}
+
 export function decodeFishingConditionStatistic(value: unknown): FishingConditionStatistic {
   if (!isRecord(value) || !hasExactKeys(value, ITEM_KEYS)) invalidResponse();
 
@@ -136,8 +144,8 @@ export function decodeFishingConditionStatistic(value: unknown): FishingConditio
 
   return {
     fishingMethod,
-    spinningSize: readSpinningSize(value.spinningSize),
-    spinningSpeed: readSpinningSpeed(value.spinningSpeed),
+    spinningSize: readNullableSpinningSize(value.spinningSize),
+    spinningSpeed: readNullableSpinningSpeed(value.spinningSpeed),
     ...common,
   };
 }

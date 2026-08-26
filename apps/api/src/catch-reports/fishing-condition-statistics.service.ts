@@ -37,15 +37,7 @@ function assertMethodSpecificObservation(row: FishingConditionStatisticsDatabase
     return;
   }
 
-  if (row.fishingMethod === 'SPINNING') {
-    if (row.spinningSize === null || row.spinningSpeed === null) {
-      throw new TypeError(
-        'SPINNING statistics row must have non-null spinningSize and spinningSpeed',
-      );
-    }
-
-    return;
-  }
+  if (row.fishingMethod === 'SPINNING') return;
 
   throw new TypeError('Fishing condition statistics row has an unsupported fishingMethod');
 }

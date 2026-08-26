@@ -86,6 +86,31 @@ void describe('candidate identity manifest', () => {
     );
   });
 
+  void it('allows only higher-ordinal candidates to be appended within a pinned source post', () => {
+    const source = {
+      ...POST,
+      bodyText: `${POST.bodyText}\n\nБелорыбица 800 г.\nПоймана на Амур: Протока, Мотыль.`,
+    };
+    const parsed = parseForumPost(source);
+    const current = buildCandidateIdentityManifest('subforum-70', [source], parsed);
+    const pinned = structuredClone(current);
+    const pinnedPost = pinned.posts[0];
+    assert.ok(pinnedPost);
+    pinnedPost.candidates = pinnedPost.candidates.slice(0, 1);
+
+    const stability = assertCandidateIdentityStable(pinned, current);
+    assert.deepEqual(stability, { appendedCandidateCount: 1, appendedPostIds: ['9000'] });
+
+    const renumbered = structuredClone(current);
+    const appended = renumbered.posts[0]?.candidates[1];
+    assert.ok(appended);
+    appended.candidateOrdinal = 1;
+    assert.throws(
+      () => assertCandidateIdentityStable(pinned, renumbered),
+      CandidateIdentityDriftError,
+    );
+  });
+
   void it('builds an explicit deterministic rebase only for parser boundaries before import', () => {
     const pinned = buildCandidateIdentityManifest('subforum-70', [POST], parseForumPost(POST));
     const current = structuredClone(pinned);

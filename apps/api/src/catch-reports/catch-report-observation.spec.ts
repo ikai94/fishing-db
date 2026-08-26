@@ -6,7 +6,7 @@ import {
 } from './catch-report-observation.js';
 
 void describe('CatchReport v2 observation invariants', () => {
-  void it('requires a hole and rejects spinning data for bait fishing', () => {
+  void it('allows a missing hole but rejects spinning data for bait fishing', () => {
     assert.deepEqual(
       catchReportObservationErrors({
         fishingMethod: 'BAIT_FISHING',
@@ -15,14 +15,13 @@ void describe('CatchReport v2 observation invariants', () => {
         spinningSpeed: 'SLOW',
       }),
       {
-        holeDepthCm: ['Для ловли на наживку укажите глубину ямки'],
         spinningSize: ['Размер спиннинга неприменим для ловли на наживку'],
         spinningSpeed: ['Скорость проводки неприменима для ловли на наживку'],
       },
     );
   });
 
-  void it('requires both spinning parameters and allows an optional hole', () => {
+  void it('allows a spinning observation without size, speed, or hole', () => {
     assert.deepEqual(
       catchReportObservationErrors({
         fishingMethod: 'SPINNING',
@@ -30,10 +29,7 @@ void describe('CatchReport v2 observation invariants', () => {
         spinningSize: null,
         spinningSpeed: null,
       }),
-      {
-        spinningSize: ['Для спиннинга укажите размер'],
-        spinningSpeed: ['Для спиннинга укажите скорость проводки'],
-      },
+      {},
     );
     assert.equal(
       isCatchReportObservationComplete({
@@ -46,11 +42,11 @@ void describe('CatchReport v2 observation invariants', () => {
     );
   });
 
-  void it('accepts a complete bait-fishing observation', () => {
+  void it('accepts bait fishing with or without a hole', () => {
     assert.equal(
       isCatchReportObservationComplete({
         fishingMethod: 'BAIT_FISHING',
-        holeDepthCm: 600,
+        holeDepthCm: null,
         spinningSize: null,
         spinningSpeed: null,
       }),

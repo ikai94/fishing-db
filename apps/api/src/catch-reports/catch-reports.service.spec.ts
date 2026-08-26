@@ -257,18 +257,20 @@ void describe('CatchReportsService v2', () => {
     assert.equal('importKey' in result.report, false);
   });
 
-  void it('requires a hole for BAIT and both structured fields for SPINNING', async () => {
-    const baitService = new CatchReportsService(createPrisma().prisma);
-    await assert.rejects(
-      baitService.create(USER_ID, createDto({ holeDepthCm: null })),
-      hasFieldError('holeDepthCm'),
+  void it('allows BAIT without a hole and SPINNING without structured settings', async () => {
+    await new CatchReportsService(createPrisma().prisma).create(
+      USER_ID,
+      createDto({ holeDepthCm: null }),
+    );
+    await new CatchReportsService(createPrisma({ baitType: 'LURE' }).prisma).create(
+      USER_ID,
+      createDto({ holeDepthCm: null, spinningSize: null, spinningSpeed: null }),
     );
 
-    const spinningService = new CatchReportsService(createPrisma({ baitType: 'LURE' }).prisma);
     await assert.rejects(
-      spinningService.create(
+      new CatchReportsService(createPrisma().prisma).create(
         USER_ID,
-        createDto({ holeDepthCm: 1_078, spinningSize: null, spinningSpeed: null }),
+        createDto({ spinningSize: 'MEDIUM', spinningSpeed: 'SLOW' }),
       ),
       hasFieldError('spinningSize'),
     );
@@ -391,27 +393,18 @@ void describe('CatchReportsService v2', () => {
     });
   });
 
-  void it('re-derives an actual BAIT to LURE change and requires spinning observations', async () => {
+  void it('re-derives an actual BAIT to LURE change without requiring spinning observations', async () => {
     const prisma = updatePrisma({ replacementType: 'LURE' });
     const service = new CatchReportsService(prisma.value);
 
-    await assert.rejects(
-      service.update(USER_ID, REPORT_ID, { baitId: OTHER_BAIT_ID }),
-      hasFieldError('spinningSize'),
-    );
-
-    await service.update(USER_ID, REPORT_ID, {
-      baitId: OTHER_BAIT_ID,
-      spinningSize: 'MEDIUM',
-      spinningSpeed: 'SLOW',
-    });
+    await service.update(USER_ID, REPORT_ID, { baitId: OTHER_BAIT_ID });
     const data = asObject(asObject(prisma.lastUpdate()).data);
     assert.equal(data.fishingMethod, 'SPINNING');
-    assert.equal(data.spinningSize, 'MEDIUM');
-    assert.equal(data.spinningSpeed, 'SLOW');
+    assert.equal('spinningSize' in data, false);
+    assert.equal('spinningSpeed' in data, false);
   });
 
-  void it('re-derives LURE to BAIT, requires a hole, and clears stale spinning data', async () => {
+  void it('re-derives LURE to BAIT without requiring a hole and clears stale spinning data', async () => {
     const prisma = updatePrisma({
       currentMethod: 'SPINNING',
       currentHole: null,
@@ -421,27 +414,16 @@ void describe('CatchReportsService v2', () => {
     });
     const service = new CatchReportsService(prisma.value);
 
-    await assert.rejects(
-      service.update(USER_ID, REPORT_ID, { baitId: OTHER_BAIT_ID }),
-      hasFieldError('holeDepthCm'),
-    );
-
-    await service.update(USER_ID, REPORT_ID, {
-      baitId: OTHER_BAIT_ID,
-      holeDepthCm: 555,
-      spinningSize: 'MEDIUM',
-      spinningSpeed: 'SLOW',
-    });
+    await service.update(USER_ID, REPORT_ID, { baitId: OTHER_BAIT_ID });
     assert.deepEqual(asObject(asObject(prisma.lastUpdate()).data), {
       baitId: OTHER_BAIT_ID,
-      holeDepthCm: 555,
       fishingMethod: 'BAIT_FISHING',
       spinningSize: null,
       spinningSpeed: null,
     });
   });
 
-  void it('allows unrelated edits on a preserved incomplete legacy row', async () => {
+  void it('allows unrelated edits on a BAIT row without a hole', async () => {
     const prisma = updatePrisma({ currentMethod: 'BAIT_FISHING', currentHole: null });
     await new CatchReportsService(prisma.value).update(USER_ID, REPORT_ID, { weightGrams: 50 });
     assert.deepEqual(asObject(asObject(prisma.lastUpdate()).data), { weightGrams: 50 });

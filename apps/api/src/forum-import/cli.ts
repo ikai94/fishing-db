@@ -58,6 +58,8 @@ export interface ForumStageSummary {
   outputDirectory: string;
   identityRebased: boolean;
   identityChangedPostIds: string[];
+  identityAppendedCandidates: number;
+  identityAppendedPostIds: string[];
 }
 
 export async function runForumCli(
@@ -150,9 +152,13 @@ async function stageScope(
   const identitiesPath = join(outputDirectory, 'technical', 'candidate-identities.json');
   const pinnedIdentities = await readJsonFile<CandidateIdentityManifest>(identitiesPath);
   let identityDrift: CandidateIdentityDriftError | null = null;
+  let identityAppendedCandidates = 0;
+  let identityAppendedPostIds: string[] = [];
   if (pinnedIdentities !== null) {
     try {
-      assertCandidateIdentityStable(pinnedIdentities, currentIdentities);
+      const stability = assertCandidateIdentityStable(pinnedIdentities, currentIdentities);
+      identityAppendedCandidates = stability.appendedCandidateCount;
+      identityAppendedPostIds = stability.appendedPostIds;
     } catch (error: unknown) {
       if (!(error instanceof CandidateIdentityDriftError)) throw error;
       identityDrift = error;
@@ -258,6 +264,8 @@ async function stageScope(
       outputDirectory,
       identityRebased: identityRebase !== null,
       identityChangedPostIds: identityRebase?.changedPosts.map((post) => post.postId) ?? [],
+      identityAppendedCandidates,
+      identityAppendedPostIds,
     };
   } finally {
     await prisma.$disconnect();

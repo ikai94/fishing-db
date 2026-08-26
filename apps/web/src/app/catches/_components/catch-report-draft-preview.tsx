@@ -3,7 +3,7 @@
 import { useCallback, useState } from 'react';
 import styles from '../../catch-reports.module.css';
 import { CatchReportForm, type CatchReportFormValidationState } from './catch-report-form';
-import type { CatchReportDraft, DraftStatus, FishingMethod } from '@/lib/catch-reports-api';
+import type { CatchReportDraft, DraftStatus } from '@/lib/catch-reports-api';
 
 const FIELD_LABELS: Record<keyof CatchReportDraft['fields'], string> = {
   fishingBase: 'Рыболовная база',
@@ -46,10 +46,6 @@ export function CatchReportDraftPreview({
       !isDraftFieldName(issue.field) ||
       liveBlockingFields.has(issue.field),
   );
-  const hasBlockingSpinning =
-    liveBlockingFields.has('spinningSize') || liveBlockingFields.has('spinningSpeed');
-  const hasBlockingHole = liveBlockingFields.has('holeDepthCm');
-
   return (
     <div className={styles.previewStack}>
       <section
@@ -57,13 +53,9 @@ export function CatchReportDraftPreview({
         aria-live="polite"
       >
         <h2 className={styles.forbiddenTitle}>
-          {hasBlockingSpinning
-            ? 'Строка распознана. Дополните параметры спиннинга.'
-            : hasBlockingHole
-              ? 'Строка распознана. Укажите яму перед сохранением.'
-              : validationState.canConfirm
-                ? 'Черновик готов. Проверьте данные и предупреждения.'
-                : 'Исправьте обязательные поля перед публикацией.'}
+          {validationState.canConfirm
+            ? 'Черновик готов. Проверьте данные и предупреждения.'
+            : 'Исправьте обязательные поля перед публикацией.'}
         </h2>
         <p>
           Поля с ошибками можно исправить ниже. Публикация всегда пройдёт полную проверку на
@@ -84,7 +76,6 @@ export function CatchReportDraftPreview({
                   field={name}
                   status={field.status}
                   blocking={liveBlockingFields.has(name)}
-                  fishingMethod={validationState.fishingMethod}
                 />
                 {field.sourceText !== null ? (
                   <span className={styles.sourceExcerpt}>{field.sourceText}</span>
@@ -145,22 +136,22 @@ function StatusBadge({
   field,
   status,
   blocking,
-  fishingMethod,
 }: {
   field: keyof CatchReportDraft['fields'];
   status: DraftStatus;
   blocking: boolean;
-  fishingMethod: FishingMethod | null;
 }) {
-  const noLongerRequired =
-    (field === 'holeDepthCm' && fishingMethod === 'SPINNING') ||
-    ((field === 'spinningSize' || field === 'spinningSpeed') && fishingMethod === 'BAIT_FISHING');
   const label = blocking
     ? 'Нужно исправить'
-    : noLongerRequired && status !== 'RESOLVED'
-      ? 'Не требуется'
-      : status === 'RESOLVED'
-        ? 'Распознано'
+    : status === 'RESOLVED'
+      ? 'Распознано'
+      : field === 'holeDepthCm' ||
+          field === 'spotPositionRaw' ||
+          field === 'fishingNote' ||
+          field === 'spinningSize' ||
+          field === 'spinningSpeed' ||
+          field === 'userNoteRaw'
+        ? 'Не распознано'
         : 'Исправлено';
   return (
     <span

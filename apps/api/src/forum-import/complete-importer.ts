@@ -19,6 +19,7 @@ const REQUIRED_MIGRATIONS = [
   '20260809145137_add_catch_report_v2_compatibility',
   '20260809151033_enforce_catch_report_v2_invariant',
   '20260820120000_add_catch_report_contributor_identity',
+  '20260826120000_relax_catch_report_observations',
 ] as const;
 const REQUIRED_COLUMNS = [
   'userId',
@@ -251,7 +252,8 @@ export async function assertForumImportSchemaReady(prisma: PrismaClient): Promis
         '20260809144907_replace_location_fish_with_fishing_base_fish',
         '20260809145137_add_catch_report_v2_compatibility',
         '20260809151033_enforce_catch_report_v2_invariant',
-        '20260820120000_add_catch_report_contributor_identity'
+        '20260820120000_add_catch_report_contributor_identity',
+        '20260826120000_relax_catch_report_observations'
       )
     `;
     const successful = new Set(

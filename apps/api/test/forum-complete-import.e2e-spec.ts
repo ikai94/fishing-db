@@ -276,7 +276,7 @@ void describe(
 
     void test('counts only COMPLETE domain failures as validationFailed and writes nothing', async () => {
       const graph = await createGraph();
-      const invalidComplete = completeCandidate(graph, 1, { holeDepthCm: null });
+      const invalidComplete = completeCandidate(graph, 1, { holeDepthCm: 0 });
       const partial = completeCandidate(graph, 2, {
         weightGrams: null,
         status: 'USABLE_PARTIAL',

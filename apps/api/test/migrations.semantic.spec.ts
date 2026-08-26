@@ -20,6 +20,7 @@ const PHASE_FIVE_COMPATIBILITY_MIGRATIONS = [
 ] as const;
 const PHASE_FIVE_INVARIANT_MIGRATION = '20260809151033_enforce_catch_report_v2_invariant';
 const CONTRIBUTOR_IDENTITY_MIGRATION = '20260820120000_add_catch_report_contributor_identity';
+const RELAX_OBSERVATIONS_MIGRATION = '20260826120000_relax_catch_report_observations';
 
 loadEnvironmentFile({ path: `${API_DIRECTORY}/.env`, quiet: true });
 loadEnvironmentFile({ path: `${API_DIRECTORY}/test/.env`, quiet: true });
@@ -281,6 +282,27 @@ void describe('Phase 5 migration semantics (disposable PostgreSQL schema)', () =
       client.query(`
         UPDATE "CatchReport"
         SET "spinningSpeed" = NULL
+        WHERE "id" = '00000000-0000-4000-8000-000000000040'
+      `),
+      /CatchReport_method_observations_check/u,
+    );
+
+    await client.query('ROLLBACK');
+    await applyMigration(RELAX_OBSERVATIONS_MIGRATION);
+    await client.query(`
+      UPDATE "CatchReport"
+      SET "spinningSize" = NULL, "spinningSpeed" = NULL
+      WHERE "id" = '00000000-0000-4000-8000-000000000040'
+    `);
+    await client.query(`
+      UPDATE "CatchReport"
+      SET "fishingMethod" = 'BAIT_FISHING'
+      WHERE "id" = '00000000-0000-4000-8000-000000000040'
+    `);
+    await assert.rejects(
+      client.query(`
+        UPDATE "CatchReport"
+        SET "spinningSize" = 'MEDIUM'
         WHERE "id" = '00000000-0000-4000-8000-000000000040'
       `),
       /CatchReport_method_observations_check/u,

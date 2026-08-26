@@ -896,12 +896,11 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
     assert.equal(maximum.rawSourceText, maximumSource);
   });
 
-  void test('enforces BAIT_FISHING and SPINNING observations when creating reports', async () => {
+  void test('keeps observations optional while rejecting spinning data for BAIT reports', async () => {
     const actor = await createActor();
     const baitCatalog = await createCatalog({ baitType: 'BAIT' });
 
     for (const [body, field] of [
-      [createInput(baitCatalog, { holeDepthCm: null }), 'holeDepthCm'],
       [createInput(baitCatalog, { spinningSize: 'SMALL' }), 'spinningSize'],
       [createInput(baitCatalog, { spinningSpeed: 'FAST' }), 'spinningSpeed'],
     ] as const) {
@@ -913,37 +912,25 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
     }
 
     const baitReport = await createReport(actor, baitCatalog, {
-      holeDepthCm: 361,
+      holeDepthCm: null,
       spinningSize: null,
       spinningSpeed: null,
     });
     assert.equal(baitReport.fishingMethod, 'BAIT_FISHING');
-    assert.equal(baitReport.holeDepthCm, 361);
+    assert.equal(baitReport.holeDepthCm, null);
     assert.equal(baitReport.spinningSize, null);
     assert.equal(baitReport.spinningSpeed, null);
 
     const spinningCatalog = await createCatalog({ baitType: 'LURE' });
-    for (const [overrides, field] of [
-      [{ holeDepthCm: null }, 'spinningSize'],
-      [{ holeDepthCm: null, spinningSize: 'MEDIUM' as const }, 'spinningSpeed'],
-      [{ holeDepthCm: null, spinningSpeed: 'SLOW' as const }, 'spinningSize'],
-    ] as const) {
-      const response = await mutation(api().post('/api/v1/catch-reports'), actor.cookie)
-        .send(createInput(spinningCatalog, overrides))
-        .expect(400);
-      assert.equal(readErrorCode(response.body as unknown), 'VALIDATION_ERROR');
-      assert.ok(field in asObject(asObject(response.body as unknown).errors));
-    }
-
-    const spinningWithoutHole = await createReport(actor, spinningCatalog, {
+    const spinningWithoutSettings = await createReport(actor, spinningCatalog, {
       holeDepthCm: null,
-      spinningSize: 'MEDIUM',
-      spinningSpeed: 'SLOW',
+      spinningSize: null,
+      spinningSpeed: null,
     });
-    assert.equal(spinningWithoutHole.fishingMethod, 'SPINNING');
-    assert.equal(spinningWithoutHole.holeDepthCm, null);
-    assert.equal(spinningWithoutHole.spinningSize, 'MEDIUM');
-    assert.equal(spinningWithoutHole.spinningSpeed, 'SLOW');
+    assert.equal(spinningWithoutSettings.fishingMethod, 'SPINNING');
+    assert.equal(spinningWithoutSettings.holeDepthCm, null);
+    assert.equal(spinningWithoutSettings.spinningSize, null);
+    assert.equal(spinningWithoutSettings.spinningSpeed, null);
 
     const spinningWithHole = await createReport(actor, spinningCatalog, {
       holeDepthCm: 1_078,
@@ -1396,13 +1383,16 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
       .send({ baitId: inactiveBait.id })
       .expect(409);
     assert.equal(readErrorCode(rejectedBait.body as unknown), 'BAIT_INACTIVE');
-    const missingSpinning = await mutation(
-      api().patch(`/api/v1/catch-reports/${reportId}`),
-      owner.cookie,
-    )
-      .send({ baitId: activeBait.id })
-      .expect(400);
-    assert.equal(readErrorCode(missingSpinning.body as unknown), 'VALIDATION_ERROR');
+    const transitionedWithoutSpinningSettings = readReport(
+      (
+        await mutation(api().patch(`/api/v1/catch-reports/${reportId}`), owner.cookie)
+          .send({ baitId: activeBait.id })
+          .expect(200)
+      ).body as unknown,
+    );
+    assert.equal(transitionedWithoutSpinningSettings.fishingMethod, 'SPINNING');
+    assert.equal(transitionedWithoutSpinningSettings.spinningSize, null);
+    assert.equal(transitionedWithoutSpinningSettings.spinningSpeed, null);
     await mutation(api().patch(`/api/v1/catch-reports/${reportId}`), owner.cookie)
       .send({ baitId: activeBait.id, spinningSize: 'MEDIUM', spinningSpeed: 'SLOW' })
       .expect(200);
@@ -1567,13 +1557,16 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
     assert.equal(readErrorCode(sameBaitCannotReclassify.body as unknown), 'VALIDATION_ERROR');
 
     const newLure = await createBait('LURE');
-    const incompleteBaitToLure = await mutation(
-      api().patch(`/api/v1/catch-reports/${reportId}`),
-      owner.cookie,
-    )
-      .send({ baitId: newLure.id })
-      .expect(400);
-    assert.equal(readErrorCode(incompleteBaitToLure.body as unknown), 'VALIDATION_ERROR');
+    const baitToLureWithoutSettings = readReport(
+      (
+        await mutation(api().patch(`/api/v1/catch-reports/${reportId}`), owner.cookie)
+          .send({ baitId: newLure.id })
+          .expect(200)
+      ).body as unknown,
+    );
+    assert.equal(baitToLureWithoutSettings.fishingMethod, 'SPINNING');
+    assert.equal(baitToLureWithoutSettings.spinningSize, null);
+    assert.equal(baitToLureWithoutSettings.spinningSpeed, null);
 
     const baitToLure = readReport(
       (
@@ -1667,43 +1660,12 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
     for (const invalidInvariantWrite of [
       () =>
         prisma.catchReport.create({
-          data: { ...baseData, weightGrams: 1, holeDepthCm: null },
-        }),
-      () =>
-        prisma.catchReport.create({
           data: {
             ...baseData,
             weightGrams: 1,
             holeDepthCm: 1,
             spinningSize: 'SMALL',
             spinningSpeed: 'SLOW',
-          },
-        }),
-      () =>
-        prisma.catchReport.create({
-          data: {
-            ...baseData,
-            fishingMethod: 'SPINNING',
-            weightGrams: 1,
-            holeDepthCm: null,
-          },
-        }),
-      () =>
-        prisma.catchReport.create({
-          data: {
-            ...baseData,
-            fishingMethod: 'SPINNING',
-            weightGrams: 1,
-            spinningSize: 'SMALL',
-          },
-        }),
-      () =>
-        prisma.catchReport.create({
-          data: {
-            ...baseData,
-            fishingMethod: 'SPINNING',
-            weightGrams: 1,
-            spinningSpeed: 'FAST',
           },
         }),
       () =>
@@ -1736,6 +1698,24 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
       await assert.rejects(invalidInvariantWrite());
     }
     assert.equal(await prisma.catchReport.count(), 0);
+
+    const baitWithoutHole = await prisma.catchReport.create({
+      data: { ...baseData, weightGrams: 1, holeDepthCm: null },
+    });
+    const spinningWithoutSettings = await prisma.catchReport.create({
+      data: {
+        ...baseData,
+        fishingMethod: 'SPINNING',
+        weightGrams: 1,
+        holeDepthCm: null,
+      },
+    });
+    assert.equal(baitWithoutHole.holeDepthCm, null);
+    assert.equal(spinningWithoutSettings.spinningSize, null);
+    assert.equal(spinningWithoutSettings.spinningSpeed, null);
+    await prisma.catchReport.deleteMany({
+      where: { id: { in: [baitWithoutHole.id, spinningWithoutSettings.id] } },
+    });
 
     await assert.rejects(
       prisma.catchReport.create({

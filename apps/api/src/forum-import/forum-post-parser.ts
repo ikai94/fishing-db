@@ -470,6 +470,66 @@ function segmentCandidates(bodyText: string, topicFishRaw: string | null): Candi
     .sort((left, right) => left.start - right.start);
 }
 
+const ADJACENT_GENERATED_CONTEXT =
+  /^\s*\u043f\u043e\u0439\u043c\u0430\u043d(?:\u0430|\u043e)?\s+\u043d\u0430\s+[^:\r\n]+\s*:\s*[^,\r\n]+\s*,\s*\S/iu;
+
+/**
+ * Finds the narrowly approved generated catch layout whose weight and "caught on" clauses are
+ * split across two adjacent lines. Existing candidate segments are excluded so this supplemental
+ * pass cannot alter or duplicate legacy boundaries.
+ */
+function segmentAdjacentLineCandidates(
+  bodyText: string,
+  legacySegments: readonly CandidateSegment[],
+): CandidateSegment[] {
+  const segments: CandidateSegment[] = [];
+
+  for (const paragraph of paragraphRanges(bodyText)) {
+    const paragraphText = bodyText.slice(paragraph.start, paragraph.end);
+    LINE.lastIndex = 0;
+    const lines = Array.from(paragraphText.matchAll(LINE), (match) => ({
+      start: paragraph.start + match.index,
+      end: paragraph.start + match.index + match[0].length,
+      text: match[0],
+    }));
+    const starts: number[] = [];
+
+    for (let index = 0; index + 1 < lines.length; index += 1) {
+      const weightLine = lines[index];
+      const contextLine = lines[index + 1];
+      if (
+        weightLine === undefined ||
+        contextLine === undefined ||
+        !HAS_UNIT_WEIGHT.test(weightLine.text) ||
+        !ADJACENT_GENERATED_CONTEXT.test(contextLine.text)
+      ) {
+        continue;
+      }
+
+      const pair = { start: weightLine.start, end: contextLine.end };
+      if (legacySegments.some((segment) => rangesOverlap(segment, pair))) continue;
+
+      const leading = weightLine.text.length - weightLine.text.trimStart().length;
+      starts.push(weightLine.start + leading);
+    }
+
+    const uniqueStarts = [...new Set(starts)].sort((left, right) => left - right);
+    uniqueStarts.forEach((start, index) => {
+      const nextLegacyStart = legacySegments.find((segment) => segment.start > start)?.start;
+      const end = Math.min(
+        uniqueStarts[index + 1] ?? paragraph.end,
+        nextLegacyStart ?? paragraph.end,
+      );
+      const range = trimRange(bodyText, start, end);
+      if (range !== null && !legacySegments.some((segment) => rangesOverlap(segment, range))) {
+        segments.push(range);
+      }
+    });
+  }
+
+  return segments.sort((left, right) => left.start - right.start);
+}
+
 function selectLabelValue(
   entries: readonly LabelEntry[],
   key: LabelKey,
@@ -1688,8 +1748,24 @@ export function parseForumPost(input: TechnicalForumPost): ParsedForumCandidate[
     post.memberId === null ? null : deriveExternalContributorKey(post.memberId);
 
   const topicFishRaw = topicFishNameRaw(post.topicTitle);
-  const candidates = segmentCandidates(post.bodyText, topicFishRaw).map((segment, index) =>
+  const legacySegments = segmentCandidates(post.bodyText, topicFishRaw);
+  const legacyCandidates = legacySegments.map((segment, index) =>
     parseCandidate(post, segment, index + 1, contributorKey),
   );
-  return applyExplicitSameHoleAndBaitContext(post, applySharedHeaderDepths(post, candidates));
+  const stableLegacyCandidates = applyExplicitSameHoleAndBaitContext(
+    post,
+    applySharedHeaderDepths(post, legacyCandidates),
+  );
+  const supplementalCandidates = segmentAdjacentLineCandidates(post.bodyText, legacySegments).map(
+    (segment, index) =>
+      parseCandidate(post, segment, legacyCandidates.length + index + 1, contributorKey),
+  );
+
+  return [
+    ...stableLegacyCandidates,
+    ...applyExplicitSameHoleAndBaitContext(
+      post,
+      applySharedHeaderDepths(post, supplementalCandidates),
+    ),
+  ];
 }

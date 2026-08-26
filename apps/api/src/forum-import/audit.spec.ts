@@ -127,11 +127,12 @@ void describe('forum import audit and review outputs', () => {
     const complete = candidate('100', '10', 1);
     const partial = candidate('100', '10', 2, {
       status: 'USABLE_PARTIAL',
+      weightGrams: null,
       fishingMethod: 'SPINNING',
       holeDepthCm: null,
       spotPositionRaw: null,
       userNoteRaw: 'дальний заброс',
-      issues: [{ code: 'MISSING_SPINNING_SIZE', field: 'spinningSize' }],
+      issues: [{ code: 'MISSING_WEIGHT_GRAMS', field: 'weightGrams' }],
       resolution: {
         ...complete.resolution,
         bait: {
@@ -224,7 +225,7 @@ void describe('forum import audit and review outputs', () => {
     const second = candidate('100', '10', 2);
     const unresolved = candidate('200', '20', 1, {
       status: 'UNRESOLVED',
-      issues: [{ code: 'AMBIGUOUS_HOLE_DEPTH', field: 'holeDepthCm' }],
+      issues: [{ code: 'UNRESOLVED_FISH', field: 'fish' }],
     });
     const posts = [post('300', '30'), post('200', '20'), post('100', '10')];
 

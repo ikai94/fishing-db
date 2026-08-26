@@ -21,10 +21,6 @@ export function catchReportObservationErrors(
   const errors: CatchReportObservationErrors = {};
 
   if (observation.fishingMethod === 'BAIT_FISHING') {
-    if (observation.holeDepthCm === null) {
-      errors.holeDepthCm = ['Для ловли на наживку укажите глубину ямки'];
-    }
-
     if (observation.spinningSize !== null) {
       errors.spinningSize = ['Размер спиннинга неприменим для ловли на наживку'];
     }
@@ -34,14 +30,6 @@ export function catchReportObservationErrors(
     }
 
     return errors;
-  }
-
-  if (observation.spinningSize === null) {
-    errors.spinningSize = ['Для спиннинга укажите размер'];
-  }
-
-  if (observation.spinningSpeed === null) {
-    errors.spinningSpeed = ['Для спиннинга укажите скорость проводки'];
   }
 
   return errors;

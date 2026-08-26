@@ -51,9 +51,6 @@ const FIELD_MESSAGES: Record<string, string> = {
   bait: 'Не удалось определить наживку или приманку',
   weightGrams: 'Не удалось определить вес',
   fishingMethod: 'Метод ловли нельзя определить без наживки или приманки',
-  holeDepthCm: 'Для ловли на наживку укажите глубину ямки',
-  spinningSize: 'Для спиннинга укажите размер',
-  spinningSpeed: 'Для спиннинга укажите скорость проводки',
 };
 
 function normalizedSource(source: SourceRange): string | null {
@@ -129,7 +126,7 @@ function proposedTextIssue(
   if (lengthPattern.test(value) && validPattern.test(value)) return null;
 
   return {
-    severity: 'BLOCKING',
+    severity: 'WARNING',
     code: isPosition ? 'INVALID_SPOT_POSITION_RAW' : 'INVALID_USER_NOTE_RAW',
     field,
     message: isPosition
@@ -192,6 +189,11 @@ export class CatchReportParserService {
         ? baitResult.observationSource
         : gameLine.observationSource;
     const observation = parseObservation(rawSourceText, observationSource, fishingMethod, anchors);
+    const spotPositionIssue = proposedTextIssue(
+      'spotPositionRaw',
+      observation.spotPositionRaw?.value ?? null,
+    );
+    const userNoteIssue = proposedTextIssue('userNoteRaw', observation.userNoteRaw?.value ?? null);
 
     const membership = await this.resolveMembership(
       baseResolved?.item ?? null,
@@ -243,19 +245,23 @@ export class CatchReportParserService {
             ? resolvedField(
                 observation.holeDepthCm.value,
                 observation.holeDepthCm.source.text,
-                fishingMethod === 'BAIT_FISHING',
+                false,
               )
-            : fishingMethod === 'BAIT_FISHING'
-              ? missingField()
-              : resolvedField(null, null, false),
+            : resolvedField(null, null, false),
         spotPositionRaw:
           observation.spotPositionRaw === null
             ? resolvedField(null, null, false)
-            : resolvedField(
-                observation.spotPositionRaw.value,
-                observation.spotPositionRaw.source.text,
-                false,
-              ),
+            : spotPositionIssue !== null
+              ? unresolvedField(
+                  observation.spotPositionRaw.source.text,
+                  spotPositionIssue.code,
+                  false,
+                )
+              : resolvedField(
+                  observation.spotPositionRaw.value,
+                  observation.spotPositionRaw.source.text,
+                  false,
+                ),
         fishingNote:
           observation.fishingNote === null
             ? resolvedField(null, null, false)
@@ -269,29 +275,27 @@ export class CatchReportParserService {
             ? resolvedField(
                 observation.spinningSize.value,
                 observation.spinningSize.source.text,
-                fishingMethod === 'SPINNING',
+                false,
               )
-            : fishingMethod === 'SPINNING'
-              ? missingField()
-              : resolvedField(null, null, false),
+            : resolvedField(null, null, false),
         spinningSpeed:
           observation.spinningSpeed !== null
             ? resolvedField(
                 observation.spinningSpeed.value,
                 observation.spinningSpeed.source.text,
-                fishingMethod === 'SPINNING',
+                false,
               )
-            : fishingMethod === 'SPINNING'
-              ? missingField()
-              : resolvedField(null, null, false),
+            : resolvedField(null, null, false),
         userNoteRaw:
           observation.userNoteRaw === null
             ? resolvedField(null, null, false)
-            : resolvedField(
-                observation.userNoteRaw.value,
-                observation.userNoteRaw.source.text,
-                false,
-              ),
+            : userNoteIssue !== null
+              ? unresolvedField(observation.userNoteRaw.source.text, userNoteIssue.code, false)
+              : resolvedField(
+                  observation.userNoteRaw.value,
+                  observation.userNoteRaw.source.text,
+                  false,
+                ),
       },
       baseFishMembership: {
         status: membership,
@@ -306,18 +310,7 @@ export class CatchReportParserService {
 
     draft.issues.push(...fieldIssues(draft));
 
-    for (const issue of [
-      proposedTextIssue(
-        'spotPositionRaw',
-        draft.fields.spotPositionRaw.status === 'RESOLVED'
-          ? draft.fields.spotPositionRaw.value
-          : null,
-      ),
-      proposedTextIssue(
-        'userNoteRaw',
-        draft.fields.userNoteRaw.status === 'RESOLVED' ? draft.fields.userNoteRaw.value : null,
-      ),
-    ]) {
+    for (const issue of [spotPositionIssue, userNoteIssue]) {
       if (issue !== null) draft.issues.push(issue);
     }
 

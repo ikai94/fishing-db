@@ -24,6 +24,11 @@ export interface CandidateIdentityManifest {
   posts: PostCandidateIdentity[];
 }
 
+export interface CandidateIdentityStability {
+  appendedCandidateCount: number;
+  appendedPostIds: string[];
+}
+
 export interface CandidateIdentityRebasePost {
   postId: string;
   previousCandidates: CandidateIdentityBoundary[];
@@ -106,22 +111,66 @@ export function buildCandidateIdentityManifest(
 export function assertCandidateIdentityStable(
   pinned: CandidateIdentityManifest,
   current: CandidateIdentityManifest,
-): void {
+): CandidateIdentityStability {
   if (pinned.version !== 1 || pinned.scopeKey !== current.scopeKey || current.version !== 1) {
     throw new CandidateIdentityDriftError(
       current.posts.map((post) => post.postId).sort(compareCanonicalIds),
     );
   }
 
-  const pinnedByPost = new Map(pinned.posts.map((post) => [post.postId, JSON.stringify(post)]));
-  const currentByPost = new Map(current.posts.map((post) => [post.postId, JSON.stringify(post)]));
-  const changedPostIds = [...pinnedByPost.keys()]
-    .sort(compareCanonicalIds)
-    .filter((postId) => pinnedByPost.get(postId) !== currentByPost.get(postId));
+  const currentByPost = new Map(current.posts.map((post) => [post.postId, post]));
+  const changedPostIds: string[] = [];
+  const appendedPostIds: string[] = [];
+  let appendedCandidateCount = 0;
+
+  for (const previous of pinned.posts) {
+    const next = currentByPost.get(previous.postId);
+    const previousCandidateJson = previous.candidates.map((candidate) => JSON.stringify(candidate));
+    const nextCandidateJson = new Set(
+      next?.candidates.map((candidate) => JSON.stringify(candidate)),
+    );
+    const maximumPreviousOrdinal = previous.candidates.at(-1)?.candidateOrdinal ?? 0;
+    const appended =
+      next?.candidates.filter((candidate) => candidate.candidateOrdinal > maximumPreviousOrdinal) ??
+      [];
+
+    if (
+      next === undefined ||
+      previous.subforumId !== next.subforumId ||
+      previous.topicId !== next.topicId ||
+      previous.bodySha256 !== next.bodySha256 ||
+      previousCandidateJson.some((candidate) => !nextCandidateJson.has(candidate)) ||
+      next.candidates.some(
+        (candidate) =>
+          candidate.candidateOrdinal <= maximumPreviousOrdinal &&
+          !previousCandidateJson.includes(JSON.stringify(candidate)),
+      )
+    ) {
+      changedPostIds.push(previous.postId);
+      continue;
+    }
+
+    if (appended.length > 0) {
+      appendedCandidateCount += appended.length;
+      appendedPostIds.push(previous.postId);
+    }
+  }
 
   if (changedPostIds.length > 0) {
-    throw new CandidateIdentityDriftError(changedPostIds);
+    throw new CandidateIdentityDriftError(changedPostIds.sort(compareCanonicalIds));
   }
+
+  const pinnedPostIds = new Set(pinned.posts.map((post) => post.postId));
+  for (const post of current.posts) {
+    if (pinnedPostIds.has(post.postId) || post.candidates.length === 0) continue;
+    appendedCandidateCount += post.candidates.length;
+    appendedPostIds.push(post.postId);
+  }
+
+  return {
+    appendedCandidateCount,
+    appendedPostIds: [...new Set(appendedPostIds)].sort(compareCanonicalIds),
+  };
 }
 
 function candidateCount(manifest: CandidateIdentityManifest): number {

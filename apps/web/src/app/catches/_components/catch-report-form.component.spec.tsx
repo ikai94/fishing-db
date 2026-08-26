@@ -104,7 +104,7 @@ function baitDraft(overrides: Partial<CatchReportDraft> = {}): CatchReportDraft 
         status: 'RESOLVED',
         sourceText: '6,00',
         value: 600,
-        required: true,
+        required: false,
       },
       spotPositionRaw: optionalNull,
       fishingNote: optionalNull,
@@ -236,13 +236,18 @@ describe('CatchReportForm', () => {
     expect(screen.getByRole('combobox', { name: /^Рыба/ })).toHaveValue('');
   });
 
-  test('does not let a conforming BAIT report lose its required hole', async () => {
+  test('allows a BAIT report to clear its optional hole', async () => {
     const user = userEvent.setup();
+    mocks.updateCatchReport.mockResolvedValue({ id: report.id });
     render(<CatchReportForm initialReport={report} />);
     const depth = await screen.findByLabelText(/Глубина ямки/);
     await user.clear(depth);
-    expect(screen.getByRole('button', { name: 'Сохранить изменения' })).toBeDisabled();
-    expect(mocks.updateCatchReport).not.toHaveBeenCalled();
+    const submit = screen.getByRole('button', { name: 'Сохранить изменения' });
+    await waitFor(() => expect(submit).toBeEnabled());
+    await user.click(submit);
+    await waitFor(() =>
+      expect(mocks.updateCatchReport).toHaveBeenCalledWith(report.id, { holeDepthCm: null }),
+    );
   });
 
   test('namespaces every input, listbox and datalist id when two create forms coexist', async () => {
@@ -367,20 +372,16 @@ describe('CatchReportForm', () => {
 
     await user.click(screen.getByRole('combobox', { name: /Наживка или приманка/ }));
     await user.click(screen.getByRole('option', { name: 'Vib-rapan' }));
-    await user.selectOptions(screen.getByLabelText(/Размер/), 'MEDIUM');
-    await user.selectOptions(screen.getByLabelText(/Скорость проводки/), 'FAST');
     await user.click(screen.getByRole('button', { name: 'Сохранить изменения' }));
 
     await waitFor(() =>
       expect(mocks.updateCatchReport).toHaveBeenCalledWith(report.id, {
         baitId: 'bait-2',
-        spinningSize: 'MEDIUM',
-        spinningSpeed: 'FAST',
       }),
     );
   });
 
-  test('clears stale spinning data and requires a hole for a LURE to BAIT transition', async () => {
+  test('clears stale spinning data without requiring a hole for a LURE to BAIT transition', async () => {
     const user = userEvent.setup();
     const spinningReport: CatchReport = {
       ...report,
@@ -402,15 +403,12 @@ describe('CatchReportForm', () => {
     await user.click(screen.getByRole('option', { name: 'Большой живец' }));
     expect(screen.queryByLabelText(/Размер/)).not.toBeInTheDocument();
     const submit = screen.getByRole('button', { name: 'Сохранить изменения' });
-    expect(submit).toBeDisabled();
-    await user.type(screen.getByLabelText(/Глубина ямки/), '7,63');
     await waitFor(() => expect(submit).toBeEnabled());
     await user.click(submit);
 
     await waitFor(() =>
       expect(mocks.updateCatchReport).toHaveBeenCalledWith(report.id, {
         baitId: 'bait-3',
-        holeDepthCm: 763,
         spinningSize: null,
         spinningSpeed: null,
       }),

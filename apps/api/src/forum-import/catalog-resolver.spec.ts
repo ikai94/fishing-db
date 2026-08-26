@@ -193,7 +193,7 @@ void describe('forum catalog resolver', () => {
     assert.equal(unresolved.status, 'UNRESOLVED');
   });
 
-  void it('applies the shared method invariants after exact Lure resolution', () => {
+  void it('derives the method and permits omitted spinning observations after exact Lure resolution', () => {
     const complete = resolveForumCandidate(
       candidate({
         baitRaw: 'Блесна',
@@ -203,7 +203,7 @@ void describe('forum catalog resolver', () => {
       }),
       snapshot(),
     );
-    const partial = resolveForumCandidate(
+    const withoutSettings = resolveForumCandidate(
       candidate({ baitRaw: 'Блесна', holeDepthCm: null }),
       snapshot(),
     );
@@ -219,19 +219,13 @@ void describe('forum catalog resolver', () => {
 
     assert.equal(complete.fishingMethod, 'SPINNING');
     assert.equal(complete.status, 'USABLE_COMPLETE');
-    assert.equal(partial.status, 'USABLE_PARTIAL');
-    assert.deepEqual(
-      partial.issues.filter((issue) => issue.code.startsWith('MISSING_SPINNING')),
-      [
-        { code: 'MISSING_SPINNING_SIZE', field: 'spinningSize' },
-        { code: 'MISSING_SPINNING_SPEED', field: 'spinningSpeed' },
-      ],
-    );
+    assert.equal(withoutSettings.status, 'USABLE_COMPLETE');
+    assert.deepEqual(withoutSettings.issues, []);
     assert.equal(conflict.status, 'UNRESOLVED');
     assert.ok(conflict.issues.some((issue) => issue.code === 'FISHING_METHOD_CONFLICT'));
   });
 
-  void it('keeps parser ambiguity and missing external identity blocking', () => {
+  void it('keeps optional parser ambiguity as a warning while missing identity remains blocking', () => {
     const resolved = resolveForumCandidate(
       candidate({
         contributorKey: null,
@@ -243,5 +237,15 @@ void describe('forum catalog resolver', () => {
     assert.equal(resolved.status, 'UNRESOLVED');
     assert.ok(resolved.issues.some((issue) => issue.code === 'MISSING_EXTERNAL_MEMBER_ID'));
     assert.ok(resolved.issues.some((issue) => issue.code === 'AMBIGUOUS_HOLE_DEPTH'));
+  });
+
+  void it('does not block an otherwise complete candidate on an optional parser warning', () => {
+    const resolved = resolveForumCandidate(
+      candidate({ issues: [{ code: 'AMBIGUOUS_HOLE_DEPTH', field: 'holeDepthCm' }] }),
+      snapshot(),
+    );
+
+    assert.equal(resolved.status, 'USABLE_COMPLETE');
+    assert.deepEqual(resolved.issues, [{ code: 'AMBIGUOUS_HOLE_DEPTH', field: 'holeDepthCm' }]);
   });
 });

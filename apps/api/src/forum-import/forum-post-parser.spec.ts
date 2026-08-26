@@ -36,6 +36,48 @@ void describe('rus-fishsoft forum post parser', () => {
     assert.deepEqual(candidate.issues, []);
   });
 
+  void it('supplements only the approved adjacent-line generated catch layout', () => {
+    const [candidate] = parseForumPost(
+      post('Белорыбица 7,242 кг.\nПоймана на Амур: Протока, Мотыль.'),
+    );
+
+    assert.ok(candidate);
+    assert.equal(candidate.fishNameRaw, 'Белорыбица');
+    assert.equal(candidate.weightGrams, 7_242);
+    assert.equal(candidate.fishingBaseRaw, 'Амур');
+    assert.equal(candidate.locationRaw, 'Протока');
+    assert.equal(candidate.baitRaw, 'Мотыль');
+    assert.equal(candidate.holeDepthCm, null);
+    assert.equal(candidate.spinningSize, null);
+    assert.equal(candidate.spinningSpeed, null);
+
+    assert.deepEqual(
+      parseForumPost(post('Белорыбица 7,242 кг.\n\nПоймана на Амур: Протока, Мотыль.')),
+      [],
+    );
+    assert.deepEqual(parseForumPost(post('Белорыбица 7,242 кг.\nПоймана на Мотыль.')), []);
+    assert.deepEqual(
+      parseForumPost(
+        post(
+          'Белорыбица 700 г - 1000 руб.\nБелорыбица 800 г - 1200 руб.\nПойманы на Амур: Протока, Мотыль.',
+        ),
+      ),
+      [],
+    );
+  });
+
+  void it('appends supplemental ordinals after every legacy candidate without shifting identity', () => {
+    const supplemental = 'Белорыбица 7,242 кг.\nПоймана на Амур: Протока, Мотыль.';
+    const legacy = generated('12,22 уда');
+    const candidates = parseForumPost(post(`${supplemental}\n\n${legacy}`));
+
+    assert.equal(candidates.length, 2);
+    assert.equal(candidates[0]?.candidateOrdinal, 1);
+    assert.equal(candidates[0]?.technical.sourceText, legacy);
+    assert.equal(candidates[1]?.candidateOrdinal, 2);
+    assert.equal(candidates[1]?.technical.sourceText, supplemental);
+  });
+
   void it('parses approved bare comma/dot depths exactly without a hole word', () => {
     const cases = [
       ['12,22', 1_222, 'уда'],

@@ -275,7 +275,6 @@ export function CatchReportForm({
   }, [catalog, draftBait, initialReport]);
 
   const fishingMethod = resolveFishingMethod({ initialReport, initialDraft, baitId, baitOptions });
-  const isPersistedMethod = Boolean(initialReport && baitId === initialReport.bait.id);
   const validation = useMemo(
     () =>
       validateCatchReportForm({
@@ -293,7 +292,6 @@ export function CatchReportForm({
         fishingMethod,
         baseSelection,
         catalogReady: catalog.kind === 'ready',
-        isPersistedMethod,
       }),
     [
       initialReport,
@@ -310,7 +308,6 @@ export function CatchReportForm({
       fishingMethod,
       baseSelection,
       catalog.kind,
-      isPersistedMethod,
     ],
   );
   const blockingFields = useMemo(
@@ -564,10 +561,7 @@ export function CatchReportForm({
 
           <div className={styles.field}>
             <label className={styles.label} htmlFor={fieldIds.depth}>
-              Глубина ямки, метры{' '}
-              {fishingMethod === 'BAIT_FISHING' && !allowsLegacyMissing(initialReport, 'hole') ? (
-                <Required />
-              ) : null}
+              Глубина ямки, метры
             </label>
             <input
               className={`${styles.input} ${errors.holeDepthCm ? styles.invalidInput : ''}`}
@@ -583,11 +577,7 @@ export function CatchReportForm({
               aria-invalid={errors.holeDepthCm ? 'true' : undefined}
               autoComplete="off"
             />
-            <p className={styles.fieldHint}>
-              {fishingMethod === 'BAIT_FISHING'
-                ? 'Для наживки яма обязательна.'
-                : 'Для спиннинга яма необязательна.'}
-            </p>
+            <p className={styles.fieldHint}>Необязательное наблюдение.</p>
             <FieldError value={errors.holeDepthCm} />
           </div>
 
@@ -595,7 +585,7 @@ export function CatchReportForm({
             <>
               <div className={styles.field}>
                 <label className={styles.label} htmlFor={fieldIds.spinningSize}>
-                  Размер <Required />
+                  Размер
                 </label>
                 <select
                   className={`${styles.select} ${errors.spinningSize ? styles.invalidInput : ''}`}
@@ -617,7 +607,7 @@ export function CatchReportForm({
               </div>
               <div className={styles.field}>
                 <label className={styles.label} htmlFor={fieldIds.spinningSpeed}>
-                  Скорость проводки <Required />
+                  Скорость проводки
                 </label>
                 <select
                   className={`${styles.select} ${errors.spinningSpeed ? styles.invalidInput : ''}`}
@@ -810,7 +800,6 @@ function validateCatchReportForm(input: {
   fishingMethod: FishingMethod | null;
   baseSelection: SelectionState | null;
   catalogReady: boolean;
-  isPersistedMethod: boolean;
 }): FormValidation {
   const errors: FormErrors = {};
   if (!input.baseId) errors.baseId = 'Выберите рыболовную базу.';
@@ -870,37 +859,6 @@ function validateCatchReportForm(input: {
     parsedComment = normalizeUserNoteRaw(input.userNoteRaw);
   } catch (error) {
     errors.userNoteRaw = errorMessage(error, 'Некорректный комментарий.');
-  }
-
-  const allowsLegacyHole =
-    input.isPersistedMethod &&
-    input.initialReport?.fishingMethod === 'BAIT_FISHING' &&
-    input.initialReport.holeDepthCm === null;
-  if (input.fishingMethod === 'BAIT_FISHING' && parsedDepth === null && !allowsLegacyHole) {
-    errors.holeDepthCm = 'Для ловли на наживку укажите глубину ямки.';
-  }
-
-  const methodFieldsChanged = Boolean(
-    input.initialReport &&
-    (parsedDepth !== input.initialReport.holeDepthCm ||
-      (input.spinningSize || null) !== input.initialReport.spinningSize ||
-      (input.spinningSpeed || null) !== input.initialReport.spinningSpeed),
-  );
-  const allowsLegacySize =
-    input.isPersistedMethod &&
-    input.initialReport?.fishingMethod === 'SPINNING' &&
-    input.initialReport.spinningSize === null &&
-    !methodFieldsChanged;
-  const allowsLegacySpeed =
-    input.isPersistedMethod &&
-    input.initialReport?.fishingMethod === 'SPINNING' &&
-    input.initialReport.spinningSpeed === null &&
-    !methodFieldsChanged;
-  if (input.fishingMethod === 'SPINNING' && !input.spinningSize && !allowsLegacySize) {
-    errors.spinningSize = 'Выберите размер для спиннинга.';
-  }
-  if (input.fishingMethod === 'SPINNING' && !input.spinningSpeed && !allowsLegacySpeed) {
-    errors.spinningSpeed = 'Выберите скорость проводки.';
   }
 
   const catalogPending =
@@ -988,14 +946,6 @@ function resolveFishingMethod(input: {
   return null;
 }
 
-function allowsLegacyMissing(initialReport: CatchReport | undefined, field: 'hole'): boolean {
-  return (
-    field === 'hole' &&
-    initialReport?.fishingMethod === 'BAIT_FISHING' &&
-    initialReport.holeDepthCm === null
-  );
-}
-
 async function saveUpdate(input: {
   initialReport: CatchReport;
   locationId: string;
@@ -1068,7 +1018,7 @@ function catchReportMutationError(error: unknown): string {
       CATCH_REPORT_NOT_FOUND: 'Отчёт больше не существует.',
       FISH_NOT_AVAILABLE_AT_FISHING_BASE: 'Выбранная рыба не связана с этой базой.',
       CATCH_REPORT_OBSERVATION_INVALID:
-        'Проверьте обязательные параметры выбранного способа ловли.',
+        'Проверьте совместимость наблюдений с выбранным способом ловли.',
     };
     if (error.code && messages[error.code]) return messages[error.code];
   }

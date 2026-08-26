@@ -35,7 +35,7 @@ const spinning = {
 };
 
 describe('fishing condition statistics decoder', () => {
-  test('accepts the two method-specific shapes and nullable notes', () => {
+  test('accepts method-specific shapes with nullable notes and spinning settings', () => {
     expect(decodeFishingConditionStatisticsResponse({ items: [baitFishing, spinning] })).toEqual([
       baitFishing,
       spinning,
@@ -44,12 +44,12 @@ describe('fishing condition statistics decoder', () => {
       decodeFishingConditionStatisticsResponse({
         items: [
           { ...baitFishing, fishingNote: 'FROM_BOTTOM' },
-          { ...spinning, fishingNote: null },
+          { ...spinning, fishingNote: null, spinningSize: null, spinningSpeed: null },
         ],
       }),
     ).toEqual([
       { ...baitFishing, fishingNote: 'FROM_BOTTOM' },
-      { ...spinning, fishingNote: null },
+      { ...spinning, fishingNote: null, spinningSize: null, spinningSpeed: null },
     ]);
     expect(decodeFishingConditionStatisticsResponse({ items: [] })).toEqual([]);
   });
@@ -57,8 +57,6 @@ describe('fishing condition statistics decoder', () => {
   test.each([
     { ...baitFishing, spinningSize: 'SMALL' },
     { ...baitFishing, spinningSpeed: 'SLOW' },
-    { ...spinning, spinningSize: null },
-    { ...spinning, spinningSpeed: null },
     { ...spinning, spinningSize: 'HUGE' },
     { ...spinning, spinningSpeed: 'QUICK' },
   ])('rejects a row that violates its stored fishing method invariant', (value) => {

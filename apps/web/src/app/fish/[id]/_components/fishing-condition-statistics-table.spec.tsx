@@ -31,6 +31,13 @@ const spinning: FishingConditionStatistic = {
   latestReportCreatedAt: '2026-08-10T10:00:00.000Z',
 };
 
+const spinningWithoutSettings: FishingConditionStatistic = {
+  ...spinning,
+  spinningSize: null,
+  spinningSpeed: null,
+  reportsCount: 4,
+};
+
 describe('FishingConditionStatisticsTable', () => {
   test('renders a dense accessible reference table in the server-provided order', () => {
     render(
@@ -75,12 +82,13 @@ describe('FishingConditionStatisticsTable', () => {
   });
 
   test('exposes observation counts without effectiveness or recommendation wording', () => {
-    render(<FishingConditionStatisticsTable items={[baitFishing]} />);
+    render(<FishingConditionStatisticsTable items={[baitFishing, spinningWithoutSettings]} />);
 
     expect(screen.getByTitle('7 разных рыбаков')).toHaveTextContent('7');
     expect(screen.getByTitle('18 отчётов об уловах')).toHaveTextContent('18');
     expect(
       screen.queryByText(/best|лучш|рекоменд|интенсив|оценк|вероятн/i),
     ).not.toBeInTheDocument();
+    expect(screen.getAllByRole('row')[2]).toHaveTextContent('Спиннингне указанне указана');
   });
 });

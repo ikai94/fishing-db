@@ -158,4 +158,16 @@ void describe('forum staging reader', () => {
         /invalid fish resolution/u.test(error.message),
     );
   });
+
+  void it('accepts optional parser warnings on an otherwise COMPLETE candidate', async () => {
+    const outputDirectory = await directory();
+    const complete = candidate(1, {
+      holeDepthCm: null,
+      issues: [{ code: 'AMBIGUOUS_HOLE_DEPTH', field: 'holeDepthCm' }],
+    });
+    await writeBundle(outputDirectory, [complete]);
+
+    const result = await readVerifiedForumStagingBundle(outputDirectory);
+    assert.equal(result.candidates[0]?.status, 'USABLE_COMPLETE');
+  });
 });

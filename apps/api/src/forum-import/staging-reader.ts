@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { isBlockingForumStagingIssue } from './catalog-resolver.js';
 import type {
   BaitResolution,
   CatalogResolution,
@@ -312,8 +313,8 @@ export function assertCompleteStagingCandidate(candidate: StagingCandidate): voi
   if (candidate.contributorKey === null || !CONTRIBUTOR_KEY.test(candidate.contributorKey)) {
     invalid(`COMPLETE candidate ${candidate.importKey} has no valid contributorKey`);
   }
-  if (candidate.issues.length !== 0) {
-    invalid(`COMPLETE candidate ${candidate.importKey} has staging issues`);
+  if (candidate.issues.some(isBlockingForumStagingIssue)) {
+    invalid(`COMPLETE candidate ${candidate.importKey} has blocking staging issues`);
   }
   for (const [field, resolution] of [
     ['fish', candidate.resolution.fish],

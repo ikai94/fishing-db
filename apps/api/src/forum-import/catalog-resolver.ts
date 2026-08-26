@@ -54,6 +54,19 @@ export interface ForumStagingIssue {
   field?: string;
 }
 
+const OPTIONAL_OBSERVATION_FIELDS = new Set([
+  'holeDepthCm',
+  'spotPositionRaw',
+  'fishingNote',
+  'spinningSize',
+  'spinningSpeed',
+  'userNoteRaw',
+]);
+
+export function isBlockingForumStagingIssue(issue: ForumStagingIssue): boolean {
+  return issue.field === undefined || !OPTIONAL_OBSERVATION_FIELDS.has(issue.field);
+}
+
 export type ForumCandidateStatus = 'USABLE_COMPLETE' | 'USABLE_PARTIAL' | 'UNRESOLVED';
 
 export interface CandidateCatalogResolution {
@@ -303,7 +316,7 @@ export function resolveForumCandidate(
   const issues: ForumStagingIssue[] = candidate.issues.map(({ code, field }) =>
     field === undefined ? { code } : { code, field },
   );
-  let hasBlockingIssue = issues.length > 0;
+  let hasBlockingIssue = issues.some(isBlockingForumStagingIssue);
   let hasMissingRequiredField = false;
 
   if (candidate.contributorKey === null || !CONTRIBUTOR_KEY.test(candidate.contributorKey)) {

@@ -38,7 +38,7 @@ void describe('FishingConditionStatisticsService', () => {
           databaseRow({
             fishingMethod: 'SPINNING',
             fishingNote: null,
-            spinningSize: 'MEDIUM',
+            spinningSize: null,
             spinningSpeed: 'SLOW',
           }),
         ]);
@@ -86,7 +86,7 @@ void describe('FishingConditionStatisticsService', () => {
         {
           fishingMethod: 'SPINNING',
           fishingNote: null,
-          spinningSize: 'MEDIUM',
+          spinningSize: null,
           spinningSpeed: 'SLOW',
           uniqueUsersCount: 7,
           reportsCount: 18,
@@ -111,19 +111,15 @@ void describe('FishingConditionStatisticsService', () => {
       );
     }
 
-    for (const invalidRow of [
-      databaseRow({ fishingMethod: 'SPINNING', spinningSize: null, spinningSpeed: 'FAST' }),
-      databaseRow({ fishingMethod: 'SPINNING', spinningSize: 'SMALL', spinningSpeed: null }),
-    ]) {
-      const prisma = {
-        $queryRaw: () => Promise.resolve([invalidRow]),
-      } as unknown as PrismaService;
-
-      await assert.rejects(
-        new FishingConditionStatisticsService(prisma).list(QUERY),
-        /SPINNING statistics row must have non-null spinningSize and spinningSpeed/,
-      );
-    }
+    const prisma = {
+      $queryRaw: () =>
+        Promise.resolve([
+          databaseRow({ fishingMethod: 'SPINNING', spinningSize: null, spinningSpeed: null }),
+        ]),
+    } as unknown as PrismaService;
+    const result = await new FishingConditionStatisticsService(prisma).list(QUERY);
+    assert.equal(result.items[0]?.spinningSize, null);
+    assert.equal(result.items[0]?.spinningSpeed, null);
   });
 
   void it('rejects PostgreSQL counts outside the JavaScript safe integer range', async () => {

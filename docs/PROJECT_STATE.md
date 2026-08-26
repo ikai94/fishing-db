@@ -35,8 +35,8 @@ Root engines allow Node `>=24.0.0 <25` and pnpm `>=11.0.0 <12`.
 - `apps/api` — NestJS modular monolith and Node test runner suites.
 - `apps/api/src` — auth, catalog, CatchReport, health, security, and Prisma modules.
 - `apps/api/prisma/schema.prisma` — current PostgreSQL domain schema.
-- `apps/api/prisma/migrations` — seven accepted migrations, from auth through internal
-  CatchReport contributor/import identity.
+- `apps/api/prisma/migrations` — eight accepted migrations, from auth through relaxed optional
+  CatchReport observations.
 - `apps/api/test` — PostgreSQL e2e, database-safety, and migration-semantic tests.
 - `apps/api/prisma/catalog-data` — deterministic offline catalog inputs and provenance.
 - `docs/phase5-rollout.md` — CatchReport v2 migration and audit procedure.
@@ -60,12 +60,14 @@ The workspace currently includes only `apps/*`; there is no accepted `packages/s
 - The immutable nullable unique `importKey` identifies a stable external source
   observation/candidate for idempotency; it is not an observation-content fingerprint. Both
   internal keys are excluded from public and owner APIs.
-- Weight is a positive integer in `weightGrams`; parsed hole depth is a positive integer in
-  `holeDepthCm` and may be null where the fishing method permits it.
+- A valid CatchReport requires Fish, positive `weightGrams`, Location and its derived Base,
+  Bait/Lure, and current `FishingBaseFish` membership at write/import validation time.
+- Parsed hole depth is a positive integer in `holeDepthCm` when present. `holeDepthCm`,
+  `spotPositionRaw`, `fishingNote`, `spinningSize`, `spinningSpeed`, and `userNoteRaw` are optional
+  observations.
 - `fishingMethod` is stored as historical `BAIT_FISHING` or `SPINNING`, derived from Bait type
   on create and only rederived when the report's Bait reference actually changes.
-- Bait fishing requires depth and has no spinning settings. Spinning requires size and speed;
-  its depth is optional.
+- Bait fishing cannot carry spinning size or speed. Spinning may omit size, speed, and depth.
 - `spotPositionRaw` preserves player position text conservatively. `fishingNote` stores a
   presentation/condition enum and is not position identity; `userNoteRaw` is a separate comment.
 - `rawSourceText` preserves raw notebook/source text supplied at creation. It is owner-only, omitted

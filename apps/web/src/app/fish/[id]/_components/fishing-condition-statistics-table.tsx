@@ -62,12 +62,12 @@ export function FishingConditionStatisticsTable({ items }: FishingConditionStati
                 <td>
                   {item.fishingMethod === 'BAIT_FISHING'
                     ? 'не применяется'
-                    : spinningSizeLabel(item.spinningSize)}
+                    : (spinningSizeLabel(item.spinningSize) ?? 'не указан')}
                 </td>
                 <td>
                   {item.fishingMethod === 'BAIT_FISHING'
                     ? 'не применяется'
-                    : spinningSpeedLabel(item.spinningSpeed)}
+                    : (spinningSpeedLabel(item.spinningSpeed) ?? 'не указана')}
                 </td>
                 <td>{fishingNoteLabel(item.fishingNote) ?? 'не указано'}</td>
                 <td

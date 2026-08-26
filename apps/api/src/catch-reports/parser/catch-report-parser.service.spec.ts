@@ -126,16 +126,18 @@ async function parse(raw: string, options?: FixtureOptions): Promise<CatchReport
 }
 
 void describe('CatchReportParserService', () => {
-  void it('returns an incomplete SPINNING draft when the game omitted size and speed', async () => {
+  void it('returns a confirmable SPINNING draft when the game omitted size and speed', async () => {
     const draft = await parse(amurLine('Кижуч', '7,242 кг', 'Vib-rapan.'));
 
     assert.equal(resolvedValue(draft.fields.weightGrams), 7_242);
     assert.equal(resolvedValue(draft.fields.fishingMethod), 'SPINNING');
     assert.equal(draft.fields.holeDepthCm.status, 'RESOLVED');
     assert.equal(draft.fields.holeDepthCm.value, null);
-    assert.equal(draft.fields.spinningSize.status, 'MISSING');
-    assert.equal(draft.fields.spinningSpeed.status, 'MISSING');
-    assert.equal(draft.canConfirm, false);
+    assert.equal(resolvedValue(draft.fields.spinningSize), null);
+    assert.equal(draft.fields.spinningSize.required, false);
+    assert.equal(resolvedValue(draft.fields.spinningSpeed), null);
+    assert.equal(draft.fields.spinningSpeed.required, false);
+    assert.equal(draft.canConfirm, true);
   });
 
   void it('parses textual spinning parameters into a confirmable draft', async () => {
@@ -205,7 +207,7 @@ void describe('CatchReportParserService', () => {
     assert.equal(draft.canConfirm, true);
   });
 
-  void it('does not propose an oversized position and blocks an invalid proposed comment', async () => {
+  void it('warns and produces null for invalid optional textual observations', async () => {
     const longPosition = await parse(
       amurLine('Желтощек', '42,861 кг', `Большой живец 3.61 уда ${'х'.repeat(1_000)}`),
     );
@@ -216,7 +218,8 @@ void describe('CatchReportParserService', () => {
       amurLine('Жерех-лысач', '3,747 кг', `Vob-3006. ср/м\n${'А'.repeat(1_001)}`),
     );
     assert.ok(longComment.issues.some((issue) => issue.code === 'INVALID_USER_NOTE_RAW'));
-    assert.equal(longComment.canConfirm, false);
+    assert.equal(longComment.fields.userNoteRaw.status, 'UNRESOLVED');
+    assert.equal(longComment.canConfirm, true);
   });
 
   void it('preserves a complex BAIT position and conservative alias exactly', async () => {
@@ -228,14 +231,15 @@ void describe('CatchReportParserService', () => {
     assert.equal(resolvedValue(draft.fields.spotPositionRaw), 'уда-леска надпись нахлыст');
   });
 
-  void it('keeps a resolved BAIT draft incomplete when the game omitted the hole', async () => {
+  void it('keeps a resolved BAIT draft confirmable when the game omitted the hole', async () => {
     const draft = await parse(amurLine('Желтощек', '42,861 кг', 'Большой живец.'));
 
     assert.equal(resolvedValue(draft.fields.weightGrams), 42_861);
     assert.equal(resolvedValue(draft.fields.fishingMethod), 'BAIT_FISHING');
-    assert.equal(draft.fields.holeDepthCm.status, 'MISSING');
-    assert.ok(draft.missingRequiredFields.includes('holeDepthCm'));
-    assert.equal(draft.canConfirm, false);
+    assert.equal(resolvedValue(draft.fields.holeDepthCm), null);
+    assert.equal(draft.fields.holeDepthCm.required, false);
+    assert.equal(draft.missingRequiredFields.includes('holeDepthCm'), false);
+    assert.equal(draft.canConfirm, true);
   });
 
   void it('parses the original project BAIT example', async () => {

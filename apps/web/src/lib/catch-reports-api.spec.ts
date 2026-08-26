@@ -184,19 +184,19 @@ describe('decodeCatchReportDraft', () => {
         holeDepthCm: optionalNull,
         spotPositionRaw: optionalNull,
         fishingNote: optionalNull,
-        spinningSize: { status: 'MISSING', sourceText: null, value: null, required: true },
-        spinningSpeed: { status: 'MISSING', sourceText: null, value: null, required: true },
+        spinningSize: optionalNull,
+        spinningSpeed: optionalNull,
         userNoteRaw: optionalNull,
       },
       baseFishMembership: { status: 'RESOLVED', baseId: 'base', fishId: 'fish' },
       issues: [{ severity: 'WARNING', code: 'UNRESOLVED_FRAGMENT', message: 'Проверьте текст' }],
       unresolvedFragments: [{ text: 'игродень', start: 10, end: 18 }],
-      missingRequiredFields: ['spinningSize', 'spinningSpeed'],
-      canConfirm: false,
+      missingRequiredFields: [],
+      canConfirm: true,
     });
 
     expect(draft.fields.weightGrams.value).toBe(7242);
-    expect(draft.fields.spinningSize.status).toBe('MISSING');
+    expect(draft.fields.spinningSize.status).toBe('RESOLVED');
     expect(draft.unresolvedFragments[0]?.text).toBe('игродень');
     expect(draft.issues[0]?.severity).toBe('WARNING');
   });
