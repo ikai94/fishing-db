@@ -8,25 +8,35 @@ The canonical files in this directory are deterministic, offline inputs for
 - Fishing catalog scan date: `2026-08-13T08:46:38.858Z`
 - Fishing catalog scan SHA-256:
   `1ec2fc36b042bececc4dec31bdd502b7862d28d9b39c15db1ebea4999fd5e307`
+- Approved Base↔Fish workbook: `Klevalka-2026.xlsx`
+- Approved Base↔Fish workbook SHA-256:
+  `58c13109fe71e3c041f40d6e721b6c6cd0d0bbade43fe7dc1b0063dd8ba7eac3`
+- Canonical Base↔Fish target SHA-256:
+  `086f34ad8e6a4c283483c02ad80fe4e203c3d1bff8a37f9324809c035c8e48fc`
 - Bait input SHA-256:
   `cbdf553bea27c9cf40aff6e4d6faeac3e30c4b8722db089ebfddff697329d033`
 
 The canonical snapshot contains 77 FishingBase records, 853 Locations, 1,255
-global Fish identities, 5,369 FishingBaseFish relationships, 68 BAIT entries,
+global Fish identities, 3,230 FishingBaseFish relationships, 68 BAIT entries,
 181 LURE entries, and 249 Bait entries in total. The eight ScreenAnchor values
 remain defined in the TypeScript seed loader.
 
 ## Transformation policy
 
-`fishing-catalog.json` retains only exact display names, Location numbers, and
-Base-to-Fish membership. External IDs and URLs, scrape metadata, the duplicate
+`fishing-catalog.json` retains exact Base/Fish display identities and Location
+numbers/names from the previous catalog snapshot. Its legacy nested Fish arrays
+remain only as the 1,255-entry global Fish identity inventory; they are not a
+Base↔Fish membership source. External IDs and URLs, scrape metadata, the duplicate
 flat relationship list, and audit warnings/errors were intentionally discarded.
 Source `(спиннинг)` markers were audited as subsets of ordinary Base-to-Fish
 membership and discarded; they are not Fish identity or fishing-method data.
 
-Global Fish are derived deterministically from the Base membership lists at
-load time. Catalog normalization is used only for validation and identity;
-display names in the JSON remain authoritative.
+`fishing-base-fish.json` is the exclusive `bases[].fish` seed input. It contains
+only existing canonical Base and Fish display names resolved from the approved
+workbook, plus the workbook hash and sheet/column provenance. The raw workbook
+stays under `apps/api/.local/catalog` and is excluded from Git. Catalog
+normalization is used only for validation and identity; display names in the
+canonical JSON remain authoritative.
 
 ## Safe updates
 
@@ -39,3 +49,21 @@ reviewed change. Bait names and types must come from an explicit authoritative
 input and must never be inferred from naming patterns.
 
 Neither the seed nor normal application startup contacts the source website.
+
+## Reconciliation
+
+Audit the live pre-state with:
+
+```bash
+pnpm db:reconcile:fishing-base-fish --dry-run
+```
+
+The apply mode is deliberately separate and requires the exact fingerprint from
+the reviewed dry-run:
+
+```bash
+pnpm db:reconcile:fishing-base-fish --apply --expected-fingerprint=<SHA-256>
+```
+
+Apply runs the approved membership additions, invalid CatchReport deletions,
+obsolete membership removals, and final assertions in one transaction.

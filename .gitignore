@@ -28,3 +28,6 @@ apps/api/.local/forum-import/
 .idea/
 .vscode/
 .vercel/
+
+# Local API data, crawler artifacts, imports and backups
+/apps/api/.local/

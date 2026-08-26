@@ -26,7 +26,7 @@ const AUTHORITATIVE_COUNTS = {
   bait: 68,
   lure: 181,
   screenAnchors: 8,
-  fishingBaseFish: 5_369,
+  fishingBaseFish: 3_230,
 } as const;
 const PARSER_SOURCE =
   'Шамбардия Валберга 40 грамм. Поймана на Озера Танзании: Берег слоновьего бивня, Мотыль. ямка 6,00 удочка';
@@ -86,7 +86,7 @@ async function createExistingAmur(): Promise<{
 }> {
   const amur = requiredAmur();
   assert.equal(amur.locations.length, 9);
-  assert.equal(amur.fish.length, 64);
+  assert.equal(amur.fish.length, 33);
 
   const baseName = normalizeCatalogName(amur.name);
   const base = await prisma.fishingBase.create({ data: baseName });
@@ -209,7 +209,7 @@ void describe('Catalog seed (PostgreSQL e2e)', { concurrency: false }, () => {
       fish: { created: 1_255, reused: 0 },
       baits: { created: 249, reused: 0 },
       screenAnchors: { created: 8, reused: 0 },
-      fishingBaseFish: { created: 5_369, reused: 0 },
+      fishingBaseFish: { created: 3_230, reused: 0 },
       conflicts: 0,
       warnings: [],
     });
@@ -275,7 +275,7 @@ void describe('Catalog seed (PostgreSQL e2e)', { concurrency: false }, () => {
       fish: { created: 0, reused: 1_255 },
       baits: { created: 0, reused: 249 },
       screenAnchors: { created: 0, reused: 8 },
-      fishingBaseFish: { created: 0, reused: 5_369 },
+      fishingBaseFish: { created: 0, reused: 3_230 },
       conflicts: 0,
       warnings: [],
     });
@@ -285,7 +285,7 @@ void describe('Catalog seed (PostgreSQL e2e)', { concurrency: false }, () => {
       fish: 1_255,
       baits: 249,
       screenAnchors: 8,
-      fishingBaseFish: 5_369,
+      fishingBaseFish: 3_230,
     });
   });
 
@@ -346,10 +346,10 @@ void describe('Catalog seed (PostgreSQL e2e)', { concurrency: false }, () => {
     assert.deepEqual(first, {
       fishingBases: { created: 76, reused: 1 },
       locations: { created: 844, reused: 9 },
-      fish: { created: 1_191, reused: 64 },
+      fish: { created: 1_222, reused: 33 },
       baits: { created: 248, reused: 1 },
       screenAnchors: { created: 0, reused: 8 },
-      fishingBaseFish: { created: 5_305, reused: 64 },
+      fishingBaseFish: { created: 3_197, reused: 33 },
       conflicts: 0,
       warnings: [],
     });
@@ -429,7 +429,7 @@ void describe('Catalog seed (PostgreSQL e2e)', { concurrency: false }, () => {
       fish: 1_256,
       baits: 250,
       screenAnchors: 8,
-      fishingBaseFish: 5_370,
+      fishingBaseFish: 3_231,
     });
   });
 

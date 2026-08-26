@@ -3,11 +3,15 @@ import { describe, it } from 'node:test';
 import type { PrismaClient } from '../generated/prisma/client.js';
 import {
   AUTHORITATIVE_CATALOG_COUNTS,
+  AUTHORITATIVE_FISHING_BASE_FISH_TARGET_SHA256,
+  AUTHORITATIVE_FISHING_BASE_FISH_WORKBOOK_SHA256,
   CatalogSeedDataDecodeError,
+  FISHING_BASE_FISH_MANIFEST,
   CatalogSeedSnapshotError,
   REAL_CATALOG_DATA,
   assertAuthoritativeCatalogCounts,
   decodeBaitCatalog,
+  decodeFishingBaseFishCatalog,
   decodeFishingCatalog,
   getCatalogSeedSnapshotCounts,
   type CatalogSeedData,
@@ -313,6 +317,15 @@ void describe('catalog seed', () => {
     );
     assert.throws(
       () =>
+        decodeFishingBaseFishCatalog({
+          schemaVersion: 1,
+          sourceWorkbook: {},
+          bases: [],
+        }),
+      CatalogSeedDataDecodeError,
+    );
+    assert.throws(
+      () =>
         decodeBaitCatalog({
           schemaVersion: 1,
           baits: [{ name: 'Pilk-107', type: 'SPINNING' }],
@@ -338,7 +351,20 @@ void describe('catalog seed', () => {
 
     assert.doesNotThrow(() => assertAuthoritativeCatalogCounts(REAL_CATALOG_DATA));
     assert.deepEqual(actualCounts, AUTHORITATIVE_CATALOG_COUNTS);
-    assert.deepEqual(REAL_CATALOG_DATA.fish, derivedFish);
+    assert.equal(FISHING_BASE_FISH_MANIFEST.sourceWorkbook.fileName, 'Klevalka-2026.xlsx');
+    assert.equal(
+      FISHING_BASE_FISH_MANIFEST.sourceWorkbook.sha256,
+      AUTHORITATIVE_FISHING_BASE_FISH_WORKBOOK_SHA256,
+    );
+    assert.equal(
+      AUTHORITATIVE_FISHING_BASE_FISH_TARGET_SHA256,
+      '086f34ad8e6a4c283483c02ad80fe4e203c3d1bff8a37f9324809c035c8e48fc',
+    );
+    assert.equal(derivedFish.length, 1_204);
+    assert.equal(
+      derivedFish.every((name) => REAL_CATALOG_DATA.fish.includes(name)),
+      true,
+    );
     assert.equal(validated.bases.length, 77);
     assert.equal(
       validated.bases.reduce((total, base) => total + base.locations.length, 0),
@@ -347,7 +373,7 @@ void describe('catalog seed', () => {
     assert.equal(validated.fish.length, 1_255);
     assert.equal(
       validated.bases.reduce((total, base) => total + base.fishNormalized.length, 0),
-      5_369,
+      3_230,
     );
     assert.equal(validated.baits.length, 249);
     assert.equal(validated.baits.filter((bait) => bait.type === 'BAIT').length, 68);
@@ -382,7 +408,7 @@ void describe('catalog seed', () => {
 
     const amur = validated.bases.find((base) => base.name === 'Амур');
     assert.ok(amur);
-    assert.equal(amur.fishNormalized.length, 64);
+    assert.equal(amur.fishNormalized.length, 33);
     assert.deepEqual(
       amur.locations.map(({ number, name }) => ({ number, name })),
       [
@@ -507,7 +533,7 @@ void describe('catalog seed', () => {
       fish: { created: 1_255, reused: 0 },
       baits: { created: 249, reused: 0 },
       screenAnchors: { created: 8, reused: 0 },
-      fishingBaseFish: { created: 5_369, reused: 0 },
+      fishingBaseFish: { created: 3_230, reused: 0 },
       conflicts: 0,
       warnings: [],
     });
@@ -517,14 +543,14 @@ void describe('catalog seed', () => {
       fish: { created: 0, reused: 1_255 },
       baits: { created: 0, reused: 249 },
       screenAnchors: { created: 0, reused: 8 },
-      fishingBaseFish: { created: 0, reused: 5_369 },
+      fishingBaseFish: { created: 0, reused: 3_230 },
       conflicts: 0,
       warnings: [],
     });
     assert.equal(database.state.fishingBases.length, 78);
     assert.equal(database.state.locations.length, 854);
     assert.equal(database.state.fish.length, 1_256);
-    assert.equal(database.state.memberships.length, 5_370);
+    assert.equal(database.state.memberships.length, 3_231);
     assert.equal(database.state.screenAnchors.length, 9);
     assert.equal(database.state.baits.length, 250);
     assert.deepEqual(
@@ -552,6 +578,17 @@ void describe('catalog seed', () => {
         (item) => item.fishingBaseId === 'tutorial-base' && item.fishId === 'tutorial-fish',
       ),
       true,
+    );
+    const kola = database.state.fishingBases.find((item) => item.name === 'Кола');
+    const shark = database.state.fish.find((item) => item.name === 'Акула');
+    assert.ok(kola);
+    assert.ok(shark);
+    assert.equal(
+      database.state.memberships.some(
+        (item) => item.fishingBaseId === kola.id && item.fishId === shark.id,
+      ),
+      false,
+      'catalog seed must not restore an obsolete FishingBaseFish membership',
     );
   });
 
@@ -600,10 +637,10 @@ void describe('catalog seed', () => {
     assert.deepEqual(result, {
       fishingBases: { created: 76, reused: 1 },
       locations: { created: 844, reused: 9 },
-      fish: { created: 1_191, reused: 64 },
+      fish: { created: 1_222, reused: 33 },
       baits: { created: 249, reused: 0 },
       screenAnchors: { created: 0, reused: 8 },
-      fishingBaseFish: { created: 5_305, reused: 64 },
+      fishingBaseFish: { created: 3_197, reused: 33 },
       conflicts: 0,
       warnings: [],
     });

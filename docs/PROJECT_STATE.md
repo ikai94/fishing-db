@@ -91,7 +91,8 @@ The workspace currently includes only `apps/*`; there is no accepted `packages/s
 - Server-side CatchReport v2 validation with historical fishing method and distinct observation
   fields.
 - Authenticated notebook-line parser with editable preview, warnings, and blocking issues.
-- Deterministic, additive, idempotent full-catalog seed and read-only CatchReport audit command.
+- Deterministic, additive, idempotent full-catalog seed, guarded Base↔Fish reconciliation, and
+  read-only CatchReport audit commands.
 - Public Base/Location/Fish/Bait navigation, Fish alphabet/search, and searchable Base fish lists.
 - Fish Explorer with URL-backed Base selection and a dense, paginated CatchReport table.
 - Common-hole statistics with multi-contributor confirmations separated from repeated
@@ -161,7 +162,7 @@ or PostgreSQL e2e. E2e uses the isolated test PostgreSQL service, which defaults
 The committed canonical offline seed asserts:
 
 - 77 FishingBases and 853 Locations;
-- 1,255 global Fish identities and 5,369 FishingBaseFish memberships;
+- 1,255 global Fish identities and 3,230 canonical FishingBaseFish memberships;
 - 249 Baits: 68 `BAIT` and 181 `LURE`;
 - 8 ScreenAnchors.
 

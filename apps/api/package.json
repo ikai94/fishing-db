@@ -18,6 +18,7 @@
     "prisma:seed": "prisma db seed",
     "db:seed:catalog": "tsx src/prisma/seed-catalog.ts",
     "db:audit:catch-reports": "tsx src/prisma/audit-catch-reports.ts",
+    "db:reconcile:fishing-base-fish": "tsx src/prisma/reconcile-fishing-base-fish.ts",
     "forum:scan": "tsx src/forum-import/cli.ts scan",
     "forum:stage": "tsx src/forum-import/cli.ts stage",
     "forum:audit": "tsx src/forum-import/cli.ts audit",

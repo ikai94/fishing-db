@@ -29,6 +29,7 @@
     "db:seed": "pnpm --filter @fishing-db/api run prisma:seed",
     "db:seed:catalog": "pnpm --filter @fishing-db/api run db:seed:catalog",
     "db:audit:catch-reports": "pnpm --filter @fishing-db/api run db:audit:catch-reports",
+    "db:reconcile:fishing-base-fish": "pnpm --filter @fishing-db/api run db:reconcile:fishing-base-fish",
     "forum:scan": "pnpm --filter @fishing-db/api run forum:scan",
     "forum:stage": "pnpm db:generate && pnpm --filter @fishing-db/api run forum:stage",
     "forum:audit": "pnpm --filter @fishing-db/api run forum:audit",
