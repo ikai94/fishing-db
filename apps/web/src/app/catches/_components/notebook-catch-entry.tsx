@@ -6,7 +6,7 @@ import styles from '../../catch-reports.module.css';
 import { CatchReportBatchPreview } from './catch-report-batch-preview';
 import { CatchReportFormCatalogProvider } from './catch-report-form-catalog-context';
 import { getApiErrorMessage, isApiError } from '@/lib/api-client';
-import { validateRawSourceText } from '@/lib/catch-report-form';
+import { validateBatchRawSourceText } from '@/lib/catch-report-form';
 import { type ParseCatchReportBatchResult, parseCatchReportBatch } from '@/lib/catch-reports-api';
 
 function rawOffsetForTextareaOffset(rawSourceText: string, textareaOffset: number): number {
@@ -138,7 +138,7 @@ export function NotebookCatchEntry({ canSave }: { canSave: boolean }) {
 
     let source: string;
     try {
-      source = validateRawSourceText(rawSourceText);
+      source = validateBatchRawSourceText(rawSourceText);
     } catch (validationError) {
       setError(validationError instanceof Error ? validationError.message : 'Некорректная запись.');
       setIsParsing(false);

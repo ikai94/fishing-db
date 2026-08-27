@@ -291,19 +291,32 @@ describe('CatchReport batch requests', () => {
     await expect(parseCatchReportBatch(rawSourceText, controller.signal)).resolves.toMatchObject({
       rows: [{ duplicateIndexes: [1] }, { duplicateIndexes: [0] }],
     });
-    expect(mocks.apiRequest).toHaveBeenCalledWith('/catch-reports/parse-batch', {
-      method: 'POST',
-      body: JSON.stringify({ rawSourceText }),
-      signal: controller.signal,
-    });
+    expect(mocks.apiRequest).toHaveBeenCalledWith(
+      '/catch-reports/parse-batch',
+      {
+        method: 'POST',
+        body: JSON.stringify({ rawSourceText }),
+        signal: controller.signal,
+      },
+      120_000,
+    );
   });
 
-  test('rejects malformed duplicate metadata', () => {
+  test('accepts linear duplicate references but rejects non-exact metadata', () => {
+    expect(
+      decodeCatchReportBatch({
+        rows: [
+          { index: 0, sourceLine: 1, duplicateIndexes: [1], draft: missingDraft('Налим') },
+          { index: 1, sourceLine: 2, duplicateIndexes: [0], draft: missingDraft('Налим') },
+          { index: 2, sourceLine: 3, duplicateIndexes: [0], draft: missingDraft('Налим') },
+        ],
+      }).rows,
+    ).toHaveLength(3);
     expect(() =>
       decodeCatchReportBatch({
         rows: [
           { index: 0, sourceLine: 1, duplicateIndexes: [1], draft: missingDraft('Налим') },
-          { index: 1, sourceLine: 2, duplicateIndexes: [], draft: missingDraft('Налим') },
+          { index: 1, sourceLine: 2, duplicateIndexes: [], draft: missingDraft('Налим ') },
         ],
       }),
     ).toThrow();
@@ -321,10 +334,14 @@ describe('CatchReport batch requests', () => {
       reportIds: ['report-a', 'report-b'],
     });
     expect(mocks.apiRequest).toHaveBeenCalledTimes(1);
-    expect(mocks.apiRequest).toHaveBeenCalledWith('/catch-reports/batch', {
-      method: 'POST',
-      body: JSON.stringify({ reports }),
-    });
+    expect(mocks.apiRequest).toHaveBeenCalledWith(
+      '/catch-reports/batch',
+      {
+        method: 'POST',
+        body: JSON.stringify({ reports }),
+      },
+      120_000,
+    );
     expect(() =>
       decodeCreateCatchReportsBatchResult({
         createdCount: 2,

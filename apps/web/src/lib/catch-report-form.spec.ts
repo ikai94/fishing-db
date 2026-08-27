@@ -5,6 +5,7 @@ import {
   normalizeSpotPositionRaw,
   normalizeUserNoteRaw,
   parseMetersToCentimeters,
+  validateBatchRawSourceText,
   validateRawSourceText,
 } from './catch-report-form';
 
@@ -57,5 +58,22 @@ describe('exact text validation', () => {
     expect(() => validateRawSourceText(`строка\u0000`)).toThrow();
     expect(() => validateRawSourceText(`строка\u200d`)).toThrow();
     expect(() => validateRawSourceText(`строка\ud800`)).toThrow();
+  });
+
+  test('validates 5000 physical batch lines independently from the total source limit', () => {
+    const maximumBatch = Array.from({ length: 5_000 }, (_, index) => `строка ${index + 1}`).join(
+      '\n',
+    );
+    expect(validateBatchRawSourceText(maximumBatch)).toBe(maximumBatch);
+    expect(() => validateBatchRawSourceText(`${maximumBatch}\nлишняя`)).toThrow(/5000/);
+    expect(() => validateBatchRawSourceText(`короткая\n${'я'.repeat(20_001)}`)).toThrow(
+      /Строка 2.*20000/,
+    );
+    const maximumSource = [
+      'a'.repeat(20_000),
+      ...Array.from({ length: 49 }, () => 'a'.repeat(19_999)),
+    ].join('\n');
+    expect(validateBatchRawSourceText(maximumSource)).toHaveLength(1_000_000);
+    expect(() => validateBatchRawSourceText(`${maximumSource}a`)).toThrow(/1000000/);
   });
 });

@@ -140,6 +140,7 @@ const SPINNING_SIZES = new Set<SpinningSize>(['SMALL', 'MEDIUM', 'LARGE']);
 const SPINNING_SPEEDS = new Set<SpinningSpeed>(['SLOW', 'MEDIUM', 'FAST']);
 const DRAFT_STATUSES = new Set<DraftStatus>(['RESOLVED', 'MISSING', 'UNRESOLVED']);
 const DRAFT_SEVERITIES = new Set<DraftIssueSeverity>(['BLOCKING', 'WARNING']);
+const BULK_REQUEST_TIMEOUT_MS = 120_000;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -557,7 +558,6 @@ export function decodeCatchReportBatch(value: unknown): ParseCatchReportBatchRes
       row.duplicateIndexes.some(
         (duplicateIndex) =>
           duplicateIndex >= rows.length ||
-          !rows[duplicateIndex]?.duplicateIndexes.includes(position) ||
           rows[duplicateIndex]?.draft.rawSourceText !== row.draft.rawSourceText,
       )
     ) {
@@ -575,7 +575,7 @@ export function decodeCreateCatchReportsBatchResult(value: unknown): CreateCatch
     typeof value.createdCount !== 'number' ||
     !Number.isInteger(value.createdCount) ||
     value.createdCount < 1 ||
-    value.createdCount > 100 ||
+    value.createdCount > 5_000 ||
     !Array.isArray(value.reportIds) ||
     value.reportIds.length !== value.createdCount ||
     !value.reportIds.every((reportId) => typeof reportId === 'string' && reportId.length > 0) ||
@@ -670,10 +670,14 @@ export async function createCatchReport(input: CreateCatchReportInput): Promise<
 export async function createCatchReportsBatch(
   reports: CreateCatchReportInput[],
 ): Promise<CreateCatchReportsBatchResult> {
-  const payload = await apiRequest<unknown>('/catch-reports/batch', {
-    method: 'POST',
-    body: JSON.stringify({ reports }),
-  });
+  const payload = await apiRequest<unknown>(
+    '/catch-reports/batch',
+    {
+      method: 'POST',
+      body: JSON.stringify({ reports }),
+    },
+    BULK_REQUEST_TIMEOUT_MS,
+  );
   return decodeCreateCatchReportsBatchResult(payload);
 }
 
@@ -711,10 +715,14 @@ export async function parseCatchReportBatch(
   rawSourceText: string,
   signal?: AbortSignal,
 ): Promise<ParseCatchReportBatchResult> {
-  const payload = await apiRequest<unknown>('/catch-reports/parse-batch', {
-    method: 'POST',
-    body: JSON.stringify({ rawSourceText }),
-    signal,
-  });
+  const payload = await apiRequest<unknown>(
+    '/catch-reports/parse-batch',
+    {
+      method: 'POST',
+      body: JSON.stringify({ rawSourceText }),
+      signal,
+    },
+    BULK_REQUEST_TIMEOUT_MS,
+  );
   return decodeCatchReportBatch(payload);
 }

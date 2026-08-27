@@ -26,7 +26,12 @@ export const catchReportErrors = {
   batchLimitExceeded: (): BadRequestException =>
     new BadRequestException({
       ...response(400, 'VALIDATION_ERROR', 'Проверьте введённые данные'),
-      errors: { rawSourceText: ['За один раз можно разобрать не больше 100 строк'] },
+      errors: { rawSourceText: ['За один раз можно разобрать не больше 5000 строк'] },
+    }),
+  batchLineInvalid: (sourceLine: number, message: string): BadRequestException =>
+    new BadRequestException({
+      ...response(400, 'VALIDATION_ERROR', 'Проверьте введённые данные'),
+      errors: { rawSourceText: [`Строка ${sourceLine}: ${message}`] },
     }),
   batchValidation: (errors: BatchFieldErrors): ConflictException =>
     new ConflictException({

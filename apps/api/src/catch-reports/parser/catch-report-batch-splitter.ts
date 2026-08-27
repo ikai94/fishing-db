@@ -1,4 +1,5 @@
-export const CATCH_REPORT_BATCH_MAX_ITEMS = 100;
+export const CATCH_REPORT_BATCH_MAX_ITEMS = 5_000;
+export const CATCH_REPORT_BATCH_MAX_SOURCE_LENGTH = 1_000_000;
 
 export interface CatchReportBatchCandidate {
   index: number;
@@ -37,11 +38,13 @@ export function duplicateIndexesByCandidate(
   const duplicates = new Map<number, number[]>();
   for (const indexes of indexesBySource.values()) {
     if (indexes.length < 2) continue;
-    for (const index of indexes) {
-      duplicates.set(
-        index,
-        indexes.filter((candidateIndex) => candidateIndex !== index),
-      );
+    const first = indexes[0];
+    const second = indexes[1];
+    if (first === undefined || second === undefined) continue;
+
+    duplicates.set(first, [second]);
+    for (const index of indexes.slice(1)) {
+      duplicates.set(index, [first]);
     }
   }
 

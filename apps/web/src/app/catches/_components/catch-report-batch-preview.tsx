@@ -6,6 +6,7 @@ import { useCallback, useState } from 'react';
 import styles from '../../catch-reports.module.css';
 import { CatchReportDraftPreview } from './catch-report-draft-preview';
 import { getApiErrorMessage, isApiError } from '@/lib/api-client';
+import { fishingMethodLabel } from '@/lib/catch-report-form';
 import {
   type CatchReportBatchDraftRow,
   type CreateCatchReportInput,
@@ -14,6 +15,7 @@ import {
 } from '@/lib/catch-reports-api';
 
 type RowErrors = Readonly<Record<number, string[]>>;
+const CLEAN_ROWS_PAGE_SIZE = 50;
 
 export function CatchReportBatchPreview({
   result,
@@ -27,12 +29,13 @@ export function CatchReportBatchPreview({
     () => new Set(result.rows.map((row) => row.index)),
   );
   const [inputs, setInputs] = useState<ReadonlyMap<number, CreateCatchReportInput | null>>(
-    () => new Map(result.rows.map((row) => [row.index, null])),
+    () => new Map(result.rows.map((row) => [row.index, createInputFromDraft(row.draft)])),
   );
   const [rowErrors, setRowErrors] = useState<RowErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [createdCount, setCreatedCount] = useState<number | null>(null);
+  const [visibleCleanCount, setVisibleCleanCount] = useState(CLEAN_ROWS_PAGE_SIZE);
 
   const updateInput = useCallback((rowIndex: number, input: CreateCatchReportInput | null) => {
     setInputs((current) => {
@@ -50,10 +53,24 @@ export function CatchReportBatchPreview({
     setFormError(null);
   }, []);
 
+  const rowIsValid = (row: CatchReportBatchDraftRow) =>
+    inputs.get(row.index) !== null && (rowErrors[row.index]?.length ?? 0) === 0;
   const selectedRows = result.rows.filter((row) => selected.has(row.index));
-  const selectedInvalidCount = selectedRows.filter((row) => inputs.get(row.index) === null).length;
-  const readyCount = result.rows.filter((row) => inputs.get(row.index) !== null).length;
+  const selectedInvalidCount = selectedRows.filter((row) => !rowIsValid(row)).length;
+  const readyCount = result.rows.filter(rowIsValid).length;
   const duplicateCount = result.rows.filter((row) => row.duplicateIndexes.length > 0).length;
+  const rankedRows = result.rows
+    .map((row, originalOrder) => ({ row, originalOrder }))
+    .sort((left, right) => {
+      const rankDifference =
+        attentionRank(left.row, rowIsValid(left.row)) -
+        attentionRank(right.row, rowIsValid(right.row));
+      return rankDifference === 0 ? left.originalOrder - right.originalOrder : rankDifference;
+    })
+    .map(({ row }) => row);
+  const problemRows = rankedRows.filter((row) => attentionRank(row, rowIsValid(row)) < 2);
+  const cleanRows = rankedRows.filter((row) => attentionRank(row, rowIsValid(row)) === 2);
+  const displayRows = [...problemRows, ...cleanRows.slice(0, visibleCleanCount)];
   const canSubmit =
     canSave && selectedRows.length > 0 && selectedInvalidCount === 0 && !isSubmitting;
 
@@ -146,12 +163,12 @@ export function CatchReportBatchPreview({
       ) : null}
 
       <div className={styles.batchRows}>
-        {result.rows.map((row) => (
+        {displayRows.map((row) => (
           <BatchRow
             key={row.index}
             row={row}
             selected={selected.has(row.index)}
-            valid={inputs.get(row.index) !== null}
+            valid={rowIsValid(row)}
             errors={rowErrors[row.index] ?? []}
             canSave={canSave}
             onInputChange={updateInput}
@@ -167,6 +184,25 @@ export function CatchReportBatchPreview({
           />
         ))}
       </div>
+
+      {cleanRows.length > visibleCleanCount ? (
+        <div className={styles.formActions}>
+          <p className={styles.muted}>
+            Показано готовых строк: {visibleCleanCount} из {cleanRows.length}.
+          </p>
+          <button
+            className={styles.secondaryButton}
+            type="button"
+            onClick={() =>
+              setVisibleCleanCount((current) =>
+                Math.min(current + CLEAN_ROWS_PAGE_SIZE, cleanRows.length),
+              )
+            }
+          >
+            Показать ещё {Math.min(CLEAN_ROWS_PAGE_SIZE, cleanRows.length - visibleCleanCount)}
+          </button>
+        </div>
+      ) : null}
 
       <div className={styles.formActions}>
         <button
@@ -199,6 +235,8 @@ function BatchRow({
   onInputChange: (rowIndex: number, input: CreateCatchReportInput | null) => void;
   onSelectedChange: (selected: boolean) => void;
 }) {
+  const [expanded, setExpanded] = useState(!valid);
+  const fishingMethod = resolvedValue(row.draft.fields?.fishingMethod);
   const updateInput = useCallback(
     (input: CreateCatchReportInput | null) => onInputChange(row.index, input),
     [onInputChange, row.index],
@@ -221,6 +259,9 @@ function BatchRow({
         </span>
       </header>
       <p className={styles.batchRawSource}>{row.draft.rawSourceText}</p>
+      {fishingMethod !== null ? (
+        <p className={styles.muted}>Способ ловли: {fishingMethodLabel(fishingMethod)}</p>
+      ) : null}
       {row.duplicateIndexes.length > 0 ? (
         <p className={styles.warningIssue}>
           Точная копия другой строки пакета. Строка не объединена и будет сохранена отдельно.
@@ -233,19 +274,80 @@ function BatchRow({
           ))}
         </ul>
       ) : null}
-      <details open={!row.draft.canConfirm}>
+      {row.draft.issues.some((issue) => issue.severity === 'BLOCKING') ? (
+        <ul className={styles.batchRowErrors}>
+          {row.draft.issues
+            .filter((issue) => issue.severity === 'BLOCKING')
+            .map((issue, index) => (
+              <li key={`${issue.code}:${index}`}>{issue.message}</li>
+            ))}
+        </ul>
+      ) : null}
+      {row.draft.issues.some((issue) => issue.severity === 'WARNING') ? (
+        <ul className={styles.batchRowErrors}>
+          {row.draft.issues
+            .filter((issue) => issue.severity === 'WARNING')
+            .map((issue, index) => (
+              <li key={`${issue.code}:${index}`}>{issue.message}</li>
+            ))}
+        </ul>
+      ) : null}
+      <details
+        open={expanded || !valid}
+        onToggle={(event) => setExpanded(event.currentTarget.open)}
+      >
         <summary className={styles.batchRowSummary}>Проверить и изменить поля</summary>
-        <div className={styles.batchRowEditor}>
-          <CatchReportDraftPreview
-            draft={row.draft}
-            canSave={canSave && selected}
-            embeddedBatchRow
-            onCreateInputChange={updateInput}
-          />
-        </div>
+        {expanded || !valid ? (
+          <div className={styles.batchRowEditor}>
+            <CatchReportDraftPreview
+              draft={row.draft}
+              canSave={canSave && selected}
+              embeddedBatchRow
+              onCreateInputChange={updateInput}
+            />
+          </div>
+        ) : null}
       </details>
     </article>
   );
+}
+
+function createInputFromDraft(
+  draft: CatchReportBatchDraftRow['draft'],
+): CreateCatchReportInput | null {
+  if (!draft.canConfirm || draft.baseFishMembership?.status !== 'RESOLVED') return null;
+  const location = resolvedValue(draft.fields.location);
+  const fish = resolvedValue(draft.fields.fish);
+  const bait = resolvedValue(draft.fields.bait);
+  const weightGrams = resolvedValue(draft.fields.weightGrams);
+  const fishingMethod = resolvedValue(draft.fields.fishingMethod);
+  if (
+    location === null ||
+    fish === null ||
+    bait === null ||
+    weightGrams === null ||
+    fishingMethod === null
+  ) {
+    return null;
+  }
+
+  return {
+    locationId: location.id,
+    fishId: fish.id,
+    baitId: bait.id,
+    weightGrams,
+    holeDepthCm: resolvedValue(draft.fields.holeDepthCm),
+    spotPositionRaw: resolvedValue(draft.fields.spotPositionRaw),
+    fishingNote: resolvedValue(draft.fields.fishingNote),
+    spinningSize: resolvedValue(draft.fields.spinningSize),
+    spinningSpeed: resolvedValue(draft.fields.spinningSpeed),
+    userNoteRaw: resolvedValue(draft.fields.userNoteRaw),
+    rawSourceText: draft.rawSourceText,
+  };
+}
+
+function resolvedValue<T>(field: { status: string; value: T | null } | undefined): T | null {
+  return field?.status === 'RESOLVED' ? field.value : null;
 }
 
 function indexedBatchErrors(error: unknown, originalRowIndexes: readonly number[]): RowErrors {
@@ -264,10 +366,28 @@ function indexedBatchErrors(error: unknown, originalRowIndexes: readonly number[
   return result;
 }
 
+function attentionRank(row: CatchReportBatchDraftRow, valid: boolean): number {
+  if (!valid) return 0;
+  if (
+    row.duplicateIndexes.length > 0 ||
+    row.draft.unresolvedFragments.length > 0 ||
+    row.draft.issues.some((issue) => issue.severity === 'WARNING')
+  ) {
+    return 1;
+  }
+  return 2;
+}
+
 function catchCountLabel(value: number): string {
   const lastTwo = value % 100;
   const last = value % 10;
   const suffix =
-    lastTwo >= 11 && lastTwo <= 14 ? 'уловов' : last === 1 ? 'улов' : last < 5 ? 'улова' : 'уловов';
+    lastTwo >= 11 && lastTwo <= 14
+      ? 'уловов'
+      : last === 1
+        ? 'улов'
+        : last >= 2 && last <= 4
+          ? 'улова'
+          : 'уловов';
   return `${value} ${suffix}`;
 }

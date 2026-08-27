@@ -3,6 +3,7 @@
 import { useCallback, useState } from 'react';
 import styles from '../../catch-reports.module.css';
 import { CatchReportForm, type CatchReportFormValidationState } from './catch-report-form';
+import { fishingMethodLabel } from '@/lib/catch-report-form';
 import type {
   CatchReportDraft,
   CreateCatchReportInput,
@@ -76,21 +77,22 @@ export function CatchReportDraftPreview({
           Результат распознавания
         </h2>
         <dl className={styles.parseFieldList}>
-          {relevantFields.map(([name, field]) => (
-            <div key={name}>
-              <dt>{FIELD_LABELS[name]}</dt>
-              <dd>
-                <StatusBadge
-                  field={name}
-                  status={field.status}
-                  blocking={liveBlockingFields.has(name)}
-                />
-                {field.sourceText !== null ? (
-                  <span className={styles.sourceExcerpt}>{field.sourceText}</span>
-                ) : null}
-              </dd>
-            </div>
-          ))}
+          {relevantFields.map(([name, field]) => {
+            const value = displayedFieldValue(name, field.sourceText, validationState);
+            return (
+              <div key={name}>
+                <dt>{FIELD_LABELS[name]}</dt>
+                <dd>
+                  <StatusBadge
+                    field={name}
+                    status={field.status}
+                    blocking={liveBlockingFields.has(name)}
+                  />
+                  {value !== null ? <span className={styles.sourceExcerpt}>{value}</span> : null}
+                </dd>
+              </div>
+            );
+          })}
         </dl>
 
         {visibleIssues.length > 0 ? (
@@ -140,6 +142,17 @@ export function CatchReportDraftPreview({
       />
     </div>
   );
+}
+
+function displayedFieldValue(
+  field: keyof CatchReportDraft['fields'],
+  sourceText: string | null,
+  validationState: CatchReportFormValidationState,
+): string | null {
+  if (field !== 'fishingMethod') return sourceText;
+  return validationState.fishingMethod === null
+    ? null
+    : fishingMethodLabel(validationState.fishingMethod);
 }
 
 function StatusBadge({

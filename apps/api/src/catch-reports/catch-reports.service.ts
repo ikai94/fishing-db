@@ -1,4 +1,5 @@
 import { HttpException, Inject, Injectable } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { isPrismaError } from '../catalog/catalog-errors.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -10,6 +11,7 @@ import {
   assertCatchReportObservation,
   deriveFishingMethod,
   prepareCatchReportCreate,
+  prepareCatchReportCreates,
   type PreparedCatchReportCreate,
   validateCatchReportBait,
   validateCatchReportFish,
@@ -162,6 +164,8 @@ const OWNER_CATCH_REPORT_SCALAR_SELECT = {
 } as const;
 
 const SERIALIZABLE_TRANSACTION_ATTEMPTS = 3;
+const BATCH_TRANSACTION_TIMEOUT_MS = 120_000;
+const BATCH_INSERT_CHUNK_SIZE = 500;
 
 const BATCH_DOMAIN_FIELD_BY_CODE: Readonly<Record<string, keyof CreateCatchReportDto>> = {
   FISHING_BASE_INACTIVE: 'locationId',
@@ -517,12 +521,15 @@ export class CatchReportsService {
         await this.assertActorCanMutate(tx, actorUserId);
         const prepared: PreparedCatchReportCreate[] = [];
         const validationErrors: BatchFieldErrors = {};
+        const preparationResults = await prepareCatchReportCreates(tx, reports);
 
-        for (const [rowIndex, dto] of reports.entries()) {
-          try {
-            prepared.push(await prepareCatchReportCreate(tx, dto));
-          } catch (error: unknown) {
-            if (!appendBatchRowErrors(validationErrors, rowIndex, error)) throw error;
+        for (const [rowIndex, result] of preparationResults.entries()) {
+          if ('error' in result) {
+            if (!appendBatchRowErrors(validationErrors, rowIndex, result.error)) {
+              throw result.error;
+            }
+          } else {
+            prepared.push(result.prepared);
           }
         }
 
@@ -531,22 +538,22 @@ export class CatchReportsService {
         }
 
         const contributorKey = nativeContributorKey(actorUserId);
-        const reportIds: string[] = [];
-        for (const item of prepared) {
-          const record = await tx.catchReport.create({
-            data: {
+        const reportIds = prepared.map(() => randomUUID());
+        for (let offset = 0; offset < prepared.length; offset += BATCH_INSERT_CHUNK_SIZE) {
+          const items = prepared.slice(offset, offset + BATCH_INSERT_CHUNK_SIZE);
+          await tx.catchReport.createMany({
+            data: items.map((item, index) => ({
+              id: reportIds[offset + index],
               userId: actorUserId,
               contributorKey,
               importKey: null,
               ...item.data,
-            },
-            select: { id: true },
+            })),
           });
-          reportIds.push(record.id);
         }
 
         return { createdCount: reportIds.length, reportIds };
-      });
+      }, BATCH_TRANSACTION_TIMEOUT_MS);
     } catch (error: unknown) {
       if (isPrismaError(error, 'P2003') || isPrismaError(error, 'P2034')) {
         throw catchReportErrors.referenceConflict();
@@ -716,12 +723,16 @@ export class CatchReportsService {
 
   private async runSerializableTransaction<Result>(
     operation: (tx: Prisma.TransactionClient) => Promise<Result>,
+    timeout?: number,
   ): Promise<Result> {
     let lastConflict: unknown;
 
     for (let attempt = 1; attempt <= SERIALIZABLE_TRANSACTION_ATTEMPTS; attempt += 1) {
       try {
-        return await this.prisma.$transaction(operation, { isolationLevel: 'Serializable' });
+        return await this.prisma.$transaction(operation, {
+          isolationLevel: 'Serializable',
+          ...(timeout === undefined ? {} : { timeout }),
+        });
       } catch (error: unknown) {
         if (!isPrismaError(error, 'P2034')) throw error;
         lastConflict = error;

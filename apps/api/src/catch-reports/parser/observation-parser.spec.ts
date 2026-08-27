@@ -56,13 +56,19 @@ void describe('observation parser', () => {
   void it('supports all size/speed combinations with slash and backslash', () => {
     const sizes: Array<readonly [string, CatchReportSpinningSize]> = [
       ['м', 'SMALL'],
+      ['мал', 'SMALL'],
       ['ср', 'MEDIUM'],
+      ['сред', 'MEDIUM'],
       ['б', 'LARGE'],
+      ['бол', 'LARGE'],
     ];
     const speeds: Array<readonly [string, CatchReportSpinningSpeed]> = [
       ['м', 'SLOW'],
+      ['медл', 'SLOW'],
       ['ср', 'MEDIUM'],
+      ['сред', 'MEDIUM'],
       ['б', 'FAST'],
+      ['быстр', 'FAST'],
     ];
 
     for (const separator of ['/', '\\']) {
@@ -78,11 +84,45 @@ void describe('observation parser', () => {
     }
   });
 
+  void it('parses the exact real large/slow shorthand without unresolved text', () => {
+    for (const raw of ['бол\\м', '(бол/м)', '(бол\\м)']) {
+      const result = parseObservation(raw, source(raw), 'SPINNING', ANCHORS);
+
+      assert.equal(result.spinningSize?.value, 'LARGE', raw);
+      assert.equal(result.spinningSize?.source.text, 'бол', raw);
+      assert.equal(result.spinningSpeed?.value, 'SLOW', raw);
+      assert.equal(result.spinningSpeed?.source.text, 'м', raw);
+      assert.deepEqual(result.unresolvedFragments, [], raw);
+    }
+  });
+
   void it('supports approved textual spinning aliases', () => {
     for (const raw of ['ср. медл', 'ср., проводка медленная', 'средняя, проводка медленная']) {
       const result = parseObservation(raw, source(raw), 'SPINNING', ANCHORS);
       assert.equal(result.spinningSize?.value, 'MEDIUM', raw);
       assert.equal(result.spinningSpeed?.value, 'SLOW', raw);
+    }
+  });
+
+  void it('parses the exact closed medium-on-medium retrieve phrase', () => {
+    const raw = 'сред на средн пров';
+    const result = parseObservation(raw, source(raw), 'SPINNING', ANCHORS);
+
+    assert.equal(result.spinningSize?.value, 'MEDIUM');
+    assert.equal(result.spinningSize?.source.text, 'сред');
+    assert.equal(result.spinningSpeed?.value, 'MEDIUM');
+    assert.equal(result.spinningSpeed?.source.text, 'средн');
+    assert.deepEqual(result.unresolvedFragments, []);
+
+    for (const nearMiss of ['сред на сред пров', 'сред на средн провод']) {
+      const nearMissResult = parseObservation(nearMiss, source(nearMiss), 'SPINNING', ANCHORS);
+      assert.equal(nearMissResult.spinningSize, null, nearMiss);
+      assert.equal(nearMissResult.spinningSpeed, null, nearMiss);
+      assert.deepEqual(
+        nearMissResult.unresolvedFragments.map((fragment) => fragment.text),
+        [nearMiss],
+        nearMiss,
+      );
     }
   });
 
@@ -133,6 +173,54 @@ void describe('observation parser', () => {
       assert.equal(result.spotPositionRaw?.value, spot, raw);
       assert.equal(result.spotPositionRaw?.source.text, spot, raw);
       assert.deepEqual(result.unresolvedFragments, [], raw);
+    }
+  });
+
+  void it('peels only an exact terminal compact spinning pair from an explicit depth spot', () => {
+    for (const separator of ['/', '\\']) {
+      const raw = `(7.38 над рюкзак/данные бол${separator}м)`;
+      const result = parseObservation(raw, source(raw), 'SPINNING', ANCHORS);
+
+      assert.equal(result.holeDepthCm?.value, 738, raw);
+      assert.equal(result.spotPositionRaw?.value, 'над рюкзак/данные', raw);
+      assert.equal(result.spotPositionRaw?.source.text, 'над рюкзак/данные', raw);
+      assert.equal(result.spinningSize?.value, 'LARGE', raw);
+      assert.equal(result.spinningSpeed?.value, 'SLOW', raw);
+      assert.deepEqual(result.unresolvedFragments, [], raw);
+    }
+
+    const plainRaw = '(4.65 над леской)';
+    const plain = parseObservation(plainRaw, source(plainRaw), 'SPINNING', ANCHORS);
+    assert.equal(plain.holeDepthCm?.value, 465);
+    assert.equal(plain.spotPositionRaw?.value, 'над леской');
+    assert.equal(plain.spinningSize, null);
+    assert.equal(plain.spinningSpeed, null);
+    assert.deepEqual(plain.unresolvedFragments, []);
+
+    const middleRaw = '(7.38 над рюкзак бол/м данные)';
+    const middle = parseObservation(middleRaw, source(middleRaw), 'SPINNING', ANCHORS);
+    assert.equal(middle.holeDepthCm?.value, 738);
+    assert.equal(middle.spotPositionRaw?.value, 'над рюкзак бол/м данные');
+    assert.equal(middle.spinningSize, null);
+    assert.equal(middle.spinningSpeed, null);
+    assert.deepEqual(middle.unresolvedFragments, []);
+  });
+
+  void it('keeps an unknown prefix unresolved without discarding a valid structured suffix', () => {
+    for (const separator of ['/', '\\']) {
+      const raw = `(забр 5.17 над леской ср${separator}м)`;
+      const result = parseObservation(raw, source(raw), 'SPINNING', ANCHORS);
+
+      assert.equal(result.holeDepthCm?.value, 517, raw);
+      assert.equal(result.spotPositionRaw?.value, 'над леской', raw);
+      assert.equal(result.spotPositionRaw?.source.text, 'над леской', raw);
+      assert.equal(result.spinningSize?.value, 'MEDIUM', raw);
+      assert.equal(result.spinningSpeed?.value, 'SLOW', raw);
+      assert.deepEqual(
+        result.unresolvedFragments.map((fragment) => fragment.text),
+        ['забр'],
+        raw,
+      );
     }
   });
 

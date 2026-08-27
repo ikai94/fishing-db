@@ -51,6 +51,7 @@ function result(duplicate = false): ParseCatchReportBatchResult {
       rawSourceText,
       canConfirm: true,
       issues: [],
+      unresolvedFragments: [],
     }) as unknown as ParseCatchReportBatchResult['rows'][number]['draft'];
   return {
     rows: [
@@ -66,6 +67,60 @@ function result(duplicate = false): ParseCatchReportBatchResult {
         duplicateIndexes: duplicate ? [0] : [],
         draft: draft(duplicate ? 'первая' : 'вторая'),
       },
+    ],
+  };
+}
+
+function attentionResult(): ParseCatchReportBatchResult {
+  const draft = (
+    rawSourceText: string,
+    issues: ParseCatchReportBatchResult['rows'][number]['draft']['issues'] = [],
+    canConfirm = true,
+  ) =>
+    ({
+      rawSourceText,
+      canConfirm,
+      issues,
+      unresolvedFragments: [],
+    }) as unknown as ParseCatchReportBatchResult['rows'][number]['draft'];
+  const warning = (message: string) => ({
+    severity: 'WARNING' as const,
+    code: 'UNRESOLVED_FRAGMENT',
+    message,
+  });
+  return {
+    rows: [
+      { index: 0, sourceLine: 1, duplicateIndexes: [], draft: draft('чистая 1') },
+      {
+        index: 1,
+        sourceLine: 2,
+        duplicateIndexes: [],
+        draft: draft('предупреждение 2', [warning('Проверить строку 2')]),
+      },
+      {
+        index: 2,
+        sourceLine: 3,
+        duplicateIndexes: [],
+        draft: draft(
+          'чужая рыба 3',
+          [
+            {
+              severity: 'BLOCKING',
+              code: 'FISH_NOT_IN_BASE',
+              field: 'fish',
+              message: 'Рыба не связана с выбранной рыболовной базой',
+            },
+          ],
+          false,
+        ),
+      },
+      {
+        index: 3,
+        sourceLine: 5,
+        duplicateIndexes: [],
+        draft: draft('предупреждение 5', [warning('Проверить строку 5')]),
+      },
+      { index: 4, sourceLine: 6, duplicateIndexes: [], draft: draft('чистая 6') },
     ],
   };
 }
@@ -151,5 +206,41 @@ describe('CatchReportBatchPreview', () => {
 
     expect(await screen.findByText('Рыба больше недоступна')).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: 'Сохранить строку 3' })).toBeChecked();
+  });
+
+  test('orders blocking, warning, and clean rows for attention without changing payload order', async () => {
+    const user = userEvent.setup();
+    mocks.createCatchReportsBatch.mockResolvedValue({
+      createdCount: 4,
+      reportIds: ['one', 'two', 'three', 'four'],
+    });
+    render(<CatchReportBatchPreview result={attentionResult()} canSave />);
+
+    for (const raw of ['чистая 1', 'предупреждение 2', 'предупреждение 5', 'чистая 6']) {
+      await user.click(screen.getByRole('button', { name: `Подтвердить ${raw}` }));
+    }
+
+    expect(
+      screen
+        .getAllByRole('checkbox', { name: /Сохранить строку/u })
+        .map((checkbox) => checkbox.parentElement?.textContent?.trim()),
+    ).toEqual([
+      'Сохранить строку 3',
+      'Сохранить строку 2',
+      'Сохранить строку 5',
+      'Сохранить строку 1',
+      'Сохранить строку 6',
+    ]);
+    expect(screen.getAllByRole('button', { name: 'Сохранить 5 уловов' })[0]).toBeDisabled();
+
+    await user.click(screen.getByRole('checkbox', { name: 'Сохранить строку 3' }));
+    await user.click(screen.getAllByRole('button', { name: 'Сохранить 4 улова' })[0]!);
+
+    await waitFor(() => expect(mocks.createCatchReportsBatch).toHaveBeenCalledTimes(1));
+    expect(
+      mocks.createCatchReportsBatch.mock.calls[0]?.[0].map(
+        (input: { rawSourceText: string }) => input.rawSourceText,
+      ),
+    ).toEqual(['чистая 1', 'предупреждение 2', 'предупреждение 5', 'чистая 6']);
   });
 });

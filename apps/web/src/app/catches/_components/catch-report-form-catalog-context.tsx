@@ -44,11 +44,12 @@ const CatalogContext = createContext<SharedCatchReportCatalog | null>(null);
 export function CatchReportFormCatalogProvider({ children }: { children: ReactNode }) {
   const [revision, setRevision] = useState(0);
   const [state, setState] = useState<CatchReportFormCatalogState>({ kind: 'loading' });
-  const controllerRef = useRef(new AbortController());
+  const controllerRef = useRef<AbortController | null>(null);
   const baseRequestsRef = useRef(new Map<string, Promise<PublicFishingBase>>());
 
   useEffect(() => {
-    const controller = controllerRef.current;
+    const controller = new AbortController();
+    controllerRef.current = controller;
     async function loadCatalog() {
       try {
         const [bases, baits, screenAnchors] = await Promise.all([
@@ -66,21 +67,28 @@ export function CatchReportFormCatalogProvider({ children }: { children: ReactNo
       }
     }
     void loadCatalog();
-    return () => controller.abort();
+    return () => {
+      controller.abort();
+      if (controllerRef.current === controller) controllerRef.current = null;
+    };
   }, [revision]);
 
   const loadBase = useCallback((baseId: string) => {
     const current = baseRequestsRef.current.get(baseId);
     if (current !== undefined) return current;
-    const request = getFishingBase(baseId, controllerRef.current.signal);
+    const controller = controllerRef.current;
+    if (controller === null || controller.signal.aborted) {
+      return Promise.reject(new Error('Активный игровой каталог ещё не загружен'));
+    }
+    const request = getFishingBase(baseId, controller.signal);
     baseRequestsRef.current.set(baseId, request);
     void request.catch(() => baseRequestsRef.current.delete(baseId));
     return request;
   }, []);
 
   const reload = useCallback(() => {
-    controllerRef.current.abort();
-    controllerRef.current = new AbortController();
+    controllerRef.current?.abort();
+    controllerRef.current = null;
     baseRequestsRef.current.clear();
     setState({ kind: 'loading' });
     setRevision((current) => current + 1);

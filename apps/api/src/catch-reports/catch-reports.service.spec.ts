@@ -142,18 +142,17 @@ interface CreateMockOptions {
   baitType?: 'BAIT' | 'LURE';
   location?: unknown;
   fish?: unknown;
-  membership?: unknown;
+  membership?:
+    { fishingBaseId: string } | null | ((query: unknown) => { fishingBaseId: string } | null);
   bait?: unknown;
   created?: ReturnType<typeof reportRecord>;
   transactionConflicts?: number;
-  createdIds?: string[];
 }
 
 function createPrisma(options: CreateMockOptions = {}) {
   const calls: string[] = [];
   let createQuery: unknown;
   const createQueries: unknown[] = [];
-  let createIndex = 0;
   const prisma = withTransaction(
     {
       user: { findUnique: () => Promise.resolve({ id: USER_ID, nickname: 'Рыболов' }) },
@@ -173,6 +172,19 @@ function createPrisma(options: CreateMockOptions = {}) {
               : options.location,
           );
         },
+        findMany: () =>
+          Promise.resolve(
+            options.location === null
+              ? []
+              : [
+                  options.location ?? {
+                    id: LOCATION_ID,
+                    fishingBaseId: BASE_ID,
+                    isActive: true,
+                    fishingBase: { isActive: true },
+                  },
+                ],
+          ),
       },
       fish: {
         findUnique: (query: unknown) => {
@@ -183,12 +195,49 @@ function createPrisma(options: CreateMockOptions = {}) {
               : options.fish,
           );
         },
+        findMany: (query: unknown) => {
+          if (options.fish !== undefined) {
+            return Promise.resolve(options.fish === null ? [] : [options.fish]);
+          }
+          const idsValue = asObject(asObject(asObject(query).where).id).in;
+          assert.ok(Array.isArray(idsValue));
+          const ids = idsValue as unknown[];
+          return Promise.resolve(
+            ids.map((id) => {
+              assert.equal(typeof id, 'string');
+              return { id, name: 'Рыба', isActive: true };
+            }),
+          );
+        },
       },
       fishingBaseFish: {
-        findUnique: () => {
+        findUnique: (query: unknown) => {
           calls.push('membership');
+          if (typeof options.membership === 'function') {
+            return Promise.resolve(options.membership(query));
+          }
           return Promise.resolve(
             options.membership === undefined ? { fishingBaseId: BASE_ID } : options.membership,
+          );
+        },
+        findMany: (query: unknown) => {
+          const fishIdsValue = asObject(asObject(asObject(query).where).fishId).in;
+          assert.ok(Array.isArray(fishIdsValue));
+          const fishIds = fishIdsValue as unknown[];
+          return Promise.resolve(
+            fishIds.flatMap((fishId) => {
+              assert.equal(typeof fishId, 'string');
+              const compoundQuery = {
+                where: { fishingBaseId_fishId: { fishingBaseId: BASE_ID, fishId } },
+              };
+              const membership =
+                typeof options.membership === 'function'
+                  ? options.membership(compoundQuery)
+                  : options.membership === undefined
+                    ? { fishingBaseId: BASE_ID }
+                    : options.membership;
+              return membership === null ? [] : [{ fishingBaseId: BASE_ID, fishId }];
+            }),
           );
         },
       },
@@ -201,15 +250,34 @@ function createPrisma(options: CreateMockOptions = {}) {
               : options.bait,
           );
         },
+        findMany: () =>
+          Promise.resolve(
+            options.bait === null
+              ? []
+              : [
+                  options.bait ?? {
+                    id: BAIT_ID,
+                    name: 'Мотыль',
+                    isActive: true,
+                    type: options.baitType ?? 'BAIT',
+                  },
+                ],
+          ),
       },
       catchReport: {
         create: (query: unknown) => {
           calls.push('create');
           createQuery = query;
           createQueries.push(query);
-          const id = options.createdIds?.[createIndex];
-          createIndex += 1;
-          return Promise.resolve(id === undefined ? (options.created ?? reportRecord()) : { id });
+          return Promise.resolve(options.created ?? reportRecord());
+        },
+        createMany: (query: unknown) => {
+          calls.push('create');
+          const dataValue = asObject(query).data;
+          assert.ok(Array.isArray(dataValue));
+          const data = dataValue as unknown[];
+          createQueries.push(...data.map((item) => ({ data: item })));
+          return Promise.resolve({ count: data.length });
         },
         findFirst: () => Promise.resolve(reportScalarRecord()),
       },
@@ -346,14 +414,15 @@ void describe('CatchReportsService v2', () => {
   });
 
   void it('creates every batch row in order with native identity and no deduplication', async () => {
-    const secondReportId = '20000000-0000-4000-8000-000000000002';
-    const mock = createPrisma({ createdIds: [REPORT_ID, secondReportId] });
+    const mock = createPrisma();
     const result = await new CatchReportsService(mock.prisma).createBatch(USER_ID, [
       createDto({ rawSourceText: 'одинаковая строка' }),
       createDto({ rawSourceText: 'одинаковая строка' }),
     ]);
 
-    assert.deepEqual(result, { createdCount: 2, reportIds: [REPORT_ID, secondReportId] });
+    assert.equal(result.createdCount, 2);
+    assert.equal(result.reportIds.length, 2);
+    assert.notEqual(result.reportIds[0], result.reportIds[1]);
     assert.equal(mock.createQueries.length, 2);
     for (const query of mock.createQueries) {
       const data = asObject(asObject(query).data);
@@ -378,10 +447,29 @@ void describe('CatchReportsService v2', () => {
     assert.equal(mock.calls.includes('create'), false);
   });
 
+  void it('atomically rejects a batch row whose globally valid Fish is absent from the derived Base', async () => {
+    const otherBaseFishId = '20000000-0000-4000-8000-000000000003';
+    const mock = createPrisma({
+      membership: (query) => {
+        const where = asObject(asObject(query).where).fishingBaseId_fishId;
+        return asObject(where).fishId === otherBaseFishId ? null : { fishingBaseId: BASE_ID };
+      },
+    });
+
+    await assert.rejects(
+      new CatchReportsService(mock.prisma).createBatch(USER_ID, [
+        createDto(),
+        createDto({ fishId: otherBaseFishId }),
+      ]),
+      hasFieldError('reports.1.fishId'),
+    );
+    assert.equal(mock.calls.includes('create'), false);
+    assert.equal(mock.createQueries.length, 0);
+  });
+
   void it('retries the whole serializable batch before writing', async () => {
     const mock = createPrisma({
       transactionConflicts: 2,
-      createdIds: [REPORT_ID, '20000000-0000-4000-8000-000000000002'],
     });
     const result = await new CatchReportsService(mock.prisma).createBatch(USER_ID, [
       createDto(),

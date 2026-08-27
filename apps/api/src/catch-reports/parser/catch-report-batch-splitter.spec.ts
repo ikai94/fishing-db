@@ -26,4 +26,17 @@ void describe('CatchReport batch line splitter', () => {
     assert.equal(duplicates.has(3), false);
     assert.equal(candidates.length, 4);
   });
+
+  void it('keeps duplicate metadata linear for 5000 identical independent rows', () => {
+    const candidates = splitCatchReportBatchSource(
+      Array.from({ length: 5_000 }, () => 'Налим').join('\n'),
+    );
+    const duplicates = duplicateIndexesByCandidate(candidates);
+
+    assert.equal(candidates.length, 5_000);
+    assert.equal(duplicates.size, 5_000);
+    assert.ok([...duplicates.values()].every((indexes) => indexes.length === 1));
+    assert.deepEqual(duplicates.get(0), [1]);
+    assert.deepEqual(duplicates.get(4_999), [0]);
+  });
 });

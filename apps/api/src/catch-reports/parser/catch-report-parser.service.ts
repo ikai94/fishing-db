@@ -5,8 +5,10 @@ import { PrismaService } from '../../prisma/prisma.service.js';
 import type { CatchReportFishingMethod } from '../catch-reports.constants.js';
 import { catchReportErrors } from '../catch-reports.errors.js';
 import {
+  RAW_SOURCE_TEXT_MAX_LENGTH_PATTERN,
   SPOT_POSITION_RAW_MAX_LENGTH_PATTERN,
   USER_NOTE_RAW_MAX_LENGTH_PATTERN,
+  VALID_RAW_SOURCE_TEXT_PATTERN,
   VALID_SPOT_POSITION_RAW_PATTERN,
   VALID_USER_NOTE_RAW_PATTERN,
 } from '../catch-report-raw-note.js';
@@ -49,6 +51,20 @@ interface LocationCandidate extends DraftLocation {
 
 interface BaitCandidate extends DraftBait {
   nameNormalized: string;
+}
+
+interface AnchorCandidate {
+  name: string;
+  nameNormalized: string;
+}
+
+interface ParserCatalog {
+  findBase: (nameNormalized: string) => Promise<DraftNamedItem | null>;
+  findFish: (nameNormalized: string) => Promise<DraftNamedItem | null>;
+  listBaits: () => Promise<readonly BaitCandidate[]>;
+  listAnchors: () => Promise<readonly AnchorCandidate[]>;
+  listLocations: (baseId: string) => Promise<readonly LocationCandidate[]>;
+  hasMembership: (baseId: string, fishId: string) => Promise<boolean>;
 }
 
 const FIELD_MESSAGES: Record<string, string> = {
@@ -147,36 +163,22 @@ export class CatchReportParserService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async parse(rawSourceText: string): Promise<ParseCatchReportResult> {
+    return this.parseWithCatalog(rawSourceText, this.databaseCatalog());
+  }
+
+  private async parseWithCatalog(
+    rawSourceText: string,
+    catalog: ParserCatalog,
+  ): Promise<ParseCatchReportResult> {
     const gameLine = parseGameLine(rawSourceText);
     const baseSource = gameLine.fishingBaseSource;
     const fishSource = gameLine.fishSource;
     const baseNameNormalized = baseSource === null ? null : normalizedSource(baseSource);
     const fishNameNormalized = fishSource === null ? null : normalizedSource(fishSource);
 
-    const base =
-      baseNameNormalized === null
-        ? null
-        : await this.prisma.fishingBase.findFirst({
-            where: { nameNormalized: baseNameNormalized, isActive: true },
-            select: { id: true, name: true },
-          });
-    const fish =
-      fishNameNormalized === null
-        ? null
-        : await this.prisma.fish.findFirst({
-            where: { nameNormalized: fishNameNormalized, isActive: true },
-            select: { id: true, name: true },
-          });
-    const baits = await this.prisma.bait.findMany({
-      where: { isActive: true },
-      orderBy: [{ nameNormalized: 'asc' }, { id: 'asc' }],
-      select: { id: true, name: true, nameNormalized: true, type: true },
-    });
-    const anchors = await this.prisma.screenAnchor.findMany({
-      where: { isActive: true },
-      orderBy: [{ nameNormalized: 'asc' }, { id: 'asc' }],
-      select: { name: true, nameNormalized: true },
-    });
+    const base = baseNameNormalized === null ? null : await catalog.findBase(baseNameNormalized);
+    const fish = fishNameNormalized === null ? null : await catalog.findFish(fishNameNormalized);
+    const [baits, anchors] = await Promise.all([catalog.listBaits(), catalog.listAnchors()]);
 
     const baseResolved: ResolvedSource<DraftNamedItem> | null =
       baseSource === null || base === null ? null : { item: base, source: baseSource };
@@ -187,6 +189,7 @@ export class CatchReportParserService {
       rawSourceText,
       gameLine.locationAndBaitSource,
       baseResolved,
+      catalog,
     );
     const baitResult = this.resolveBait(rawSourceText, locationResult.baitAndSuffixSource, baits);
     const fishingMethod =
@@ -205,6 +208,7 @@ export class CatchReportParserService {
     const membership = await this.resolveMembership(
       baseResolved?.item ?? null,
       fishResolved?.item ?? null,
+      catalog,
     );
     const fishingBaseField = requiredCatalogField(
       baseSource,
@@ -351,10 +355,25 @@ export class CatchReportParserService {
     if (candidates.length > CATCH_REPORT_BATCH_MAX_ITEMS) {
       throw catchReportErrors.batchLimitExceeded();
     }
+    for (const candidate of candidates) {
+      if (!RAW_SOURCE_TEXT_MAX_LENGTH_PATTERN.test(candidate.rawSourceText)) {
+        throw catchReportErrors.batchLineInvalid(
+          candidate.sourceLine,
+          'запись должна быть не длиннее 20000 символов',
+        );
+      }
+      if (!VALID_RAW_SOURCE_TEXT_PATTERN.test(candidate.rawSourceText)) {
+        throw catchReportErrors.batchLineInvalid(
+          candidate.sourceLine,
+          'запись не может состоять из пробелов или содержать небезопасные символы',
+        );
+      }
+    }
 
     const duplicateIndexes = duplicateIndexesByCandidate(candidates);
+    const catalog = await this.batchCatalog();
     const parsed = await Promise.all(
-      candidates.map((candidate) => this.parse(candidate.rawSourceText)),
+      candidates.map((candidate) => this.parseWithCatalog(candidate.rawSourceText, catalog)),
     );
 
     return {
@@ -388,6 +407,7 @@ export class CatchReportParserService {
     rawSourceText: string,
     locationAndBaitSource: SourceRange | null,
     base: ResolvedSource<DraftNamedItem> | null,
+    catalog: ParserCatalog,
   ): Promise<{
     source: SourceRange | null;
     resolved: ResolvedSource<DraftLocation> | null;
@@ -398,15 +418,7 @@ export class CatchReportParserService {
     }
 
     if (base !== null) {
-      const locations = await this.prisma.location.findMany({
-        where: {
-          fishingBaseId: base.item.id,
-          isActive: true,
-          fishingBase: { isActive: true },
-        },
-        orderBy: [{ number: 'asc' }, { nameNormalized: 'asc' }, { id: 'asc' }],
-        select: { id: true, number: true, name: true, nameNormalized: true },
-      });
+      const locations = await catalog.listLocations(base.item.id);
       const match = matchCatalogPrefix(
         rawSourceText,
         locationAndBaitSource,
@@ -481,21 +493,116 @@ export class CatchReportParserService {
   private async resolveMembership(
     base: DraftNamedItem | null,
     fish: DraftNamedItem | null,
+    catalog: ParserCatalog,
   ): Promise<'RESOLVED' | 'MISSING' | 'UNRESOLVED'> {
     if (base === null || fish === null) {
       return 'MISSING';
     }
 
-    const membership = await this.prisma.fishingBaseFish.findUnique({
-      where: {
-        fishingBaseId_fishId: {
-          fishingBaseId: base.id,
-          fishId: fish.id,
-        },
-      },
-      select: { fishingBaseId: true, fishId: true },
-    });
+    return (await catalog.hasMembership(base.id, fish.id)) ? 'RESOLVED' : 'UNRESOLVED';
+  }
 
-    return membership === null ? 'UNRESOLVED' : 'RESOLVED';
+  private databaseCatalog(): ParserCatalog {
+    return {
+      findBase: (nameNormalized) =>
+        this.prisma.fishingBase.findFirst({
+          where: { nameNormalized, isActive: true },
+          select: { id: true, name: true },
+        }),
+      findFish: (nameNormalized) =>
+        this.prisma.fish.findFirst({
+          where: { nameNormalized, isActive: true },
+          select: { id: true, name: true },
+        }),
+      listBaits: () =>
+        this.prisma.bait.findMany({
+          where: { isActive: true },
+          orderBy: [{ nameNormalized: 'asc' }, { id: 'asc' }],
+          select: { id: true, name: true, nameNormalized: true, type: true },
+        }),
+      listAnchors: () =>
+        this.prisma.screenAnchor.findMany({
+          where: { isActive: true },
+          orderBy: [{ nameNormalized: 'asc' }, { id: 'asc' }],
+          select: { name: true, nameNormalized: true },
+        }),
+      listLocations: (baseId) =>
+        this.prisma.location.findMany({
+          where: {
+            fishingBaseId: baseId,
+            isActive: true,
+            fishingBase: { isActive: true },
+          },
+          orderBy: [{ number: 'asc' }, { nameNormalized: 'asc' }, { id: 'asc' }],
+          select: { id: true, number: true, name: true, nameNormalized: true },
+        }),
+      hasMembership: async (baseId, fishId) =>
+        (await this.prisma.fishingBaseFish.findUnique({
+          where: { fishingBaseId_fishId: { fishingBaseId: baseId, fishId } },
+          select: { fishingBaseId: true },
+        })) !== null,
+    };
+  }
+
+  private async batchCatalog(): Promise<ParserCatalog> {
+    const [bases, fish, baits, anchors, locations, memberships] = await Promise.all([
+      this.prisma.fishingBase.findMany({
+        where: { isActive: true },
+        select: { id: true, name: true, nameNormalized: true },
+      }),
+      this.prisma.fish.findMany({
+        where: { isActive: true },
+        select: { id: true, name: true, nameNormalized: true },
+      }),
+      this.prisma.bait.findMany({
+        where: { isActive: true },
+        orderBy: [{ nameNormalized: 'asc' }, { id: 'asc' }],
+        select: { id: true, name: true, nameNormalized: true, type: true },
+      }),
+      this.prisma.screenAnchor.findMany({
+        where: { isActive: true },
+        orderBy: [{ nameNormalized: 'asc' }, { id: 'asc' }],
+        select: { name: true, nameNormalized: true },
+      }),
+      this.prisma.location.findMany({
+        where: { isActive: true, fishingBase: { isActive: true } },
+        orderBy: [
+          { fishingBaseId: 'asc' },
+          { number: 'asc' },
+          { nameNormalized: 'asc' },
+          { id: 'asc' },
+        ],
+        select: {
+          id: true,
+          fishingBaseId: true,
+          number: true,
+          name: true,
+          nameNormalized: true,
+        },
+      }),
+      this.prisma.fishingBaseFish.findMany({
+        select: { fishingBaseId: true, fishId: true },
+      }),
+    ]);
+    const basesByName = new Map(bases.map((item) => [item.nameNormalized, item]));
+    const fishByName = new Map(fish.map((item) => [item.nameNormalized, item]));
+    const locationsByBase = new Map<string, LocationCandidate[]>();
+    for (const location of locations) {
+      const items = locationsByBase.get(location.fishingBaseId) ?? [];
+      items.push(location);
+      locationsByBase.set(location.fishingBaseId, items);
+    }
+    const membershipKeys = new Set(
+      memberships.map((item) => `${item.fishingBaseId}:${item.fishId}`),
+    );
+
+    return {
+      findBase: (nameNormalized) => Promise.resolve(basesByName.get(nameNormalized) ?? null),
+      findFish: (nameNormalized) => Promise.resolve(fishByName.get(nameNormalized) ?? null),
+      listBaits: () => Promise.resolve(baits),
+      listAnchors: () => Promise.resolve(anchors),
+      listLocations: (baseId) => Promise.resolve(locationsByBase.get(baseId) ?? []),
+      hasMembership: (baseId, fishId) => Promise.resolve(membershipKeys.has(`${baseId}:${fishId}`)),
+    };
   }
 }

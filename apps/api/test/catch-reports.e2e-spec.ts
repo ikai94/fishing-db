@@ -1195,10 +1195,10 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
     assert.equal(await prisma.catchReport.count(), 3);
   });
 
-  void test('limits parse and create batches to 100 reports', async () => {
+  void test('limits parse and create batches to 5000 reports', async () => {
     const actor = await createActor();
     const catalog = await createCatalog();
-    const rawSourceText = Array.from({ length: 101 }, (_, index) => `строка ${index + 1}`).join(
+    const rawSourceText = Array.from({ length: 5_001 }, (_, index) => `строка ${index + 1}`).join(
       '\n',
     );
 
@@ -1208,10 +1208,69 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
     assert.equal(readErrorCode(parse.body as unknown), 'VALIDATION_ERROR');
 
     const create = await mutation(api().post('/api/v1/catch-reports/batch'), actor.cookie)
-      .send({ reports: Array.from({ length: 101 }, () => createInput(catalog)) })
+      .send({ reports: Array.from({ length: 5_001 }, () => createInput(catalog)) })
       .expect(400);
     assert.equal(readErrorCode(create.body as unknown), 'VALIDATION_ERROR');
     assert.equal(await prisma.catchReport.count(), 0);
+  });
+
+  void test('benchmarks 2000 and 5000 rows and rolls back an invalid row near the end', async (t) => {
+    const actor = await createActor();
+    const catalog = await createCatalog();
+    const source = (count: number) =>
+      Array.from(
+        { length: count },
+        (_, index) =>
+          `${catalog.fish.name} 40 грамм. Поймана на ${catalog.base.name}: ${catalog.location.name}, ${catalog.bait.name}. строка-${index + 1}`,
+      ).join('\n');
+    const reports = (count: number) =>
+      Array.from({ length: count }, (_, index) =>
+        createInput(catalog, { rawSourceText: `bulk-row-${index + 1}` }),
+      );
+    const metrics: Record<string, number> = {};
+
+    for (const count of [2_000, 5_000]) {
+      const parseStarted = performance.now();
+      const parsed = await mutation(api().post('/api/v1/catch-reports/parse-batch'), actor.cookie)
+        .send({ rawSourceText: source(count) })
+        .expect(200);
+      metrics[`parse${count}`] = performance.now() - parseStarted;
+      assert.equal(asArray(asObject(parsed.body as unknown).rows).length, count);
+
+      const createStarted = performance.now();
+      const created = asObject(
+        (
+          await mutation(api().post('/api/v1/catch-reports/batch'), actor.cookie)
+            .send({ reports: reports(count) })
+            .expect(201)
+        ).body as unknown,
+      );
+      metrics[`create${count}`] = performance.now() - createStarted;
+      assert.equal(created.createdCount, count);
+      const reportIds = asArray(created.reportIds).map((id) => asString(id, 'reportId'));
+      assert.equal(reportIds.length, count);
+      const [first, last] = await Promise.all([
+        prisma.catchReport.findUniqueOrThrow({ where: { id: reportIds[0] } }),
+        prisma.catchReport.findUniqueOrThrow({ where: { id: reportIds[count - 1] } }),
+      ]);
+      assert.equal(first.rawSourceText, 'bulk-row-1');
+      assert.equal(last.rawSourceText, `bulk-row-${count}`);
+    }
+
+    const countBeforeInvalidBatch = await prisma.catchReport.count();
+    const invalidReports = reports(2_000);
+    invalidReports[1_998] = { ...invalidReports[1_998], fishId: randomUUID() };
+    const rollbackStarted = performance.now();
+    const rejected = await mutation(api().post('/api/v1/catch-reports/batch'), actor.cookie)
+      .send({ reports: invalidReports })
+      .expect(409);
+    metrics.rollback2000 = performance.now() - rollbackStarted;
+    assert.equal(readErrorCode(rejected.body as unknown), 'CATCH_REPORT_BATCH_INVALID');
+    assert.equal(await prisma.catchReport.count(), countBeforeInvalidBatch);
+
+    t.diagnostic(
+      `bulk metrics ms: parse2000=${metrics.parse2000?.toFixed(1)}, create2000=${metrics.create2000?.toFixed(1)}, parse5000=${metrics.parse5000?.toFixed(1)}, create5000=${metrics.create5000?.toFixed(1)}, rollback2000=${metrics.rollback2000?.toFixed(1)}`,
+    );
   });
 
   void test('validates current catalog state and FishingBaseFish before creation', async () => {
@@ -1283,6 +1342,54 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
       .expect(409);
     assert.equal(readErrorCode(missingPair.body as unknown), 'FISH_NOT_AVAILABLE_AT_FISHING_BASE');
     assert.equal(await prisma.catchReport.count(), 0);
+  });
+
+  void test('blocks a globally existing Fish from another Base in preview, single create, and an atomic batch', async () => {
+    const catalog = await createCatalog();
+    const otherBaseCatalog = await createCatalog();
+    const actor = await createActor();
+    const mismatchInput = createInput(catalog, { fishId: otherBaseCatalog.fish.id });
+    const rawSourceText = `${otherBaseCatalog.fish.name} 1,000 кг. Поймана на ${catalog.base.name}: ${catalog.location.name}, ${catalog.bait.name}.`;
+
+    const parsedResponse = await mutation(api().post('/api/v1/catch-reports/parse'), actor.cookie)
+      .send({ rawSourceText })
+      .expect(200);
+    const draft = asObject(asObject(parsedResponse.body as unknown).draft);
+    const membership = asObject(draft.baseFishMembership);
+    assert.equal(membership.status, 'UNRESOLVED');
+    assert.equal(membership.baseId, catalog.base.id);
+    assert.equal(membership.fishId, otherBaseCatalog.fish.id);
+    assert.equal(draft.canConfirm, false);
+    assert.ok(
+      asArray(draft.issues)
+        .map(asObject)
+        .some(
+          (issue) =>
+            issue.code === 'FISH_NOT_IN_BASE' &&
+            issue.severity === 'BLOCKING' &&
+            issue.field === 'fish',
+        ),
+    );
+
+    const single = await mutation(api().post('/api/v1/catch-reports'), actor.cookie)
+      .send(mismatchInput)
+      .expect(409);
+    assert.equal(readErrorCode(single.body as unknown), 'FISH_NOT_AVAILABLE_AT_FISHING_BASE');
+    assert.equal(await prisma.catchReport.count(), 0);
+
+    const batch = await mutation(api().post('/api/v1/catch-reports/batch'), actor.cookie)
+      .send({ reports: [createInput(catalog), mismatchInput] })
+      .expect(409);
+    assert.equal(readErrorCode(batch.body as unknown), 'CATCH_REPORT_BATCH_INVALID');
+    const errors = asObject(asObject(batch.body as unknown).errors);
+    assert.ok(Array.isArray(errors['reports.1.fishId']));
+    assert.equal(await prisma.catchReport.count(), 0);
+
+    const validBatch = await mutation(api().post('/api/v1/catch-reports/batch'), actor.cookie)
+      .send({ reports: [createInput(catalog)] })
+      .expect(201);
+    assert.equal(asObject(validBatch.body as unknown).createdCount, 1);
+    assert.equal(await prisma.catchReport.count(), 1);
   });
 
   void test('treats Fish membership as Base-level across all Locations of that Base', async () => {

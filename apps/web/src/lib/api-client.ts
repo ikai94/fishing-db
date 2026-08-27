@@ -171,13 +171,17 @@ async function readResponseBody(response: Response): Promise<unknown> {
   }
 }
 
-export async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+export async function apiRequest<T>(
+  path: string,
+  init: RequestInit = {},
+  timeoutMs = REQUEST_TIMEOUT_MS,
+): Promise<T> {
   const headers = new Headers(init.headers);
   const requestController = new AbortController();
   const abortFromCaller = () => requestController.abort(init.signal?.reason);
   const timeout = setTimeout(
     () => requestController.abort(new DOMException('Request timed out', 'TimeoutError')),
-    REQUEST_TIMEOUT_MS,
+    timeoutMs,
   );
 
   if (init.signal?.aborted) {

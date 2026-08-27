@@ -4,6 +4,8 @@ import type { FishingMethod, FishingNote, SpinningSize, SpinningSpeed } from './
 export const MAX_DATABASE_INTEGER = 2_147_483_647;
 export const MAX_SPOT_POSITION_CODE_POINTS = 1_000;
 export const MAX_RAW_SOURCE_CODE_POINTS = 20_000;
+export const MAX_BATCH_SOURCE_CHARACTERS = 1_000_000;
+export const MAX_BATCH_REPORTS = 5_000;
 
 export const FISHING_NOTE_OPTIONS: ReadonlyArray<{ value: FishingNote; label: string }> = [
   { value: 'MIDWATER', label: 'вполводы' },
@@ -105,6 +107,32 @@ export function validateRawSourceText(value: string): string {
   if (Array.from(value).length > MAX_RAW_SOURCE_CODE_POINTS) {
     throw new Error('Запись должна быть не длиннее 20000 символов.');
   }
+  return value;
+}
+
+export function validateBatchRawSourceText(value: string): string {
+  if (value === '' || value.trim() === '') {
+    throw new Error('Вставьте непустую запись из игрового блокнота.');
+  }
+  if (value.length > MAX_BATCH_SOURCE_CHARACTERS) {
+    throw new Error(`Пакет должен быть не длиннее ${MAX_BATCH_SOURCE_CHARACTERS} символов.`);
+  }
+
+  let reportCount = 0;
+  for (const [lineIndex, line] of value.split(/\r\n|[\n\r]/u).entries()) {
+    if (line.trim() === '') continue;
+    reportCount += 1;
+    if (reportCount > MAX_BATCH_REPORTS) {
+      throw new Error(`За один раз можно разобрать не больше ${MAX_BATCH_REPORTS} строк.`);
+    }
+    try {
+      validateRawSourceText(line);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'некорректная запись';
+      throw new Error(`Строка ${lineIndex + 1}: ${message}`);
+    }
+  }
+
   return value;
 }
 

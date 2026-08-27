@@ -35,6 +35,12 @@ interface RelativeInterval {
   end: number;
 }
 
+interface ParsedSpinning {
+  size: ParsedValue<CatchReportSpinningSize>;
+  speed: ParsedValue<CatchReportSpinningSpeed>;
+  consumed: RelativeInterval;
+}
+
 const SIZE_ALIASES: ReadonlyArray<readonly [string, CatchReportSpinningSize]> = [
   ['маленькая', 'SMALL'],
   ['маленький', 'SMALL'],
@@ -82,7 +88,9 @@ const DEPTH_TOKEN =
 const DEPTH_TOKENS = new RegExp(DEPTH_TOKEN.source, 'giu');
 const HARD_FRAGMENT_SEPARATOR = /[.;]+/gu;
 const STRUCTURAL_DEPTH_SPOT_PREFIX = /^[\s.,;:!?([{]*$/u;
+const LEADING_DEPTH_SPOT_WRAPPERS = /^[\s.,;:!?([{]*/u;
 const TRAILING_DEPTH_SPOT = /^\s+(над\s+\S(?:[\s\S]*\S)?)\s*$/iu;
+const DEPTH_SPOT_PHRASE = /^над\s+\S(?:[\s\S]*\S)?$/iu;
 const TRAILING_CLOSING_WRAPPERS = /[\s)\]}]+$/u;
 const NARRATIVE_SENTENCE_BOUNDARY = /\.\s+\p{Lu}/u;
 
@@ -100,10 +108,19 @@ const COMPACT_SPINNING = new RegExp(
   `^(${SIZE_PATTERN})\\s*[/\\\\]\\s*(${SPEED_PATTERN})(?=$|[\\s.,;:!?])`,
   'iu',
 );
+const PARENTHESIZED_COMPACT_SPINNING = new RegExp(
+  `^\\(\\s*(${SIZE_PATTERN})\\s*[/\\\\]\\s*(${SPEED_PATTERN})\\s*\\)(?=$|[\\s.,;:!?])`,
+  'iu',
+);
+const TERMINAL_COMPACT_SPINNING = new RegExp(
+  `\\s+(${SIZE_PATTERN})\\s*[/\\\\]\\s*(${SPEED_PATTERN})$`,
+  'iu',
+);
 const TEXT_SPINNING = new RegExp(
   `^(${SIZE_PATTERN})(?:\\s*,?\\s+|\\s*,\\s*)(?:проводка\\s+)?(${SPEED_PATTERN})(?=$|[\\s.,;:!?])`,
   'iu',
 );
+const MEDIUM_ON_MEDIUM_SPINNING = /^(сред)\s+на\s+(средн)\s+пров(?=$|[.,;:!?])/iu;
 
 function aliasValue<T extends string>(
   source: string,
@@ -132,25 +149,23 @@ function firstMeaningfulIndex(value: string): number {
   return match?.index ?? value.length;
 }
 
-function parseSpinning(
-  rawSourceText: string,
-  source: SourceRange,
-): {
-  size: ParsedValue<CatchReportSpinningSize>;
-  speed: ParsedValue<CatchReportSpinningSpeed>;
-  consumed: RelativeInterval;
-} | null {
+function parseSpinning(rawSourceText: string, source: SourceRange): ParsedSpinning | null {
   const relativeSource = rawSourceText.slice(source.start, source.end);
   const prefixLength = firstMeaningfulIndex(relativeSource);
   const meaningful = relativeSource.slice(prefixLength);
-  const match = COMPACT_SPINNING.exec(meaningful) ?? TEXT_SPINNING.exec(meaningful);
+  const mediumOnMediumMatch = MEDIUM_ON_MEDIUM_SPINNING.exec(meaningful);
+  const match =
+    PARENTHESIZED_COMPACT_SPINNING.exec(meaningful) ??
+    COMPACT_SPINNING.exec(meaningful) ??
+    TEXT_SPINNING.exec(meaningful) ??
+    mediumOnMediumMatch;
 
   if (match === null || match[1] === undefined || match[2] === undefined) {
     return null;
   }
 
   const size = aliasValue(match[1], SIZE_ALIASES);
-  const speed = aliasValue(match[2], SPEED_ALIASES);
+  const speed = match === mediumOnMediumMatch ? 'MEDIUM' : aliasValue(match[2], SPEED_ALIASES);
 
   if (size === null || speed === null) {
     return null;
@@ -163,6 +178,43 @@ function parseSpinning(
     size: parsedRange(rawSourceText, source.start, sizeStart, match[1], size),
     speed: parsedRange(rawSourceText, source.start, speedStart, match[2], speed),
     consumed: { start: prefixLength, end: prefixLength + match[0].length },
+  };
+}
+
+function parseTerminalCompactSpinning(
+  rawSourceText: string,
+  sourceStart: number,
+  phraseSource: string,
+  phraseStart: number,
+): (ParsedSpinning & { spotText: string }) | null {
+  const match = TERMINAL_COMPACT_SPINNING.exec(phraseSource);
+
+  if (match === null || match[1] === undefined || match[2] === undefined) {
+    return null;
+  }
+
+  const spotText = phraseSource.slice(0, match.index);
+
+  if (!DEPTH_SPOT_PHRASE.test(spotText)) {
+    return null;
+  }
+
+  const size = aliasValue(match[1], SIZE_ALIASES);
+  const speed = aliasValue(match[2], SPEED_ALIASES);
+
+  if (size === null || speed === null) {
+    return null;
+  }
+
+  const matchStart = phraseStart + match.index;
+  const sizeStart = matchStart + (match[0].indexOf(match[1]) || 0);
+  const speedStart = matchStart + match[0].lastIndexOf(match[2]);
+
+  return {
+    spotText,
+    size: parsedRange(rawSourceText, sourceStart, sizeStart, match[1], size),
+    speed: parsedRange(rawSourceText, sourceStart, speedStart, match[2], speed),
+    consumed: { start: matchStart, end: phraseStart + phraseSource.length },
   };
 }
 
@@ -314,17 +366,19 @@ function trailingDepthSpot(
   rawSourceText: string,
   source: SourceRange,
   depthMatch: RegExpExecArray,
-): { spot: ParsedValue<string>; consumed: RelativeInterval[] } | null {
+  parseTerminalSpinning: boolean,
+): {
+  spot: ParsedValue<string>;
+  spinning: ParsedSpinning | null;
+  consumed: RelativeInterval[];
+} | null {
   if (depthMatch.index === undefined) {
     return null;
   }
 
   const relative = rawSourceText.slice(source.start, source.end);
   const prefix = relative.slice(0, depthMatch.index);
-
-  if (!STRUCTURAL_DEPTH_SPOT_PREFIX.test(prefix)) {
-    return null;
-  }
+  const prefixIsStructural = STRUCTURAL_DEPTH_SPOT_PREFIX.test(prefix);
 
   const suffixStart = depthMatch.index + depthMatch[0].length;
   const suffix = relative.slice(suffixStart);
@@ -344,13 +398,33 @@ function trailingDepthSpot(
   }
 
   const phraseStart = suffixStart + phraseSource.indexOf(phraseMatch[1]);
+  const terminalSpinning = parseTerminalSpinning
+    ? parseTerminalCompactSpinning(rawSourceText, source.start, phraseMatch[1], phraseStart)
+    : null;
+
+  if (
+    !prefixIsStructural &&
+    (terminalSpinning === null ||
+      /[\n\r]/u.test(prefix) ||
+      NARRATIVE_SENTENCE_BOUNDARY.test(prefix))
+  ) {
+    return null;
+  }
+
+  const prefixConsumedEnd = prefixIsStructural
+    ? depthMatch.index
+    : (LEADING_DEPTH_SPOT_WRAPPERS.exec(prefix)?.[0].length ?? 0);
+  const spotText = terminalSpinning?.spotText ?? phraseMatch[1];
+  const spotEnd = phraseStart + spotText.length;
   const phraseAbsoluteEnd = phraseStart + phraseMatch[1].length;
 
   return {
-    spot: parsedRange(rawSourceText, source.start, phraseStart, phraseMatch[1], phraseMatch[1]),
+    spot: parsedRange(rawSourceText, source.start, phraseStart, spotText, spotText),
+    spinning: terminalSpinning,
     consumed: [
-      { start: 0, end: depthMatch.index },
-      { start: phraseStart, end: phraseAbsoluteEnd },
+      { start: 0, end: prefixConsumedEnd },
+      { start: phraseStart, end: spotEnd },
+      ...(terminalSpinning === null ? [] : [terminalSpinning.consumed]),
       { start: phraseAbsoluteEnd, end: relative.length },
     ],
   };
@@ -428,11 +502,21 @@ export function parseObservation(
       );
       consumed.push({ start: depthMatch.index, end: depthMatch.index + depthMatch[0].length });
 
-      const trailingSpot = trailingDepthSpot(rawSourceText, effectiveSource, depthMatch);
+      const trailingSpot = trailingDepthSpot(
+        rawSourceText,
+        effectiveSource,
+        depthMatch,
+        fishingMethod === 'SPINNING' && spinning === null,
+      );
 
       if (trailingSpot !== null) {
         explicitSpotPositionRaw = trailingSpot.spot;
         consumed.push(...trailingSpot.consumed);
+
+        if (trailingSpot.spinning !== null) {
+          spinningSize = trailingSpot.spinning.size;
+          spinningSpeed = trailingSpot.spinning.speed;
+        }
       }
     }
   }

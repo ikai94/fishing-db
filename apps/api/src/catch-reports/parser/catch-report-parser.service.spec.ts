@@ -29,6 +29,13 @@ const LOCATIONS = [
     nameNormalized: 'понтонный мост',
   },
   {
+    id: 'location-amur-gardens',
+    fishingBaseId: 'base-amur',
+    number: 4,
+    name: 'Протока бешеная - огороды',
+    nameNormalized: 'протока бешеная - огороды',
+  },
+  {
     id: 'location-tanzania',
     fishingBaseId: 'base-tanzania',
     number: 2,
@@ -39,6 +46,7 @@ const LOCATIONS = [
 
 const FISH = [
   { id: 'fish-burbot', name: 'Налим', nameNormalized: 'налим' },
+  { id: 'fish-pink-salmon', name: 'Горбуша', nameNormalized: 'горбуша' },
   { id: 'fish-kizhuch', name: 'Кижуч', nameNormalized: 'кижуч' },
   {
     id: 'fish-zherekh',
@@ -57,6 +65,7 @@ const FISH = [
 const BAITS = [
   { id: 'bait-frog', name: 'Лягушка', nameNormalized: 'лягушка', type: 'BAIT' },
   { id: 'bait-vib', name: 'Vib-rapan', nameNormalized: 'vib-rapan', type: 'LURE' },
+  { id: 'bait-vib-6008', name: 'Vib-6008', nameNormalized: 'vib-6008', type: 'LURE' },
   { id: 'bait-vob', name: 'Vob-3006', nameNormalized: 'vob-3006', type: 'LURE' },
   { id: 'bait-pilk', name: 'Pilk-107', nameNormalized: 'pilk-107', type: 'LURE' },
   {
@@ -91,15 +100,19 @@ function fixtureService(options: FixtureOptions = {}): CatchReportParserService 
     fishingBase: {
       findFirst: ({ where }: { where: { nameNormalized: string } }) =>
         Promise.resolve(BASES.find((base) => base.nameNormalized === where.nameNormalized) ?? null),
+      findMany: () => Promise.resolve(BASES),
     },
     fish: {
       findFirst: ({ where }: { where: { nameNormalized: string } }) =>
         Promise.resolve(FISH.find((fish) => fish.nameNormalized === where.nameNormalized) ?? null),
+      findMany: () => Promise.resolve(FISH),
     },
     location: {
-      findMany: ({ where }: { where: { fishingBaseId: string } }) =>
+      findMany: ({ where }: { where: { fishingBaseId?: string } }) =>
         Promise.resolve(
-          LOCATIONS.filter((location) => location.fishingBaseId === where.fishingBaseId),
+          where.fishingBaseId === undefined
+            ? LOCATIONS
+            : LOCATIONS.filter((location) => location.fishingBaseId === where.fishingBaseId),
         ),
     },
     bait: {
@@ -114,6 +127,14 @@ function fixtureService(options: FixtureOptions = {}): CatchReportParserService 
           options.withoutMembership === true
             ? null
             : { fishingBaseId: 'base-amur', fishId: 'fish' },
+        ),
+      findMany: () =>
+        Promise.resolve(
+          options.withoutMembership === true
+            ? []
+            : BASES.flatMap((base) =>
+                FISH.map((fish) => ({ fishingBaseId: base.id, fishId: fish.id })),
+              ),
         ),
     },
   } as unknown as PrismaService;
@@ -156,6 +177,100 @@ void describe('CatchReportParserService', () => {
     assert.equal(resolvedValue(draft.fields.spinningSize), 'MEDIUM');
     assert.equal(resolvedValue(draft.fields.spinningSpeed), 'SLOW');
     assert.equal(draft.canConfirm, true);
+  });
+
+  void it('parses the exact real coho medium-on-medium phrase through single and batch paths', async () => {
+    const raw =
+      'Кижуч 14,116 кг. Поймана на Амур: Протока бешеная - огороды, Vib-6008.сред на средн пров';
+    const service = fixtureService();
+    const single = (await service.parse(raw)).draft;
+    const batch = await service.parseBatch(raw);
+
+    assert.equal(batch.rows.length, 1);
+    for (const draft of [single, batch.rows[0]?.draft]) {
+      assert.ok(draft !== undefined);
+      assert.equal(draft.rawSourceText, raw);
+      assert.equal(resolvedValue(draft.fields.location)?.name, 'Протока бешеная - огороды');
+      assert.equal(resolvedValue(draft.fields.bait)?.name, 'Vib-6008');
+      assert.equal(resolvedValue(draft.fields.spinningSize), 'MEDIUM');
+      assert.equal(resolvedValue(draft.fields.spinningSpeed), 'MEDIUM');
+      assert.deepEqual(draft.unresolvedFragments, []);
+      assert.equal(draft.canConfirm, true);
+    }
+  });
+
+  void it('parses the exact parenthesized large/slow shorthand through single and batch paths', async () => {
+    const raw = amurLine('Кижуч', '7,242 кг', 'Vib-rapan.(бол\\м)');
+    const service = fixtureService();
+    const single = (await service.parse(raw)).draft;
+    const batch = await service.parseBatch(raw);
+
+    assert.equal(batch.rows.length, 1);
+    assert.equal(batch.rows[0]?.draft.rawSourceText, raw);
+    for (const draft of [single, batch.rows[0]?.draft]) {
+      assert.ok(draft !== undefined);
+      assert.equal(resolvedValue(draft.fields.spinningSize), 'LARGE');
+      assert.equal(resolvedValue(draft.fields.spinningSpeed), 'SLOW');
+      assert.deepEqual(draft.unresolvedFragments, []);
+      assert.equal(
+        draft.issues.some((issue) => issue.code === 'UNRESOLVED_FRAGMENT'),
+        false,
+      );
+      assert.equal(draft.canConfirm, true);
+    }
+  });
+
+  void it('separates a terminal spinning pair from an explicit depth spot through single and batch paths', async () => {
+    const service = fixtureService();
+
+    for (const separator of ['/', '\\']) {
+      const observation = `(7.38 над рюкзак/данные бол${separator}м)`;
+      const raw = amurLine('Кижуч', '7,242 кг', `Vib-rapan.${observation}`);
+      const single = (await service.parse(raw)).draft;
+      const batch = await service.parseBatch(raw);
+
+      assert.equal(batch.rows.length, 1);
+      assert.equal(batch.rows[0]?.draft.rawSourceText, raw);
+      for (const draft of [single, batch.rows[0]?.draft]) {
+        assert.ok(draft !== undefined);
+        assert.equal(draft.rawSourceText, raw);
+        assert.equal(resolvedValue(draft.fields.holeDepthCm), 738);
+        assert.equal(resolvedValue(draft.fields.spotPositionRaw), 'над рюкзак/данные');
+        assert.equal(resolvedValue(draft.fields.spinningSize), 'LARGE');
+        assert.equal(resolvedValue(draft.fields.spinningSpeed), 'SLOW');
+        assert.deepEqual(draft.unresolvedFragments, []);
+        assert.equal(draft.canConfirm, true);
+      }
+    }
+  });
+
+  void it('keeps the unknown prefix warning while parsing the full real pink-salmon line through single and batch paths', async () => {
+    const raw = amurLine('Горбуша', '5,170 кг', 'Vib-rapan.(забр 5.17 над леской ср/м)');
+    const service = fixtureService();
+    const single = (await service.parse(raw)).draft;
+    const batch = await service.parseBatch(raw);
+
+    assert.equal(batch.rows.length, 1);
+    assert.equal(batch.rows[0]?.draft.rawSourceText, raw);
+    for (const draft of [single, batch.rows[0]?.draft]) {
+      assert.ok(draft !== undefined);
+      assert.equal(draft.rawSourceText, raw);
+      assert.equal(resolvedValue(draft.fields.fish)?.name, 'Горбуша');
+      assert.equal(resolvedValue(draft.fields.holeDepthCm), 517);
+      assert.equal(resolvedValue(draft.fields.spotPositionRaw), 'над леской');
+      assert.equal(resolvedValue(draft.fields.spinningSize), 'MEDIUM');
+      assert.equal(resolvedValue(draft.fields.spinningSpeed), 'SLOW');
+      assert.deepEqual(
+        draft.unresolvedFragments.map((fragment) => fragment.text),
+        ['забр'],
+      );
+      assert.ok(
+        draft.issues.some(
+          (issue) => issue.code === 'UNRESOLVED_FRAGMENT' && issue.severity === 'WARNING',
+        ),
+      );
+      assert.equal(draft.canConfirm, true);
+    }
   });
 
   void it('proposes a clear comment without losing the original source', async () => {
@@ -359,5 +474,16 @@ void describe('CatchReportParserService', () => {
     assert.deepEqual(result.rows[3].duplicateIndexes, []);
     assert.deepEqual(result.rows[4].duplicateIndexes, [0]);
     assert.ok(result.rows[0].draft.issues.some((issue) => issue.code === 'DUPLICATE_INPUT_ROW'));
+  });
+
+  void it('keeps the existing single-report source limit on every physical batch line', async () => {
+    await assert.rejects(
+      fixtureService().parseBatch(`короткая\n${'я'.repeat(20_001)}`),
+      (error: unknown) => {
+        if (!(error instanceof Error) || !('getResponse' in error)) return false;
+        const response = (error as { getResponse: () => unknown }).getResponse();
+        return JSON.stringify(response).includes('Строка 2');
+      },
+    );
   });
 });
