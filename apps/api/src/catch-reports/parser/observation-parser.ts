@@ -79,7 +79,12 @@ const FISHING_NOTES: ReadonlyArray<readonly [RegExp, CatchReportFishingNote]> = 
 
 const DEPTH_TOKEN =
   /(?<![\p{L}\p{N},+-])(?<!\d\.)(?:ям(?:а|ка)\s*)?(\d+(?:[,.]\d{1,2})?)(?![\d,.+-]|[\p{L}\p{N}])/iu;
+const DEPTH_TOKENS = new RegExp(DEPTH_TOKEN.source, 'giu');
 const HARD_FRAGMENT_SEPARATOR = /[.;]+/gu;
+const STRUCTURAL_DEPTH_SPOT_PREFIX = /^[\s.,;:!?([{]*$/u;
+const TRAILING_DEPTH_SPOT = /^\s+(над\s+\S(?:[\s\S]*\S)?)\s*$/iu;
+const TRAILING_CLOSING_WRAPPERS = /[\s)\]}]+$/u;
+const NARRATIVE_SENTENCE_BOUNDARY = /\.\s+\p{Lu}/u;
 
 function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
@@ -305,6 +310,52 @@ function sameLineSpinningComment(
   return comment.text.length === 0 ? null : comment;
 }
 
+function trailingDepthSpot(
+  rawSourceText: string,
+  source: SourceRange,
+  depthMatch: RegExpExecArray,
+): { spot: ParsedValue<string>; consumed: RelativeInterval[] } | null {
+  if (depthMatch.index === undefined) {
+    return null;
+  }
+
+  const relative = rawSourceText.slice(source.start, source.end);
+  const prefix = relative.slice(0, depthMatch.index);
+
+  if (!STRUCTURAL_DEPTH_SPOT_PREFIX.test(prefix)) {
+    return null;
+  }
+
+  const suffixStart = depthMatch.index + depthMatch[0].length;
+  const suffix = relative.slice(suffixStart);
+  const closingWrappers = TRAILING_CLOSING_WRAPPERS.exec(suffix);
+  const phraseEnd = closingWrappers?.index ?? suffix.length;
+  const phraseSource = suffix.slice(0, phraseEnd);
+  const phraseMatch = TRAILING_DEPTH_SPOT.exec(phraseSource);
+
+  if (
+    phraseMatch === null ||
+    phraseMatch[1] === undefined ||
+    /[\n\r]/u.test(phraseMatch[1]) ||
+    NARRATIVE_SENTENCE_BOUNDARY.test(phraseMatch[1]) ||
+    FISHING_NOTES.some(([pattern]) => pattern.test(phraseMatch[1]))
+  ) {
+    return null;
+  }
+
+  const phraseStart = suffixStart + phraseSource.indexOf(phraseMatch[1]);
+  const phraseAbsoluteEnd = phraseStart + phraseMatch[1].length;
+
+  return {
+    spot: parsedRange(rawSourceText, source.start, phraseStart, phraseMatch[1], phraseMatch[1]),
+    consumed: [
+      { start: 0, end: depthMatch.index },
+      { start: phraseStart, end: phraseAbsoluteEnd },
+      { start: phraseAbsoluteEnd, end: relative.length },
+    ],
+  };
+}
+
 export function parseObservation(
   rawSourceText: string,
   source: SourceRange,
@@ -358,9 +409,12 @@ export function parseObservation(
   };
   const effectiveRelative = rawSourceText.slice(effectiveSource.start, effectiveSource.end);
   let holeDepthCm: ParsedValue<number> | null = null;
-  const depthMatch = DEPTH_TOKEN.exec(effectiveRelative);
+  let explicitSpotPositionRaw: ParsedValue<string> | null = null;
+  DEPTH_TOKENS.lastIndex = 0;
+  const depthMatches = [...effectiveRelative.matchAll(DEPTH_TOKENS)];
+  const depthMatch = depthMatches.length === 1 ? depthMatches[0] : undefined;
 
-  if (depthMatch !== null && depthMatch.index !== undefined && depthMatch[1] !== undefined) {
+  if (depthMatch !== undefined && depthMatch.index !== undefined && depthMatch[1] !== undefined) {
     const value = parseHoleDepthCm(depthMatch[1]);
 
     if (value !== null) {
@@ -373,6 +427,13 @@ export function parseObservation(
         value,
       );
       consumed.push({ start: depthMatch.index, end: depthMatch.index + depthMatch[0].length });
+
+      const trailingSpot = trailingDepthSpot(rawSourceText, effectiveSource, depthMatch);
+
+      if (trailingSpot !== null) {
+        explicitSpotPositionRaw = trailingSpot.spot;
+        consumed.push(...trailingSpot.consumed);
+      }
     }
   }
 
@@ -389,12 +450,16 @@ export function parseObservation(
   }
 
   const fragments = subtractIntervals(rawSourceText, effectiveSource, consumed);
-  const positionIndex = fragments.findIndex((fragment) => containsAnchor(fragment.text, anchors));
+  const positionIndex =
+    explicitSpotPositionRaw !== null || depthMatches.length > 1
+      ? -1
+      : fragments.findIndex((fragment) => containsAnchor(fragment.text, anchors));
   const positionFragment = positionIndex < 0 ? undefined : fragments[positionIndex];
   const spotPositionRaw =
-    positionFragment === undefined
+    explicitSpotPositionRaw ??
+    (positionFragment === undefined
       ? null
-      : { value: positionFragment.text, source: positionFragment };
+      : { value: positionFragment.text, source: positionFragment });
   const unresolvedFragments = fragments.filter((_fragment, index) => index !== positionIndex);
 
   return {

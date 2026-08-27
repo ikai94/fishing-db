@@ -146,11 +146,14 @@ interface CreateMockOptions {
   bait?: unknown;
   created?: ReturnType<typeof reportRecord>;
   transactionConflicts?: number;
+  createdIds?: string[];
 }
 
 function createPrisma(options: CreateMockOptions = {}) {
   const calls: string[] = [];
   let createQuery: unknown;
+  const createQueries: unknown[] = [];
+  let createIndex = 0;
   const prisma = withTransaction(
     {
       user: { findUnique: () => Promise.resolve({ id: USER_ID, nickname: 'Рыболов' }) },
@@ -203,7 +206,10 @@ function createPrisma(options: CreateMockOptions = {}) {
         create: (query: unknown) => {
           calls.push('create');
           createQuery = query;
-          return Promise.resolve(options.created ?? reportRecord());
+          createQueries.push(query);
+          const id = options.createdIds?.[createIndex];
+          createIndex += 1;
+          return Promise.resolve(id === undefined ? (options.created ?? reportRecord()) : { id });
         },
         findFirst: () => Promise.resolve(reportScalarRecord()),
       },
@@ -214,7 +220,7 @@ function createPrisma(options: CreateMockOptions = {}) {
     options.transactionConflicts,
   ) as unknown as PrismaService;
 
-  return { prisma, calls, createQuery: () => createQuery };
+  return { prisma, calls, createQueries, createQuery: () => createQuery };
 }
 
 void describe('CatchReportsService v2', () => {
@@ -337,6 +343,53 @@ void describe('CatchReportsService v2', () => {
 
     assert.equal(result.report.id, REPORT_ID);
     assert.deepEqual(mock.calls, ['location', 'fish', 'membership', 'bait', 'create']);
+  });
+
+  void it('creates every batch row in order with native identity and no deduplication', async () => {
+    const secondReportId = '20000000-0000-4000-8000-000000000002';
+    const mock = createPrisma({ createdIds: [REPORT_ID, secondReportId] });
+    const result = await new CatchReportsService(mock.prisma).createBatch(USER_ID, [
+      createDto({ rawSourceText: 'одинаковая строка' }),
+      createDto({ rawSourceText: 'одинаковая строка' }),
+    ]);
+
+    assert.deepEqual(result, { createdCount: 2, reportIds: [REPORT_ID, secondReportId] });
+    assert.equal(mock.createQueries.length, 2);
+    for (const query of mock.createQueries) {
+      const data = asObject(asObject(query).data);
+      assert.equal(data.userId, USER_ID);
+      assert.equal(data.contributorKey, `local-user:${USER_ID}`);
+      assert.equal(data.importKey, null);
+      assert.equal(data.rawSourceText, 'одинаковая строка');
+    }
+  });
+
+  void it('validates all batch rows before inserts and reports an indexed row error', async () => {
+    const mock = createPrisma();
+    const service = new CatchReportsService(mock.prisma);
+
+    await assert.rejects(
+      service.createBatch(USER_ID, [
+        createDto(),
+        createDto({ spinningSize: 'MEDIUM', spinningSpeed: 'SLOW' }),
+      ]),
+      hasFieldError('reports.1.spinningSize'),
+    );
+    assert.equal(mock.calls.includes('create'), false);
+  });
+
+  void it('retries the whole serializable batch before writing', async () => {
+    const mock = createPrisma({
+      transactionConflicts: 2,
+      createdIds: [REPORT_ID, '20000000-0000-4000-8000-000000000002'],
+    });
+    const result = await new CatchReportsService(mock.prisma).createBatch(USER_ID, [
+      createDto(),
+      createDto({ weightGrams: 41 }),
+    ]);
+
+    assert.equal(result.createdCount, 2);
+    assert.equal(mock.createQueries.length, 2);
   });
 
   void it('uses persisted method for observation-only and redundant same-bait updates', async () => {

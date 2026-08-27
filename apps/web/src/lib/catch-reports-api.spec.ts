@@ -9,6 +9,9 @@ vi.mock('./api-client', () => ({
 }));
 
 import {
+  createCatchReportsBatch,
+  decodeCatchReportBatch,
+  decodeCreateCatchReportsBatchResult,
   decodeCatchReportDraft,
   decodeLocationObservations,
   decodeOwnerCatchReport,
@@ -17,6 +20,7 @@ import {
   listCatchReports,
   listMyCatchReports,
   parseCatchReport,
+  parseCatchReportBatch,
 } from './catch-reports-api';
 
 const publicReport = {
@@ -37,6 +41,32 @@ const publicReport = {
   createdAt: '2026-08-09T00:00:00.000Z',
   updatedAt: '2026-08-09T00:00:00.000Z',
 };
+
+function missingDraft(rawSourceText: string) {
+  const missing = { status: 'MISSING', sourceText: null, value: null, required: true };
+  return {
+    rawSourceText,
+    fields: {
+      fishingBase: missing,
+      location: missing,
+      fish: missing,
+      bait: missing,
+      weightGrams: missing,
+      fishingMethod: missing,
+      holeDepthCm: missing,
+      spotPositionRaw: missing,
+      fishingNote: missing,
+      spinningSize: missing,
+      spinningSpeed: missing,
+      userNoteRaw: missing,
+    },
+    baseFishMembership: { status: 'MISSING', baseId: null, fishId: null },
+    issues: [],
+    unresolvedFragments: [],
+    missingRequiredFields: [],
+    canConfirm: false,
+  };
+}
 
 describe('decodePublicCatchReport', () => {
   test('accepts the explicit v2 public projection', () => {
@@ -242,6 +272,72 @@ describe('parseCatchReport', () => {
       body: JSON.stringify({ rawSourceText }),
       signal: controller.signal,
     });
+  });
+});
+
+describe('CatchReport batch requests', () => {
+  beforeEach(() => mocks.apiRequest.mockReset());
+
+  test('decodes reciprocal exact duplicates and sends the exact source to parse-batch', async () => {
+    const rawSourceText = 'Налим\r\nНалим';
+    mocks.apiRequest.mockResolvedValue({
+      rows: [
+        { index: 0, sourceLine: 1, duplicateIndexes: [1], draft: missingDraft('Налим') },
+        { index: 1, sourceLine: 2, duplicateIndexes: [0], draft: missingDraft('Налим') },
+      ],
+    });
+    const controller = new AbortController();
+
+    await expect(parseCatchReportBatch(rawSourceText, controller.signal)).resolves.toMatchObject({
+      rows: [{ duplicateIndexes: [1] }, { duplicateIndexes: [0] }],
+    });
+    expect(mocks.apiRequest).toHaveBeenCalledWith('/catch-reports/parse-batch', {
+      method: 'POST',
+      body: JSON.stringify({ rawSourceText }),
+      signal: controller.signal,
+    });
+  });
+
+  test('rejects malformed duplicate metadata', () => {
+    expect(() =>
+      decodeCatchReportBatch({
+        rows: [
+          { index: 0, sourceLine: 1, duplicateIndexes: [1], draft: missingDraft('Налим') },
+          { index: 1, sourceLine: 2, duplicateIndexes: [], draft: missingDraft('Налим') },
+        ],
+      }),
+    ).toThrow();
+  });
+
+  test('creates one ordered batch request and strictly decodes the count', async () => {
+    const reports = [
+      { locationId: 'location', fishId: 'fish-a', baitId: 'bait', weightGrams: 40 },
+      { locationId: 'location', fishId: 'fish-b', baitId: 'bait', weightGrams: 41 },
+    ];
+    mocks.apiRequest.mockResolvedValue({ createdCount: 2, reportIds: ['report-a', 'report-b'] });
+
+    await expect(createCatchReportsBatch(reports)).resolves.toEqual({
+      createdCount: 2,
+      reportIds: ['report-a', 'report-b'],
+    });
+    expect(mocks.apiRequest).toHaveBeenCalledTimes(1);
+    expect(mocks.apiRequest).toHaveBeenCalledWith('/catch-reports/batch', {
+      method: 'POST',
+      body: JSON.stringify({ reports }),
+    });
+    expect(() =>
+      decodeCreateCatchReportsBatchResult({
+        createdCount: 2,
+        reportIds: ['report-a'],
+      }),
+    ).toThrow();
+    expect(() =>
+      decodeCreateCatchReportsBatchResult({
+        createdCount: 1,
+        reportIds: ['report-a'],
+        contributorKey: 'private',
+      }),
+    ).toThrow();
   });
 });
 

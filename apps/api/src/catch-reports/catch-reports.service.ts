@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { HttpException, Inject, Injectable } from '@nestjs/common';
 import { isPrismaError } from '../catalog/catalog-errors.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -10,6 +10,7 @@ import {
   assertCatchReportObservation,
   deriveFishingMethod,
   prepareCatchReportCreate,
+  type PreparedCatchReportCreate,
   validateCatchReportBait,
   validateCatchReportFish,
   validateCatchReportFishingBaseFish,
@@ -161,6 +162,58 @@ const OWNER_CATCH_REPORT_SCALAR_SELECT = {
 } as const;
 
 const SERIALIZABLE_TRANSACTION_ATTEMPTS = 3;
+
+const BATCH_DOMAIN_FIELD_BY_CODE: Readonly<Record<string, keyof CreateCatchReportDto>> = {
+  FISHING_BASE_INACTIVE: 'locationId',
+  LOCATION_INACTIVE: 'locationId',
+  LOCATION_NOT_FOUND: 'locationId',
+  FISH_INACTIVE: 'fishId',
+  FISH_NOT_AVAILABLE_AT_FISHING_BASE: 'fishId',
+  FISH_NOT_FOUND: 'fishId',
+  BAIT_INACTIVE: 'baitId',
+  BAIT_NOT_FOUND: 'baitId',
+};
+
+type BatchFieldErrors = Record<string, string[]>;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function httpExceptionResponse(error: HttpException): Record<string, unknown> | null {
+  const value = error.getResponse();
+  return isRecord(value) ? value : null;
+}
+
+function appendBatchRowErrors(result: BatchFieldErrors, rowIndex: number, error: unknown): boolean {
+  if (!(error instanceof HttpException)) return false;
+  const response = httpExceptionResponse(error);
+  if (response === null) return false;
+
+  const message =
+    typeof response.message === 'string' ? response.message : 'Отчёт не прошёл проверку';
+  const code = typeof response.code === 'string' ? response.code : null;
+  const responseErrors = response.errors;
+  let appended = false;
+
+  if (isRecord(responseErrors)) {
+    for (const [field, messages] of Object.entries(responseErrors)) {
+      if (!Array.isArray(messages)) continue;
+      const strings = messages.filter((item): item is string => typeof item === 'string');
+      if (strings.length === 0) continue;
+      result[`reports.${rowIndex}.${field}`] = strings;
+      appended = true;
+    }
+  }
+
+  const domainField = code === null ? undefined : BATCH_DOMAIN_FIELD_BY_CODE[code];
+  if (!appended && domainField !== undefined) {
+    result[`reports.${rowIndex}.${domainField}`] = [message];
+    appended = true;
+  }
+
+  return appended;
+}
 
 interface PublicCatchReportRecord {
   id: string;
@@ -449,6 +502,50 @@ export class CatchReportsService {
         });
 
         return this.getMineInTransaction(tx, actorUserId, record.id);
+      });
+    } catch (error: unknown) {
+      if (isPrismaError(error, 'P2003') || isPrismaError(error, 'P2034')) {
+        throw catchReportErrors.referenceConflict();
+      }
+      throw error;
+    }
+  }
+
+  async createBatch(actorUserId: string, reports: readonly CreateCatchReportDto[]) {
+    try {
+      return await this.runSerializableTransaction(async (tx) => {
+        await this.assertActorCanMutate(tx, actorUserId);
+        const prepared: PreparedCatchReportCreate[] = [];
+        const validationErrors: BatchFieldErrors = {};
+
+        for (const [rowIndex, dto] of reports.entries()) {
+          try {
+            prepared.push(await prepareCatchReportCreate(tx, dto));
+          } catch (error: unknown) {
+            if (!appendBatchRowErrors(validationErrors, rowIndex, error)) throw error;
+          }
+        }
+
+        if (Object.keys(validationErrors).length > 0) {
+          throw catchReportErrors.batchValidation(validationErrors);
+        }
+
+        const contributorKey = nativeContributorKey(actorUserId);
+        const reportIds: string[] = [];
+        for (const item of prepared) {
+          const record = await tx.catchReport.create({
+            data: {
+              userId: actorUserId,
+              contributorKey,
+              importKey: null,
+              ...item.data,
+            },
+            select: { id: true },
+          });
+          reportIds.push(record.id);
+        }
+
+        return { createdCount: reportIds.length, reportIds };
       });
     } catch (error: unknown) {
       if (isPrismaError(error, 'P2003') || isPrismaError(error, 'P2034')) {

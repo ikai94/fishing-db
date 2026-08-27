@@ -107,6 +107,22 @@ export type CatchReportDraft = {
   canConfirm: boolean;
 };
 
+export type CatchReportBatchDraftRow = {
+  index: number;
+  sourceLine: number;
+  duplicateIndexes: number[];
+  draft: CatchReportDraft;
+};
+
+export type ParseCatchReportBatchResult = {
+  rows: CatchReportBatchDraftRow[];
+};
+
+export type CreateCatchReportsBatchResult = {
+  createdCount: number;
+  reportIds: string[];
+};
+
 export type CatchReportPaginationOptions = {
   cursor?: string | null;
   limit?: number;
@@ -507,6 +523,70 @@ export function decodeCatchReportDraft(value: unknown): CatchReportDraft {
   };
 }
 
+export function decodeCatchReportBatch(value: unknown): ParseCatchReportBatchResult {
+  if (!isRecord(value) || !Array.isArray(value.rows)) invalidDraft();
+
+  const rows = value.rows.map((row, position) => {
+    if (
+      !isRecord(row) ||
+      row.index !== position ||
+      typeof row.sourceLine !== 'number' ||
+      !Number.isInteger(row.sourceLine) ||
+      row.sourceLine < 1 ||
+      !Array.isArray(row.duplicateIndexes) ||
+      new Set(row.duplicateIndexes).size !== row.duplicateIndexes.length ||
+      !row.duplicateIndexes.every(
+        (index) =>
+          typeof index === 'number' && Number.isInteger(index) && index >= 0 && index !== position,
+      )
+    ) {
+      invalidDraft();
+    }
+
+    return {
+      index: position,
+      sourceLine: row.sourceLine,
+      duplicateIndexes: [...new Set(row.duplicateIndexes as number[])],
+      draft: decodeCatchReportDraft(row.draft),
+    };
+  });
+
+  for (const [position, row] of rows.entries()) {
+    if (
+      (position > 0 && row.sourceLine <= (rows[position - 1]?.sourceLine ?? 0)) ||
+      row.duplicateIndexes.some(
+        (duplicateIndex) =>
+          duplicateIndex >= rows.length ||
+          !rows[duplicateIndex]?.duplicateIndexes.includes(position) ||
+          rows[duplicateIndex]?.draft.rawSourceText !== row.draft.rawSourceText,
+      )
+    ) {
+      invalidDraft();
+    }
+  }
+
+  return { rows };
+}
+
+export function decodeCreateCatchReportsBatchResult(value: unknown): CreateCatchReportsBatchResult {
+  if (
+    !isRecord(value) ||
+    Object.keys(value).some((key) => key !== 'createdCount' && key !== 'reportIds') ||
+    typeof value.createdCount !== 'number' ||
+    !Number.isInteger(value.createdCount) ||
+    value.createdCount < 1 ||
+    value.createdCount > 100 ||
+    !Array.isArray(value.reportIds) ||
+    value.reportIds.length !== value.createdCount ||
+    !value.reportIds.every((reportId) => typeof reportId === 'string' && reportId.length > 0) ||
+    new Set(value.reportIds).size !== value.reportIds.length
+  ) {
+    invalidReport();
+  }
+
+  return { createdCount: value.createdCount, reportIds: value.reportIds as string[] };
+}
+
 function buildPaginationQuery(options: CatchReportPaginationOptions): URLSearchParams {
   const query = new URLSearchParams();
   if (options.limit !== undefined) query.set('limit', String(options.limit));
@@ -587,6 +667,16 @@ export async function createCatchReport(input: CreateCatchReportInput): Promise<
   return readReportResponse(payload, decodeOwnerCatchReport);
 }
 
+export async function createCatchReportsBatch(
+  reports: CreateCatchReportInput[],
+): Promise<CreateCatchReportsBatchResult> {
+  const payload = await apiRequest<unknown>('/catch-reports/batch', {
+    method: 'POST',
+    body: JSON.stringify({ reports }),
+  });
+  return decodeCreateCatchReportsBatchResult(payload);
+}
+
 export async function updateCatchReport(
   reportId: string,
   input: UpdateCatchReportInput,
@@ -615,4 +705,16 @@ export async function parseCatchReport(
   });
   if (!isRecord(payload)) invalidDraft();
   return decodeCatchReportDraft(payload.draft);
+}
+
+export async function parseCatchReportBatch(
+  rawSourceText: string,
+  signal?: AbortSignal,
+): Promise<ParseCatchReportBatchResult> {
+  const payload = await apiRequest<unknown>('/catch-reports/parse-batch', {
+    method: 'POST',
+    body: JSON.stringify({ rawSourceText }),
+    signal,
+  });
+  return decodeCatchReportBatch(payload);
 }

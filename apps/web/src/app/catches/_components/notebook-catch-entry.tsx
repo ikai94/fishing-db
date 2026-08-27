@@ -3,10 +3,11 @@
 import { useRouter } from 'next/navigation';
 import { type ClipboardEvent, type FormEvent, useEffect, useRef, useState } from 'react';
 import styles from '../../catch-reports.module.css';
-import { CatchReportDraftPreview } from './catch-report-draft-preview';
+import { CatchReportBatchPreview } from './catch-report-batch-preview';
+import { CatchReportFormCatalogProvider } from './catch-report-form-catalog-context';
 import { getApiErrorMessage, isApiError } from '@/lib/api-client';
 import { validateRawSourceText } from '@/lib/catch-report-form';
-import { type CatchReportDraft, parseCatchReport } from '@/lib/catch-reports-api';
+import { type ParseCatchReportBatchResult, parseCatchReportBatch } from '@/lib/catch-reports-api';
 
 function rawOffsetForTextareaOffset(rawSourceText: string, textareaOffset: number): number {
   let rawOffset = 0;
@@ -74,7 +75,10 @@ function preserveRawLineEndingsAfterTextareaEdit(
 export function NotebookCatchEntry({ canSave }: { canSave: boolean }) {
   const router = useRouter();
   const [rawSourceText, setRawSourceText] = useState('');
-  const [draft, setDraft] = useState<CatchReportDraft | null>(null);
+  const [preview, setPreview] = useState<{
+    key: number;
+    result: ParseCatchReportBatchResult;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isParsing, setIsParsing] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -107,7 +111,7 @@ export function NotebookCatchEntry({ canSave }: { canSave: boolean }) {
     activeRequestRef.current?.controller.abort();
     activeRequestRef.current = null;
     setRawSourceText(nextSource);
-    setDraft(null);
+    setPreview(null);
     setError(null);
     setIsParsing(false);
   }
@@ -147,9 +151,9 @@ export function NotebookCatchEntry({ canSave }: { canSave: boolean }) {
     setIsParsing(true);
     setError(null);
     try {
-      const parsedDraft = await parseCatchReport(source, controller.signal);
+      const parsedResult = await parseCatchReportBatch(source, controller.signal);
       if (activeRequestRef.current !== request || revisionRef.current !== revision) return;
-      setDraft(parsedDraft);
+      setPreview({ key: revision, result: parsedResult });
     } catch (parseError) {
       if (activeRequestRef.current !== request || revisionRef.current !== revision) return;
       if (isApiError(parseError) && parseError.status === 401) {
@@ -168,13 +172,13 @@ export function NotebookCatchEntry({ canSave }: { canSave: boolean }) {
   return (
     <div className={styles.previewStack}>
       <section className={`${styles.panel} ${styles.notebookPanel}`}>
-        <h2 className={styles.panelTitle}>Вставьте запись из игрового блокнота</h2>
+        <h2 className={styles.panelTitle}>Вставьте уловы из игрового блокнота</h2>
         <p className={styles.muted}>
-          Сначала мы покажем черновик. Ничего не сохранится до вашего подтверждения.
+          Одна непустая строка — один отдельный улов. Ничего не сохранится до подтверждения пакета.
         </p>
         <form className={styles.form} onSubmit={handleParse} noValidate>
           <label className={styles.label} htmlFor="notebook-source">
-            Исходная запись
+            Исходные записи
           </label>
           <textarea
             ref={textareaRef}
@@ -187,10 +191,12 @@ export function NotebookCatchEntry({ canSave }: { canSave: boolean }) {
               )
             }
             onPaste={handlePaste}
-            placeholder="Шамбардия Валберга 40 грамм…"
+            placeholder={
+              'Налим 15,88 кг. Поймана на Амур: Понтонный мост, Лягушка…\nКижуч 7,242 кг…'
+            }
           />
           <p className={styles.fieldHint}>
-            Исходник сохранится точно, но будет доступен только вам.
+            Каждая непустая физическая строка разбирается независимо и сохраняется точно.
           </p>
           {error ? (
             <p className={styles.formError} role="alert">
@@ -199,12 +205,16 @@ export function NotebookCatchEntry({ canSave }: { canSave: boolean }) {
           ) : null}
           <div className={styles.formActions}>
             <button className={styles.primaryButton} type="submit" disabled={isParsing}>
-              {isParsing ? 'Проверяем…' : 'Проверить'}
+              {isParsing ? 'Разбираем…' : 'Разобрать'}
             </button>
           </div>
         </form>
       </section>
-      {draft ? <CatchReportDraftPreview draft={draft} canSave={canSave} /> : null}
+      {preview ? (
+        <CatchReportFormCatalogProvider key={preview.key}>
+          <CatchReportBatchPreview result={preview.result} canSave={canSave} />
+        </CatchReportFormCatalogProvider>
+      ) : null}
     </div>
   );
 }

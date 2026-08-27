@@ -4,6 +4,10 @@ import { useRouter } from 'next/navigation';
 import { type FormEvent, useEffect, useId, useMemo, useState } from 'react';
 import styles from '../../catch-reports.module.css';
 import {
+  type CatchReportFormCatalogState,
+  useSharedCatchReportFormCatalog,
+} from './catch-report-form-catalog-context';
+import {
   SearchableCombobox,
   type SearchableComboboxOption,
 } from '@/components/searchable-combobox';
@@ -16,7 +20,6 @@ import {
   type PublicBait,
   type PublicCatalogItem,
   type PublicFishingBase,
-  type PublicScreenAnchor,
 } from '@/lib/catalog-api';
 import {
   baitTypeToFishingMethod,
@@ -34,6 +37,7 @@ import {
   type CatchReport,
   type CatchReportDraft,
   createCatchReport,
+  type CreateCatchReportInput,
   type DraftField,
   type FishingMethod,
   type FishingNote,
@@ -49,6 +53,8 @@ type CatchReportFormProps = {
   initialDraft?: CatchReportDraft;
   canSave?: boolean;
   onValidationStateChange?: (state: CatchReportFormValidationState) => void;
+  embeddedBatchRow?: boolean;
+  onCreateInputChange?: (input: CreateCatchReportInput | null) => void;
 };
 
 export type CatchReportFormValidationState = {
@@ -56,16 +62,6 @@ export type CatchReportFormValidationState = {
   blockingFields: Array<keyof CatchReportDraft['fields']>;
   fishingMethod: FishingMethod | null;
 };
-
-type CatalogState =
-  | { kind: 'loading' }
-  | {
-      kind: 'ready';
-      bases: PublicCatalogItem[];
-      baits: PublicBait[];
-      screenAnchors: PublicScreenAnchor[];
-    }
-  | { kind: 'error'; message: string };
 
 type SelectionState =
   | { kind: 'ready'; key: string; data: PublicFishingBase }
@@ -103,8 +99,11 @@ export function CatchReportForm({
   initialDraft,
   canSave = true,
   onValidationStateChange,
+  embeddedBatchRow = false,
+  onCreateInputChange,
 }: CatchReportFormProps) {
   const router = useRouter();
+  const sharedCatalog = useSharedCatchReportFormCatalog();
   const generatedId = useId().replace(/:/g, '');
   const formId = `catch-report-${generatedId}`;
   const fieldIds = {
@@ -131,7 +130,9 @@ export function CatchReportForm({
   const draftDepth = resolvedDraftValue(initialDraft?.fields.holeDepthCm);
 
   const [catalogAttempt, setCatalogAttempt] = useState(0);
-  const [catalog, setCatalog] = useState<CatalogState>({ kind: 'loading' });
+  const [localCatalog, setLocalCatalog] = useState<CatchReportFormCatalogState>({
+    kind: 'loading',
+  });
   const [baseId, setBaseId] = useState(initialReport?.fishingBase.id ?? draftBase?.id ?? '');
   const [locationId, setLocationId] = useState(
     initialReport?.location.id ?? draftLocation?.id ?? '',
@@ -175,6 +176,7 @@ export function CatchReportForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
+    if (sharedCatalog !== null) return;
     const controller = new AbortController();
     async function loadCatalog() {
       try {
@@ -183,10 +185,10 @@ export function CatchReportForm({
           listBaits(controller.signal),
           listScreenAnchors(controller.signal),
         ]);
-        setCatalog({ kind: 'ready', bases, baits, screenAnchors });
+        setLocalCatalog({ kind: 'ready', bases, baits, screenAnchors });
       } catch (error) {
         if (controller.signal.aborted) return;
-        setCatalog({
+        setLocalCatalog({
           kind: 'error',
           message: getApiErrorMessage(error, 'Не удалось загрузить активный игровой каталог.'),
         });
@@ -194,17 +196,25 @@ export function CatchReportForm({
     }
     void loadCatalog();
     return () => controller.abort();
-  }, [catalogAttempt]);
+  }, [catalogAttempt, sharedCatalog]);
 
-  const baseRequestKey = `${baseId}:${catalogAttempt}`;
+  const catalog = sharedCatalog?.state ?? localCatalog;
+  const catalogRevision = sharedCatalog?.revision ?? catalogAttempt;
+
+  const baseRequestKey = `${baseId}:${catalogRevision}`;
   useEffect(() => {
     if (!baseId || catalog.kind !== 'ready') return;
     const controller = new AbortController();
-    const key = `${baseId}:${catalogAttempt}`;
+    const key = `${baseId}:${catalogRevision}`;
 
     async function loadBase() {
       try {
-        setBaseState({ kind: 'ready', key, data: await getFishingBase(baseId, controller.signal) });
+        const data =
+          sharedCatalog === null
+            ? await getFishingBase(baseId, controller.signal)
+            : await sharedCatalog.loadBase(baseId);
+        if (controller.signal.aborted) return;
+        setBaseState({ kind: 'ready', key, data });
       } catch (error) {
         if (controller.signal.aborted) return;
         if (isApiError(error) && error.status === 404 && initialReport?.fishingBase.id === baseId) {
@@ -220,7 +230,7 @@ export function CatchReportForm({
     }
     void loadBase();
     return () => controller.abort();
-  }, [baseId, catalog.kind, catalogAttempt, initialReport]);
+  }, [baseId, catalog.kind, catalogRevision, initialReport, sharedCatalog]);
 
   const baseSelection = baseState?.key === baseRequestKey ? baseState : null;
 
@@ -314,6 +324,45 @@ export function CatchReportForm({
     () => formErrorsToDraftFields(validation.errors, fishingMethod),
     [validation.errors, fishingMethod],
   );
+  const createInput = useMemo<CreateCatchReportInput | null>(() => {
+    const { parsedWeight, parsedDepth, parsedPosition, parsedComment } = validation;
+    if (
+      initialReport !== undefined ||
+      !validation.canConfirm ||
+      fishingMethod === null ||
+      parsedWeight === undefined ||
+      parsedDepth === undefined ||
+      parsedPosition === undefined ||
+      parsedComment === undefined
+    ) {
+      return null;
+    }
+
+    return {
+      locationId,
+      fishId,
+      baitId,
+      weightGrams: parsedWeight,
+      holeDepthCm: parsedDepth,
+      spotPositionRaw: parsedPosition,
+      fishingNote: fishingNote || null,
+      spinningSize: fishingMethod === 'SPINNING' ? spinningSize || null : null,
+      spinningSpeed: fishingMethod === 'SPINNING' ? spinningSpeed || null : null,
+      userNoteRaw: parsedComment,
+      ...(initialDraft ? { rawSourceText: initialDraft.rawSourceText } : {}),
+    };
+  }, [
+    baitId,
+    fishingMethod,
+    fishingNote,
+    fishId,
+    initialDraft,
+    initialReport,
+    locationId,
+    spinningSize,
+    spinningSpeed,
+    validation,
+  ]);
 
   useEffect(() => {
     onValidationStateChange?.({
@@ -322,6 +371,10 @@ export function CatchReportForm({
       fishingMethod,
     });
   }, [blockingFields, fishingMethod, onValidationStateChange, validation.canConfirm]);
+
+  useEffect(() => {
+    onCreateInputChange?.(createInput);
+  }, [createInput, onCreateInputChange]);
 
   function clearError(field: FormField) {
     setErrors((current) => ({ ...current, [field]: undefined }));
@@ -348,6 +401,7 @@ export function CatchReportForm({
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (embeddedBatchRow) return;
     if (isSubmitting || catalog.kind !== 'ready' || !canSave) return;
 
     setErrors(validation.errors);
@@ -414,8 +468,12 @@ export function CatchReportForm({
           className={styles.secondaryButton}
           type="button"
           onClick={() => {
-            setCatalog({ kind: 'loading' });
-            setCatalogAttempt((current) => current + 1);
+            if (sharedCatalog === null) {
+              setLocalCatalog({ kind: 'loading' });
+              setCatalogAttempt((current) => current + 1);
+            } else {
+              sharedCatalog.reload();
+            }
           }}
         >
           Повторить
@@ -724,23 +782,25 @@ export function CatchReportForm({
             Вы можете проверить и исправить черновик, но сохранение заблокировано.
           </p>
         ) : null}
-        <div className={styles.formActions}>
-          <button
-            className={styles.primaryButton}
-            type="submit"
-            disabled={isSubmitting || !canSave || !validation.canConfirm}
-          >
-            {isSubmitting
-              ? isEdit
-                ? 'Сохраняем…'
-                : 'Публикуем…'
-              : isEdit
-                ? 'Сохранить изменения'
-                : initialDraft
-                  ? 'Подтвердить и опубликовать'
-                  : 'Опубликовать улов'}
-          </button>
-        </div>
+        {!embeddedBatchRow ? (
+          <div className={styles.formActions}>
+            <button
+              className={styles.primaryButton}
+              type="submit"
+              disabled={isSubmitting || !canSave || !validation.canConfirm}
+            >
+              {isSubmitting
+                ? isEdit
+                  ? 'Сохраняем…'
+                  : 'Публикуем…'
+                : isEdit
+                  ? 'Сохранить изменения'
+                  : initialDraft
+                    ? 'Подтвердить и опубликовать'
+                    : 'Опубликовать улов'}
+            </button>
+          </div>
+        ) : null}
       </form>
     </section>
   );

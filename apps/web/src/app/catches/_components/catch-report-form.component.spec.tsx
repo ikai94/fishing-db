@@ -349,6 +349,38 @@ describe('CatchReportForm', () => {
     expect(payload).not.toHaveProperty('fishingMethod');
   });
 
+  test('emits a valid batch-row payload without submitting an individual report', async () => {
+    mocks.listBaits.mockResolvedValue([{ id: 'bait-1', name: 'Мотыль', type: 'BAIT' }]);
+    const onCreateInputChange = vi.fn();
+    const draft = baitDraft();
+    const view = render(
+      <CatchReportForm
+        initialDraft={draft}
+        embeddedBatchRow
+        onCreateInputChange={onCreateInputChange}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(onCreateInputChange).toHaveBeenLastCalledWith({
+        locationId: 'location-1',
+        fishId: 'fish-1',
+        baitId: 'bait-1',
+        weightGrams: 1000,
+        holeDepthCm: 600,
+        spotPositionRaw: null,
+        fishingNote: null,
+        spinningSize: null,
+        spinningSpeed: null,
+        userNoteRaw: null,
+        rawSourceText: draft.rawSourceText,
+      }),
+    );
+    expect(screen.queryByRole('button', { name: 'Подтвердить и опубликовать' })).toBeNull();
+    fireEvent.submit(view.container.querySelector('form')!);
+    expect(mocks.createCatchReport).not.toHaveBeenCalled();
+  });
+
   test('sends a sparse PATCH and omits a redundant same bait id', async () => {
     const user = userEvent.setup();
     mocks.updateCatchReport.mockResolvedValue({ id: report.id });

@@ -89,6 +89,17 @@ export interface ParseCatchReportResult {
   draft: CatchReportDraft;
 }
 
+export interface CatchReportBatchDraftRow {
+  index: number;
+  sourceLine: number;
+  duplicateIndexes: number[];
+  draft: CatchReportDraft;
+}
+
+export interface ParseCatchReportBatchResult {
+  rows: CatchReportBatchDraftRow[];
+}
+
 export function resolvedField<T>(
   value: T | null,
   sourceText: string | null,

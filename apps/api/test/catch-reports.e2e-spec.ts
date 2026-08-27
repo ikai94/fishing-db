@@ -1068,6 +1068,152 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
     assert.equal(await prisma.catchReport.count(), reportsBeforeParse + 1);
   });
 
+  void test('parses and atomically creates ordered native batches without deduplicating reports', async () => {
+    const actor = await createActor();
+    const base = await prisma.fishingBase.create({
+      data: { name: 'Амур', nameNormalized: 'амур' },
+    });
+    await prisma.location.create({
+      data: {
+        fishingBaseId: base.id,
+        number: 1,
+        name: 'Понтонный мост',
+        nameNormalized: 'понтонный мост',
+      },
+    });
+    const [burbot, coho] = await Promise.all([
+      prisma.fish.create({ data: { name: 'Налим', nameNormalized: 'налим' } }),
+      prisma.fish.create({ data: { name: 'Кижуч', nameNormalized: 'кижуч' } }),
+    ]);
+    await prisma.bait.create({
+      data: { name: 'Лягушка', nameNormalized: 'лягушка', type: 'BAIT' },
+    });
+    await prisma.fishingBaseFish.createMany({
+      data: [
+        { fishingBaseId: base.id, fishId: burbot.id },
+        { fishingBaseId: base.id, fishId: coho.id },
+      ],
+    });
+
+    const supplied = 'Налим 15,88 кг. Поймана на Амур: Понтонный мост, Лягушка.(4.65 над леской)';
+    const second = 'Кижуч 7,242 кг. Поймана на Амур: Понтонный мост, Лягушка.';
+    const source = `${supplied}\r\n\n${second}\r${supplied}`;
+
+    await mutation(api().post('/api/v1/catch-reports/parse-batch'))
+      .send({ rawSourceText: source })
+      .expect(401);
+    const parsedResponse = await mutation(
+      api().post('/api/v1/catch-reports/parse-batch'),
+      actor.cookie,
+    )
+      .send({ rawSourceText: source })
+      .expect(200);
+    const rows = asArray(asObject(parsedResponse.body as unknown).rows).map(asObject);
+    assert.equal(rows.length, 3);
+    assert.deepEqual(
+      rows.map((row) => [row.index, row.sourceLine, asObject(row.draft).rawSourceText]),
+      [
+        [0, 1, supplied],
+        [1, 3, second],
+        [2, 4, supplied],
+      ],
+    );
+    assert.deepEqual(rows[0]?.duplicateIndexes, [2]);
+    assert.deepEqual(rows[1]?.duplicateIndexes, []);
+    assert.deepEqual(rows[2]?.duplicateIndexes, [0]);
+    assert.equal(await prisma.catchReport.count(), 0);
+
+    const reports = rows.map((row) => {
+      const draft = asObject(row.draft);
+      const fields = asObject(draft.fields);
+      const field = (name: string) => asObject(fields[name]);
+      const itemId = (name: string) => asString(asObject(field(name).value).id, `${name}.id`);
+      return {
+        locationId: itemId('location'),
+        fishId: itemId('fish'),
+        baitId: itemId('bait'),
+        weightGrams: asNumber(field('weightGrams').value, 'weightGrams'),
+        holeDepthCm: field('holeDepthCm').value,
+        spotPositionRaw: field('spotPositionRaw').value,
+        fishingNote: field('fishingNote').value,
+        spinningSize: field('spinningSize').value,
+        spinningSpeed: field('spinningSpeed').value,
+        userNoteRaw: field('userNoteRaw').value,
+        rawSourceText: draft.rawSourceText,
+      };
+    });
+    const createdResponse = await mutation(api().post('/api/v1/catch-reports/batch'), actor.cookie)
+      .send({ reports })
+      .expect(201);
+    const created = asObject(createdResponse.body as unknown);
+    assert.deepEqual(Object.keys(created).sort(), ['createdCount', 'reportIds']);
+    assert.equal(created.createdCount, 3);
+    const reportIds = asArray(created.reportIds).map((id) => asString(id, 'reportId'));
+    assert.equal(new Set(reportIds).size, 3);
+
+    const storedInRequestOrder = await Promise.all(
+      reportIds.map((id) => prisma.catchReport.findUniqueOrThrow({ where: { id } })),
+    );
+    assert.deepEqual(
+      storedInRequestOrder.map((report) => report.rawSourceText),
+      [supplied, second, supplied],
+    );
+    assert.deepEqual(
+      new Set(storedInRequestOrder.map((report) => report.contributorKey)),
+      new Set([nativeContributorKey(actor.userId)]),
+    );
+    assert.ok(storedInRequestOrder.every((report) => report.importKey === null));
+
+    const invalidBatch = await mutation(api().post('/api/v1/catch-reports/batch'), actor.cookie)
+      .send({ reports: [reports[0], { ...reports[1], fishId: randomUUID() }] })
+      .expect(409);
+    assert.equal(readErrorCode(invalidBatch.body as unknown), 'CATCH_REPORT_BATCH_INVALID');
+    const invalidErrors = asObject(asObject(invalidBatch.body as unknown).errors);
+    assert.ok(Array.isArray(invalidErrors['reports.1.fishId']));
+    assert.equal(await prisma.catchReport.count(), 3);
+
+    const aggregate = readFishCatchAggregatePage(
+      (
+        await api()
+          .get('/api/v1/catch-reports/statistics/fish-catches')
+          .query({ fishId: burbot.id, baseIds: base.id, limit: 100 })
+          .expect(200)
+      ).body as unknown,
+    );
+    assert.equal(aggregate.items.length, 1);
+    assert.equal(aggregate.items[0]?.intensity, 2);
+    assert.equal(aggregate.items[0]?.contributorCount, 1);
+
+    await prisma.user.update({ where: { id: actor.userId }, data: { isBanned: true } });
+    await mutation(api().post('/api/v1/catch-reports/parse-batch'), actor.cookie)
+      .send({ rawSourceText: supplied })
+      .expect(200);
+    const bannedCreate = await mutation(api().post('/api/v1/catch-reports/batch'), actor.cookie)
+      .send({ reports: [reports[0]] })
+      .expect(403);
+    assert.equal(readErrorCode(bannedCreate.body as unknown), 'ACCOUNT_BANNED');
+    assert.equal(await prisma.catchReport.count(), 3);
+  });
+
+  void test('limits parse and create batches to 100 reports', async () => {
+    const actor = await createActor();
+    const catalog = await createCatalog();
+    const rawSourceText = Array.from({ length: 101 }, (_, index) => `строка ${index + 1}`).join(
+      '\n',
+    );
+
+    const parse = await mutation(api().post('/api/v1/catch-reports/parse-batch'), actor.cookie)
+      .send({ rawSourceText })
+      .expect(400);
+    assert.equal(readErrorCode(parse.body as unknown), 'VALIDATION_ERROR');
+
+    const create = await mutation(api().post('/api/v1/catch-reports/batch'), actor.cookie)
+      .send({ reports: Array.from({ length: 101 }, () => createInput(catalog)) })
+      .expect(400);
+    assert.equal(readErrorCode(create.body as unknown), 'VALIDATION_ERROR');
+    assert.equal(await prisma.catchReport.count(), 0);
+  });
+
   void test('validates current catalog state and FishingBaseFish before creation', async () => {
     const catalog = await createCatalog();
     const actor = await createActor();

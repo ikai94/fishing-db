@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 import type { CatchReportObservationErrors } from './catch-report-observation.js';
 
+type BatchFieldErrors = Record<string, string[]>;
+
 function response(statusCode: number, code: string, message: string): object {
   return { statusCode, code, message };
 }
@@ -20,6 +22,20 @@ export const catchReportErrors = {
     new BadRequestException({
       ...response(400, 'VALIDATION_ERROR', 'Проверьте введённые данные'),
       errors: { cursor: ['Некорректный курсор пагинации'] },
+    }),
+  batchLimitExceeded: (): BadRequestException =>
+    new BadRequestException({
+      ...response(400, 'VALIDATION_ERROR', 'Проверьте введённые данные'),
+      errors: { rawSourceText: ['За один раз можно разобрать не больше 100 строк'] },
+    }),
+  batchValidation: (errors: BatchFieldErrors): ConflictException =>
+    new ConflictException({
+      ...response(
+        409,
+        'CATCH_REPORT_BATCH_INVALID',
+        'Некоторые выбранные отчёты больше не проходят проверку',
+      ),
+      errors,
     }),
   emptyUpdate: (): BadRequestException =>
     new BadRequestException({

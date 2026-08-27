@@ -3,7 +3,11 @@
 import { useCallback, useState } from 'react';
 import styles from '../../catch-reports.module.css';
 import { CatchReportForm, type CatchReportFormValidationState } from './catch-report-form';
-import type { CatchReportDraft, DraftStatus } from '@/lib/catch-reports-api';
+import type {
+  CatchReportDraft,
+  CreateCatchReportInput,
+  DraftStatus,
+} from '@/lib/catch-reports-api';
 
 const FIELD_LABELS: Record<keyof CatchReportDraft['fields'], string> = {
   fishingBase: 'Рыболовная база',
@@ -23,9 +27,13 @@ const FIELD_LABELS: Record<keyof CatchReportDraft['fields'], string> = {
 export function CatchReportDraftPreview({
   draft,
   canSave,
+  embeddedBatchRow = false,
+  onCreateInputChange,
 }: {
   draft: CatchReportDraft;
   canSave: boolean;
+  embeddedBatchRow?: boolean;
+  onCreateInputChange?: (input: CreateCatchReportInput | null) => void;
 }) {
   const [validationState, setValidationState] = useState<CatchReportFormValidationState>(() =>
     initialValidationState(draft),
@@ -127,6 +135,8 @@ export function CatchReportDraftPreview({
         initialDraft={draft}
         canSave={canSave}
         onValidationStateChange={updateValidationState}
+        embeddedBatchRow={embeddedBatchRow}
+        onCreateInputChange={onCreateInputChange}
       />
     </div>
   );

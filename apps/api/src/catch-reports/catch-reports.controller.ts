@@ -22,10 +22,12 @@ import { CatchReportsService } from './catch-reports.service.js';
 import { BaitStatisticsQueryDto } from './dto/bait-statistics-query.dto.js';
 import { CatchReportParamsDto } from './dto/catch-report-params.dto.js';
 import { CreateCatchReportDto } from './dto/create-catch-report.dto.js';
+import { CreateCatchReportsBatchDto } from './dto/create-catch-reports-batch.dto.js';
 import { HoleStatisticsQueryDto } from './dto/hole-statistics-query.dto.js';
 import { FishCatchAggregateQueryDto } from './dto/fish-catch-aggregate-query.dto.js';
 import { LocationObservationsParamsDto } from './dto/location-observations-params.dto.js';
 import { ParseCatchReportDto } from './dto/parse-catch-report.dto.js';
+import { ParseCatchReportBatchDto } from './dto/parse-catch-report-batch.dto.js';
 import { PublicCatchReportListQueryDto } from './dto/public-catch-report-list-query.dto.js';
 import { UpdateCatchReportDto } from './dto/update-catch-report.dto.js';
 import { FishingConditionStatisticsService } from './fishing-condition-statistics.service.js';
@@ -104,6 +106,27 @@ export class CatchReportsController {
   @HttpCode(HttpStatus.OK)
   parse(@Body(createApplicationValidationPipe(ParseCatchReportDto)) dto: ParseCatchReportDto) {
     return this.parser.parse(dto.rawSourceText);
+  }
+
+  @Post('parse-batch')
+  @UseGuards(AuthGuard)
+  @HttpCode(HttpStatus.OK)
+  parseBatch(
+    @Body(createApplicationValidationPipe(ParseCatchReportBatchDto))
+    dto: ParseCatchReportBatchDto,
+  ) {
+    return this.parser.parseBatch(dto.rawSourceText);
+  }
+
+  @Post('batch')
+  @UseGuards(AuthGuard, NotBannedGuard)
+  @HttpCode(HttpStatus.CREATED)
+  createBatch(
+    @CurrentUser() user: SafeUser,
+    @Body(createApplicationValidationPipe(CreateCatchReportsBatchDto))
+    dto: CreateCatchReportsBatchDto,
+  ) {
+    return this.catchReports.createBatch(user.id, dto.reports);
   }
 
   @Post()

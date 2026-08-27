@@ -424,7 +424,74 @@
 }
 
 .sourceTextarea {
-  min-height: 170px;
+  min-height: 260px;
+}
+
+.batchPreview,
+.batchRows {
+  display: grid;
+  gap: 18px;
+}
+
+.batchSummary,
+.batchRowHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.batchSummary {
+  position: sticky;
+  z-index: 2;
+  top: 12px;
+  padding: 16px;
+  border: 1px solid #b8cbbf;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 96%);
+  box-shadow: 0 8px 24px rgb(34 67 48 / 9%);
+}
+
+.batchRow {
+  padding: 16px;
+  border: 1px solid #cbd8d0;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.excludedBatchRow {
+  opacity: 0.72;
+  background: #f4f5f4;
+}
+
+.batchSelection {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+}
+
+.batchRawSource {
+  margin: 12px 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.batchRowSummary {
+  margin-top: 12px;
+  color: #28573b;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.batchRowEditor {
+  margin-top: 16px;
+}
+
+.batchRowErrors {
+  margin: 10px 0;
+  padding-left: 22px;
+  color: #8f2424;
 }
 
 .manualEntrySection {
@@ -552,5 +619,11 @@
   .pageActions > *,
   .formActions > * {
     width: 100%;
+  }
+
+  .batchSummary,
+  .batchRowHeader {
+    align-items: stretch;
+    flex-direction: column;
   }
 }

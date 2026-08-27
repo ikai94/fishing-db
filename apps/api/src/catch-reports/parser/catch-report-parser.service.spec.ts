@@ -22,6 +22,13 @@ const LOCATIONS = [
     nameNormalized: 'протока бешеная - створы',
   },
   {
+    id: 'location-amur-pontoon',
+    fishingBaseId: 'base-amur',
+    number: 3,
+    name: 'Понтонный мост',
+    nameNormalized: 'понтонный мост',
+  },
+  {
     id: 'location-tanzania',
     fishingBaseId: 'base-tanzania',
     number: 2,
@@ -31,6 +38,7 @@ const LOCATIONS = [
 ] as const;
 
 const FISH = [
+  { id: 'fish-burbot', name: 'Налим', nameNormalized: 'налим' },
   { id: 'fish-kizhuch', name: 'Кижуч', nameNormalized: 'кижуч' },
   {
     id: 'fish-zherekh',
@@ -47,6 +55,7 @@ const FISH = [
 ] as const;
 
 const BAITS = [
+  { id: 'bait-frog', name: 'Лягушка', nameNormalized: 'лягушка', type: 'BAIT' },
   { id: 'bait-vib', name: 'Vib-rapan', nameNormalized: 'vib-rapan', type: 'LURE' },
   { id: 'bait-vob', name: 'Vob-3006', nameNormalized: 'vob-3006', type: 'LURE' },
   { id: 'bait-pilk', name: 'Pilk-107', nameNormalized: 'pilk-107', type: 'LURE' },
@@ -310,5 +319,45 @@ void describe('CatchReportParserService', () => {
       name: 'Vob-3006',
       type: 'LURE',
     });
+  });
+
+  void it('parses independent physical lines, preserves order, and only warns exact duplicates', async () => {
+    const observations = [
+      ['4.65 над леской', 465, 'над леской'],
+      ['6.98 над д.катушки/леска', 698, 'над д.катушки/леска'],
+      ['7.00 над алкоголем верх', 700, 'над алкоголем верх'],
+      ['5.55 над даные/удочкалеска', 555, 'над даные/удочкалеска'],
+    ] as const;
+    const lines = observations.map(
+      ([observation]) =>
+        `Налим 15,88 кг. Поймана на Амур: Понтонный мост, Лягушка.(${observation})`,
+    );
+    const result = await fixtureService().parseBatch(`${lines.join('\r\n')}\r\n\n${lines[0]}`);
+
+    assert.deepEqual(
+      result.rows.map((row) => [row.index, row.sourceLine, row.draft.rawSourceText]),
+      [
+        [0, 1, lines[0]],
+        [1, 2, lines[1]],
+        [2, 3, lines[2]],
+        [3, 4, lines[3]],
+        [4, 6, lines[0]],
+      ],
+    );
+    for (const [index, [, depth, spot]] of observations.entries()) {
+      const row = result.rows[index];
+      assert.ok(row !== undefined);
+      assert.equal(resolvedValue(row.draft.fields.weightGrams), 15_880);
+      assert.equal(resolvedValue(row.draft.fields.holeDepthCm), depth);
+      assert.equal(resolvedValue(row.draft.fields.spotPositionRaw), spot);
+      assert.deepEqual(row.draft.unresolvedFragments, []);
+      assert.equal(row.draft.canConfirm, true);
+    }
+    assert.deepEqual(result.rows[0].duplicateIndexes, [4]);
+    assert.deepEqual(result.rows[1].duplicateIndexes, []);
+    assert.deepEqual(result.rows[2].duplicateIndexes, []);
+    assert.deepEqual(result.rows[3].duplicateIndexes, []);
+    assert.deepEqual(result.rows[4].duplicateIndexes, [0]);
+    assert.ok(result.rows[0].draft.issues.some((issue) => issue.code === 'DUPLICATE_INPUT_ROW'));
   });
 });

@@ -3,6 +3,7 @@ import { normalizeCatalogName } from '../../catalog/catalog-normalization.js';
 import type { CatalogBaitType } from '../../catalog/catalog.constants.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { CatchReportFishingMethod } from '../catch-reports.constants.js';
+import { catchReportErrors } from '../catch-reports.errors.js';
 import {
   SPOT_POSITION_RAW_MAX_LENGTH_PATTERN,
   USER_NOTE_RAW_MAX_LENGTH_PATTERN,
@@ -18,10 +19,16 @@ import {
   type DraftBait,
   missingField,
   type ParseCatchReportResult,
+  type ParseCatchReportBatchResult,
   resolvedField,
   type SourceRange,
   unresolvedField,
 } from './catch-report-parser.types.js';
+import {
+  CATCH_REPORT_BATCH_MAX_ITEMS,
+  duplicateIndexesByCandidate,
+  splitCatchReportBatchSource,
+} from './catch-report-batch-splitter.js';
 import {
   fallbackBaitSource,
   matchCatalogPrefix,
@@ -337,6 +344,44 @@ export class CatchReportParserService {
     draft.canConfirm = !draft.issues.some((issue) => issue.severity === 'BLOCKING');
 
     return { draft };
+  }
+
+  async parseBatch(rawSourceText: string): Promise<ParseCatchReportBatchResult> {
+    const candidates = splitCatchReportBatchSource(rawSourceText);
+    if (candidates.length > CATCH_REPORT_BATCH_MAX_ITEMS) {
+      throw catchReportErrors.batchLimitExceeded();
+    }
+
+    const duplicateIndexes = duplicateIndexesByCandidate(candidates);
+    const parsed = await Promise.all(
+      candidates.map((candidate) => this.parse(candidate.rawSourceText)),
+    );
+
+    return {
+      rows: parsed.map(({ draft }, index) => {
+        const candidate = candidates[index];
+        if (candidate === undefined) throw new RangeError('Batch parser candidate is missing');
+        const duplicates = duplicateIndexes.get(candidate.index) ?? [];
+
+        if (duplicates.length > 0) {
+          draft.issues.push({
+            severity: 'WARNING',
+            code: 'DUPLICATE_INPUT_ROW',
+            message: `Точная копия исходной строки: ${duplicates
+              .map((duplicateIndex) => candidates[duplicateIndex]?.sourceLine)
+              .filter((line): line is number => line !== undefined)
+              .join(', ')}`,
+          });
+        }
+
+        return {
+          index: candidate.index,
+          sourceLine: candidate.sourceLine,
+          duplicateIndexes: duplicates,
+          draft,
+        };
+      }),
+    };
   }
 
   private async resolveLocation(

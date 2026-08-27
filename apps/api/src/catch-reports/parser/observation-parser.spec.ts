@@ -118,6 +118,33 @@ void describe('observation parser', () => {
     assert.deepEqual(result.unresolvedFragments, []);
   });
 
+  void it('preserves an explicit trailing spot phrase after one depth', () => {
+    const cases = [
+      ['(4.65 над леской)', 465, 'над леской'],
+      ['6.98 над д.катушки/леска', 698, 'над д.катушки/леска'],
+      ['7.00 над алкоголем верх', 700, 'над алкоголем верх'],
+      ['5.55 над даные/удочкалеска', 555, 'над даные/удочкалеска'],
+    ] as const;
+
+    for (const [raw, depth, spot] of cases) {
+      const result = parseObservation(raw, source(raw), 'BAIT_FISHING', ANCHORS);
+
+      assert.equal(result.holeDepthCm?.value, depth, raw);
+      assert.equal(result.spotPositionRaw?.value, spot, raw);
+      assert.equal(result.spotPositionRaw?.source.text, spot, raw);
+      assert.deepEqual(result.unresolvedFragments, [], raw);
+    }
+  });
+
+  void it('leaves multiple depth observations unresolved', () => {
+    const raw = '4.65 над леской 5.55 над удочкой';
+    const result = parseObservation(raw, source(raw), 'BAIT_FISHING', ANCHORS);
+
+    assert.equal(result.holeDepthCm, null);
+    assert.equal(result.spotPositionRaw, null);
+    assert.equal(result.unresolvedFragments.map((fragment) => fragment.text).join('.'), raw);
+  });
+
   void it('keeps unknown suffix text unresolved instead of fabricating a comment', () => {
     const raw = '14.68 блокнот.игродень.';
     const result = parseObservation(raw, source(raw), 'BAIT_FISHING', ANCHORS);
