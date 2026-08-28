@@ -50,6 +50,40 @@ input and must never be inferred from naming patterns.
 
 Neither the seed nor normal application startup contacts the source website.
 
+## Fish catalog reconciliation audit
+
+The following reviewed manifests must be tracked in Git. The Fish and BaseFish manifests are
+apply-ready inputs but are not read by the seed or application runtime:
+
+- `forum69-fish.json` — reviewed forum69 topic identities and canonical primary names;
+- `fish-reconciliation.json` — current Fish ID preservation/rename/create/repoint plan;
+- `fishing-base-fish-reconciliation.json` — workbook cell-to-topic membership projection;
+- `list-fish-metadata.json` — targeted supplemental page/image metadata, without image binaries.
+
+The first three are required inputs for a reproducible future Fish/BaseFish apply. The list-fish
+manifest is not an apply input, but remains tracked because its reviewed supplemental identity
+mapping cannot be reconstructed from runtime state.
+
+Their JSON/CSV evidence is under `audits/fish-catalog`. Regenerate the baseline evidence from the
+accepted local forum cache, catalog snapshot, and approved workbook with
+`pnpm db:audit:fish-catalog`; verify it with `pnpm db:audit:fish-catalog:check`. These commands do not
+replace an existing apply-ready manifest, apply database changes, re-import forum observations, or
+download images. Excel raw names remain reconciliation provenance only and are never canonical Fish
+display names.
+
+Generated audit evidence under `audits/fish-catalog` is intentionally ignored by Git. The
+separately reviewed human decisions are generated there under `manual-review`. Finalize the four
+tracked manifests plus live read-only reference and recovery evidence with
+`pnpm db:audit:fish-catalog:manual-review`; verify deterministic output with
+`pnpm db:audit:fish-catalog:manual-review:check`. Terminal `DO_NOT_MAP`, `EXCLUDE_NON_FISH`, and
+`EXCLUDE_NOISE` rows remain source evidence with no Fish or FishingBaseFish target.
+
+Preview the apply-ready Fish/BaseFish/CatchReport poststate without writes with:
+
+```bash
+pnpm db:reconcile:fish-catalog:dry-run
+```
+
 ## Reconciliation
 
 Audit the live pre-state with:

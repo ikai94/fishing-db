@@ -31,3 +31,6 @@ apps/api/.local/forum-import/
 
 # Local API data, crawler artifacts, imports and backups
 /apps/api/.local/
+
+# Reproducible Fish reconciliation audits (manifests under catalog-data stay tracked)
+/apps/api/prisma/catalog-data/audits/fish-catalog/

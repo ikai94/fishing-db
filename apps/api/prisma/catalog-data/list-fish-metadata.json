@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "mode": "TARGETED_AUDIT_ONLY",
+  "source": {
+    "listPage": "https://rus-fishsoft.ru/list-fish.html",
+    "dataEndpoint": "https://rus-fishsoft.ru/ajaxcontent.html",
+    "requestShape": {
+      "method": "POST",
+      "form": {
+        "vars[to]": "data",
+        "vars[sc]": "fish_list",
+        "vars[sort]": "<letter>"
+      }
+    }
+  },
+  "policy": {
+    "supplementalMetadataOnly": true,
+    "mayRenameFish": false,
+    "imagesDownloaded": false,
+    "fullCatalogCrawled": false
+  },
+  "mappings": [
+    {
+      "forumTopicId": "31972",
+      "canonicalName": "Австралийский колючепёр",
+      "listTitle": "Австралийский колючепёр",
+      "detailPath": "/avstralijskij-kolychoper.html",
+      "imageAssetId": "2186",
+      "middleImagePath": "/assets/images/fish/middle/2186.png",
+      "bigImagePath": "/assets/images/fish/big/2186.png",
+      "confidence": "CONFIRMED",
+      "evidence": "List title and detail heading agree with forum69 canonical identity"
+    },
+    {
+      "forumTopicId": "32381",
+      "canonicalName": "Кит горбатый(альбинос)",
+      "listTitle": "Кит горбатый-альбинос",
+      "detailPath": "/kit-gorbatyij(albinos).html",
+      "imageAssetId": "2426",
+      "middleImagePath": "/assets/images/fish/middle/2426.png",
+      "bigImagePath": "/assets/images/fish/big/2426.png",
+      "confidence": "CONFIRMED",
+      "evidence": "Qualifier identity agrees; list-fish punctuation is supplemental only"
+    },
+    {
+      "forumTopicId": "33074",
+      "canonicalName": "Кит синий (альбинос)",
+      "listTitle": "Кит синий альбинос",
+      "detailPath": "/sinij-kit-albinos.html",
+      "imageAssetId": "7094",
+      "middleImagePath": "/assets/images/fish/middle/7094.png",
+      "bigImagePath": "/assets/images/fish/big/7094.png",
+      "confidence": "CONFIRMED",
+      "evidence": "Qualifier identity agrees; list-fish punctuation is supplemental only"
+    }
+  ],
+  "manualConflicts": [
+    {
+      "listTitle": "Акула галапагосская",
+      "detailPath": "/akula-sejla.html",
+      "confidence": "MANUAL",
+      "reason": "Observed list title and detail slug identify different Fish names"
+    },
+    {
+      "listTitle": "Акула Сейла",
+      "detailPath": "/akula-koromandelskaya.html",
+      "confidence": "MANUAL",
+      "reason": "Observed list title and detail slug identify different Fish names"
+    }
+  ]
+}
