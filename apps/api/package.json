@@ -22,6 +22,8 @@
     "db:audit:fish-catalog:check": "tsx src/prisma/generate-fish-catalog-audit.ts --check",
     "db:audit:fish-catalog:manual-review": "tsx src/prisma/generate-fish-catalog-manual-review.ts",
     "db:audit:fish-catalog:manual-review:check": "tsx src/prisma/generate-fish-catalog-manual-review.ts --check",
+    "db:audit:fish-images": "tsx src/prisma/generate-fish-image-metadata.ts",
+    "db:audit:fish-images:check": "tsx src/prisma/generate-fish-image-metadata.ts --check",
     "db:reconcile:fish-catalog:dry-run": "tsx src/prisma/dry-run-fish-catalog-reconciliation.ts",
     "db:reconcile:fish-catalog:apply": "tsx src/prisma/apply-fish-catalog-reconciliation.ts",
     "db:reconcile:fishing-base-fish": "tsx src/prisma/reconcile-fishing-base-fish.ts",

@@ -60,6 +60,20 @@ apply-ready inputs but are not read by the seed or application runtime:
 - `fishing-base-fish-reconciliation.json` — workbook cell-to-topic membership projection;
 - `list-fish-metadata.json` — targeted supplemental page/image metadata, without image binaries.
 
+The frozen `list-fish-metadata.json` remains an input to the accepted Fish reconciliation and
+recovery fingerprints. Full image-metadata auditing is tracked separately so those accepted
+mechanics do not change:
+
+- `fish-image-metadata.json` — one audit-only status/evidence row for every forum69 topic identity;
+- `fish-image-manual-review.audit.json` — a generated, ignored concise review projection for MANUAL
+  rows; it is derived from the tracked full manifest.
+
+Generate a fresh metadata-only snapshot explicitly with `pnpm db:audit:fish-images`. The command
+reads the official list AJAX and detail HTML but never requests image binaries. Validate the
+tracked manifest entirely offline with `pnpm db:audit:fish-images:check`. Reviewed mapping-rule
+changes can reclassify the existing tracked evidence without network access by passing
+`--reclassify` to the API audit command.
+
 The first three are required inputs for a reproducible future Fish/BaseFish apply. The list-fish
 manifest is not an apply input, but remains tracked because its reviewed supplemental identity
 mapping cannot be reconstructed from runtime state.

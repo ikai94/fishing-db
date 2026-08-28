@@ -33,6 +33,8 @@
     "db:audit:fish-catalog:check": "pnpm --filter @fishing-db/api run db:audit:fish-catalog:check",
     "db:audit:fish-catalog:manual-review": "pnpm --filter @fishing-db/api run db:audit:fish-catalog:manual-review",
     "db:audit:fish-catalog:manual-review:check": "pnpm --filter @fishing-db/api run db:audit:fish-catalog:manual-review:check",
+    "db:audit:fish-images": "pnpm --filter @fishing-db/api run db:audit:fish-images",
+    "db:audit:fish-images:check": "pnpm --filter @fishing-db/api run db:audit:fish-images:check",
     "db:reconcile:fish-catalog:dry-run": "pnpm --filter @fishing-db/api run db:reconcile:fish-catalog:dry-run",
     "db:reconcile:fish-catalog:apply": "pnpm --filter @fishing-db/api run db:reconcile:fish-catalog:apply",
     "db:reconcile:fishing-base-fish": "pnpm --filter @fishing-db/api run db:reconcile:fishing-base-fish",
