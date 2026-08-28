@@ -84,6 +84,25 @@ Preview the apply-ready Fish/BaseFish/CatchReport poststate without writes with:
 pnpm db:reconcile:fish-catalog:dry-run
 ```
 
+After that reconciliation is accepted and applied, recover the frozen full forum69 staging only
+from its existing local cache and the tracked reconciliation inputs with:
+
+```bash
+pnpm forum:recover-fish-catalog -- --all --dry-run
+pnpm forum:recover-fish-catalog -- --all
+```
+
+Recovery requires strict byte-derived candidate identity-manifest equality, never rebases or
+appends candidate identities, and never crawls. Exact current catalog matching is attempted first;
+only a previously resolved Fish may fall back through its frozen Fish UUID and the accepted
+reconciliation lineage. Recovered staging is written separately under
+`outputs/all-parent-69/recovery/fish-catalog/staging`; the original staging remains unchanged.
+Before any later import, select that directory explicitly and keep the importer in dry-run mode:
+
+```bash
+pnpm forum:import-complete -- --all --recovered-fish-catalog --dry-run
+```
+
 ## Reconciliation
 
 Audit the live pre-state with:

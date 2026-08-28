@@ -84,4 +84,20 @@ void describe('forum pipeline CLI', () => {
       );
     }
   });
+
+  void it('rejects partial recovery scopes before opening the database or network', async () => {
+    for (const arguments_ of [
+      ['recover-fish-catalog', '--topic-id=9', '--dry-run'],
+      ['recover-fish-catalog', '--subforum-id=70', '--dry-run'],
+      ['recover-fish-catalog', '--all', '--limit-posts=100', '--dry-run'],
+    ]) {
+      await assert.rejects(
+        runForumCli(arguments_, {}, new ForumLocalStore('/missing-offline-recovery-cache')),
+        (error: unknown) =>
+          error instanceof Error &&
+          'code' in error &&
+          error.code === 'FORUM_FISH_CATALOG_RECOVERY_BLOCKED',
+      );
+    }
+  });
 });

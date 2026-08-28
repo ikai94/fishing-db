@@ -19,6 +19,10 @@ import {
 } from './candidate-identity-manifest.js';
 import { ForumLocalStore, readJsonFile, writeFileAtomic, writeJsonAtomic } from './cache.js';
 import { parseForumCliOptions, type ForumCliOptions } from './cli-options.js';
+import {
+  FISH_CATALOG_RECOVERY_DIRECTORY,
+  runForumFishCatalogRecovery,
+} from './fish-catalog-recovery-runner.js';
 import { resolveForumCandidates, type ResolvedForumCandidate } from './catalog-resolver.js';
 import { loadCatalogSnapshot } from './catalog-source.js';
 import { parseForumPost } from './forum-post-parser.js';
@@ -81,6 +85,9 @@ export async function runForumCli(
   if (options.command === 'stage') {
     return stageScope(options, store, environment);
   }
+  if (options.command === 'recover-fish-catalog') {
+    return runForumFishCatalogRecovery(options, store, environment);
+  }
   if (options.command === 'import-complete') {
     return importCompleteScope(options, store, environment);
   }
@@ -113,7 +120,11 @@ async function importCompleteScope(
       'ADMIN_EMAIL is required for COMPLETE candidate import',
     );
   }
-  const stagingDirectory = artifactPath(store, options, 'staging');
+  const stagingDirectory = artifactPath(
+    store,
+    options,
+    options.recoveredFishCatalog ? `${FISH_CATALOG_RECOVERY_DIRECTORY}/staging` : 'staging',
+  );
   const bundle = await readVerifiedForumStagingBundle(stagingDirectory);
   const { PrismaClient } = await import('../generated/prisma/client.js');
   const prisma = new PrismaClient({ adapter: createPrismaAdapter(databaseUrl) });

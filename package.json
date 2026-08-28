@@ -38,6 +38,7 @@
     "db:reconcile:fishing-base-fish": "pnpm --filter @fishing-db/api run db:reconcile:fishing-base-fish",
     "forum:scan": "pnpm --filter @fishing-db/api run forum:scan",
     "forum:stage": "pnpm db:generate && pnpm --filter @fishing-db/api run forum:stage",
+    "forum:recover-fish-catalog": "pnpm db:generate && pnpm --filter @fishing-db/api run forum:recover-fish-catalog",
     "forum:audit": "pnpm --filter @fishing-db/api run forum:audit",
     "forum:review": "pnpm --filter @fishing-db/api run forum:review",
     "forum:import-complete": "pnpm db:generate && pnpm --filter @fishing-db/api run forum:import-complete",

@@ -8,11 +8,20 @@ import {
   importCompleteForumCandidates,
 } from '../src/forum-import/complete-importer.js';
 import { loadCatalogSnapshot } from '../src/forum-import/catalog-source.js';
+import { buildCandidateIdentityManifest } from '../src/forum-import/candidate-identity-manifest.js';
+import type {
+  ParsedForumCandidate,
+  TechnicalForumPost,
+} from '../src/forum-import/candidate-types.js';
+import {
+  recoverForumFishCatalogCandidates,
+  type FishReconciliationManifest,
+} from '../src/forum-import/fish-catalog-recovery.js';
 import {
   deriveExternalContributorKey,
   deriveExternalImportKey,
 } from '../src/forum-import/identity.js';
-import type { StagingCandidate } from '../src/forum-import/staging.js';
+import { buildStagingArtifacts, type StagingCandidate } from '../src/forum-import/staging.js';
 import type { VerifiedForumStagingBundle } from '../src/forum-import/staging-reader.js';
 import { PrismaClient } from '../src/generated/prisma/client.js';
 import { createPrismaAdapter } from '../src/prisma/prisma-adapter.js';
@@ -271,6 +280,106 @@ void describe(
       assert.equal(repeated.alreadyPresent, 1);
       assert.equal(repeated.wouldInsert, 0);
       assert.equal(repeated.inserted, 0);
+      assert.equal(await prisma.catchReport.count(), 1);
+    });
+
+    void test('keeps a previously imported COMPLETE candidate alreadyPresent after accepted Fish UUID lineage recovery', async () => {
+      const graph = await createGraph();
+      const previousSnapshot = await loadCatalogSnapshot(prisma);
+      const previousCandidate = completeCandidate(graph, 1);
+      await importCompleteForumCandidates(prisma, {
+        adminEmail: ADMIN_EMAIL,
+        dryRun: false,
+        bundle: stagingBundle(previousSnapshot.fingerprint, [previousCandidate]),
+      });
+
+      const post: TechnicalForumPost = {
+        subforumId: '70',
+        topicId: '700',
+        postId: '9001',
+        memberId: '101',
+        topicTitle: 'Импорт-рыба',
+        bodyText: 'Импорт-рыба 751 г. Поймана на Импорт-база: Импорт-локация, Импорт-наживка.',
+      };
+      const parsed: ParsedForumCandidate = {
+        contributorKey: previousCandidate.contributorKey,
+        importKey: previousCandidate.importKey,
+        candidateOrdinal: 1,
+        fishNameRaw: previousCandidate.fishNameRaw,
+        weightGrams: previousCandidate.weightGrams,
+        fishingBaseRaw: previousCandidate.fishingBaseRaw,
+        locationRaw: previousCandidate.locationRaw,
+        baitRaw: previousCandidate.baitRaw,
+        fishingMethod: null,
+        holeDepthCm: previousCandidate.holeDepthCm,
+        spotPositionRaw: previousCandidate.spotPositionRaw,
+        fishingNote: previousCandidate.fishingNote,
+        spinningSize: previousCandidate.spinningSize,
+        spinningSpeed: previousCandidate.spinningSpeed,
+        userNoteRaw: previousCandidate.userNoteRaw,
+        issues: [],
+        technical: {
+          subforumId: post.subforumId,
+          topicId: post.topicId,
+          postId: post.postId,
+          sourceRange: {
+            startOffset: 0,
+            endOffset: post.bodyText.length,
+            startLine: 1,
+            endLine: 1,
+          },
+          sourceText: post.bodyText,
+          supplementarySourceRanges: [],
+        },
+      };
+      const identities = buildCandidateIdentityManifest('all-parent-69', [post], [parsed]);
+      const canonicalName = 'Импорт-рыба каноническая';
+      const fishReconciliation: FishReconciliationManifest = {
+        schemaVersion: 2,
+        mode: 'APPLY_READY',
+        sourceCatalogFingerprint: previousSnapshot.fingerprint,
+        entries: [
+          {
+            category: 'EXPLICIT_RENAME',
+            currentFishId: graph.fishId,
+            currentName: 'Импорт-рыба',
+            currentIsActive: true,
+            topicId: post.topicId,
+            canonicalName,
+            preservesFishId: true,
+            decision: 'RENAME',
+            reason: 'test accepted UUID lineage',
+          },
+        ],
+      };
+      await prisma.fish.update({
+        where: { id: graph.fishId },
+        data: normalizeCatalogName(canonicalName),
+      });
+      const currentSnapshot = await loadCatalogSnapshot(prisma);
+      const recovered = recoverForumFishCatalogCandidates({
+        scopeKey: 'all-parent-69',
+        pinnedIdentities: identities,
+        currentIdentities: structuredClone(identities),
+        parsedCandidates: [parsed],
+        previousStaging: stagingBundle(previousSnapshot.fingerprint, [previousCandidate]),
+        previousCatalogSnapshot: previousSnapshot,
+        currentCatalogSnapshot: currentSnapshot,
+        fishReconciliation,
+      });
+      const artifacts = buildStagingArtifacts(recovered.candidates, currentSnapshot.fingerprint);
+
+      const dryRun = await importCompleteForumCandidates(prisma, {
+        adminEmail: ADMIN_EMAIL,
+        dryRun: true,
+        bundle: { manifest: artifacts.manifest, candidates: artifacts.candidates },
+      });
+
+      assert.equal(recovered.summary.candidates.previousCompleteRegressions, 0);
+      assert.equal(recovered.summary.lineage.fallbackCandidates, 1);
+      assert.equal(dryRun.alreadyPresent, 1);
+      assert.equal(dryRun.wouldInsert, 0);
+      assert.equal(dryRun.conflicts, 0);
       assert.equal(await prisma.catchReport.count(), 1);
     });
 

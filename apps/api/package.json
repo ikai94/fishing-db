@@ -27,6 +27,7 @@
     "db:reconcile:fishing-base-fish": "tsx src/prisma/reconcile-fishing-base-fish.ts",
     "forum:scan": "tsx src/forum-import/cli.ts scan",
     "forum:stage": "tsx src/forum-import/cli.ts stage",
+    "forum:recover-fish-catalog": "tsx src/forum-import/cli.ts recover-fish-catalog",
     "forum:audit": "tsx src/forum-import/cli.ts audit",
     "forum:review": "tsx src/forum-import/cli.ts review",
     "forum:import-complete": "tsx src/forum-import/cli.ts import-complete",

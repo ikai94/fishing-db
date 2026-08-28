@@ -17,6 +17,7 @@ void describe('forum import CLI options', () => {
         delayMs: 3_000,
         rebaseIdentities: false,
         dryRun: false,
+        recoveredFishCatalog: false,
       },
     );
     assert.equal(parseForumCliOptions(['scan', '--all']).scope.mode, 'ALL');
@@ -39,6 +40,9 @@ void describe('forum import CLI options', () => {
       ['stage', '--all', '--rebase-identities', '--rebase-identities'],
       ['scan', '--all', '--cache-dir=.local-test'],
       ['stage', '--all', '--dry-run'],
+      ['scan', '--all', '--recovered-fish-catalog'],
+      ['recover-fish-catalog', '--all', '--recovered-fish-catalog'],
+      ['import-complete', '--all', '--recovered-fish-catalog=true'],
       ['import-complete', '--all', '--dry-run=true'],
       ['import-complete', '--all', '--dry-run', '--dry-run'],
     ]) {
@@ -74,7 +78,24 @@ void describe('forum import CLI options', () => {
       delayMs: 2_000,
       rebaseIdentities: false,
       dryRun: true,
+      recoveredFishCatalog: false,
     });
     assert.equal(parseForumCliOptions(['import-complete', '--all']).dryRun, false);
+  });
+
+  void it('supports offline Fish-catalog recovery and explicit recovered staging import', () => {
+    assert.deepEqual(parseForumCliOptions(['recover-fish-catalog', '--all', '--dry-run']), {
+      command: 'recover-fish-catalog',
+      scope: { mode: 'ALL', parentForumId: '69', limitPosts: null },
+      delayMs: 2_000,
+      rebaseIdentities: false,
+      dryRun: true,
+      recoveredFishCatalog: false,
+    });
+    assert.equal(
+      parseForumCliOptions(['import-complete', '--all', '--recovered-fish-catalog', '--dry-run'])
+        .recoveredFishCatalog,
+      true,
+    );
   });
 });

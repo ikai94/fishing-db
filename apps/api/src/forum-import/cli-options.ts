@@ -1,6 +1,7 @@
 import { parseScanScopeArgs, type ScanScope } from './scope.js';
 
-export type ForumCliCommand = 'scan' | 'stage' | 'audit' | 'review' | 'import-complete';
+export type ForumCliCommand =
+  'scan' | 'stage' | 'audit' | 'review' | 'import-complete' | 'recover-fish-catalog';
 
 export interface ForumCliOptions {
   command: ForumCliCommand;
@@ -8,6 +9,7 @@ export interface ForumCliOptions {
   delayMs: number;
   rebaseIdentities: boolean;
   dryRun: boolean;
+  recoveredFishCatalog: boolean;
 }
 
 export class ForumCliArgumentError extends Error {
@@ -19,7 +21,14 @@ export class ForumCliArgumentError extends Error {
   }
 }
 
-const COMMANDS = new Set<ForumCliCommand>(['scan', 'stage', 'audit', 'review', 'import-complete']);
+const COMMANDS = new Set<ForumCliCommand>([
+  'scan',
+  'stage',
+  'audit',
+  'review',
+  'import-complete',
+  'recover-fish-catalog',
+]);
 const DEFAULT_DELAY_MS = 2_000;
 const MINIMUM_DELAY_MS = 1_000;
 const MAXIMUM_DELAY_MS = 60_000;
@@ -28,7 +37,7 @@ export function parseForumCliOptions(arguments_: readonly string[]): ForumCliOpt
   const [rawCommand, ...forwardedOptions] = arguments_;
   if (rawCommand === undefined || !COMMANDS.has(rawCommand as ForumCliCommand)) {
     throw new ForumCliArgumentError(
-      'Command must be scan, stage, audit, review, or import-complete',
+      'Command must be scan, stage, audit, review, import-complete, or recover-fish-catalog',
     );
   }
   const command = rawCommand as ForumCliCommand;
@@ -40,8 +49,13 @@ export function parseForumCliOptions(arguments_: readonly string[]): ForumCliOpt
   if (command !== 'stage' && extracted.rebaseIdentities) {
     throw new ForumCliArgumentError('--rebase-identities is only valid for stage');
   }
-  if (command !== 'import-complete' && extracted.dryRun) {
-    throw new ForumCliArgumentError('--dry-run is only valid for import-complete');
+  if (!['import-complete', 'recover-fish-catalog'].includes(command) && extracted.dryRun) {
+    throw new ForumCliArgumentError(
+      '--dry-run is only valid for import-complete or recover-fish-catalog',
+    );
+  }
+  if (command !== 'import-complete' && extracted.recoveredFishCatalog) {
+    throw new ForumCliArgumentError('--recovered-fish-catalog is only valid for import-complete');
   }
 
   try {
@@ -52,6 +66,7 @@ export function parseForumCliOptions(arguments_: readonly string[]): ForumCliOpt
         extracted.delayValue === undefined ? DEFAULT_DELAY_MS : parseDelay(extracted.delayValue),
       rebaseIdentities: extracted.rebaseIdentities,
       dryRun: extracted.dryRun,
+      recoveredFishCatalog: extracted.recoveredFishCatalog,
     };
   } catch (error: unknown) {
     if (error instanceof ForumCliArgumentError) throw error;
@@ -64,11 +79,13 @@ function extractLocalOptions(arguments_: readonly string[]): {
   delayValue: string | undefined;
   rebaseIdentities: boolean;
   dryRun: boolean;
+  recoveredFishCatalog: boolean;
 } {
   const scopeArguments: string[] = [];
   let delayValue: string | undefined;
   let rebaseIdentities = false;
   let dryRun = false;
+  let recoveredFishCatalog = false;
 
   for (let index = 0; index < arguments_.length; index += 1) {
     const argument = arguments_[index];
@@ -87,11 +104,21 @@ function extractLocalOptions(arguments_: readonly string[]): {
       dryRun = true;
       continue;
     }
+    if (argument === '--recovered-fish-catalog') {
+      if (recoveredFishCatalog) {
+        throw new ForumCliArgumentError('Duplicate option: --recovered-fish-catalog');
+      }
+      recoveredFishCatalog = true;
+      continue;
+    }
     if (argument.startsWith('--dry-run=')) {
       throw new ForumCliArgumentError('--dry-run does not accept a value');
     }
     if (argument.startsWith('--rebase-identities=')) {
       throw new ForumCliArgumentError('--rebase-identities does not accept a value');
+    }
+    if (argument.startsWith('--recovered-fish-catalog=')) {
+      throw new ForumCliArgumentError('--recovered-fish-catalog does not accept a value');
     }
     const match = /^--delay-ms(?:=(.*))?$/u.exec(argument);
     if (match === null) {
@@ -117,7 +144,7 @@ function extractLocalOptions(arguments_: readonly string[]): {
     delayValue = value;
   }
 
-  return { scopeArguments, delayValue, rebaseIdentities, dryRun };
+  return { scopeArguments, delayValue, rebaseIdentities, dryRun, recoveredFishCatalog };
 }
 
 function parseDelay(value: string): number {
