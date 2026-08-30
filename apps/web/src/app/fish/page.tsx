@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useId, useMemo, useState } from 'react';
 import styles from '../public-catalog.module.css';
+import { FishImage } from './_components/fish-image';
 import { listFish } from '@/lib/catalog-api';
 import {
   catalogSearchTokens,
@@ -134,9 +135,12 @@ export default function FishPage() {
               <ol className={styles.fishReferenceList} aria-label="Рыбы каталога">
                 {displayedFish.map((fish, index) => (
                   <li className={styles.fishReferenceItem} key={fish.id} value={index + 1}>
-                    <Link className={styles.entityLink} href={`/fish/${fish.id}`}>
-                      {fish.name}
-                    </Link>
+                    <div className={styles.fishReferenceRow}>
+                      <FishImage fishName={fish.name} image={fish.image} variant="thumbnail" />
+                      <Link className={styles.entityLink} href={`/fish/${fish.id}`}>
+                        {fish.name}
+                      </Link>
+                    </div>
                   </li>
                 ))}
               </ol>

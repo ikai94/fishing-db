@@ -133,6 +133,7 @@ type TestFishingConditionStatistic = {
 const fish = {
   id: 'fish-1',
   name: 'Сом',
+  image: null,
   bases: [
     { id: 'base-b', name: 'Волга' },
     { id: 'base-a', name: 'Ахтуба' },

@@ -28,7 +28,7 @@ const fish = [
   { id: 'fish-ekhinus', name: 'Энтехинус' },
   { id: 'fish-chavicha', name: 'Чавыча' },
   { id: 'fish-yuzhnaya', name: 'Южная мальма' },
-];
+].map((item) => ({ ...item, image: null }));
 
 function fishList() {
   return screen.getByRole('list', { name: 'Рыбы каталога' });
@@ -71,6 +71,8 @@ describe('FishPage alphabet navigation', () => {
       'Salmon',
     ]);
     const listItems = within(fishList()).getAllByRole('listitem');
+    expect(fishList().querySelectorAll('[data-fish-image="thumbnail"]')).toHaveLength(fish.length);
+    expect(screen.queryByText('Нет изображения')).not.toBeInTheDocument();
     expect(listItems.map((item) => item.getAttribute('value'))).toEqual(
       Array.from({ length: fish.length }, (_, index) => String(index + 1)),
     );

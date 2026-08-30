@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { useCallback } from 'react';
 import styles from '../../public-catalog.module.css';
 import { FishExplorer } from './_components/fish-explorer';
+import { FishImage } from '../_components/fish-image';
 import { getFish } from '@/lib/catalog-api';
 import { useApiResource } from '@/lib/use-api-resource';
 
@@ -60,12 +61,15 @@ export default function FishDetailPage() {
 
         {state.kind === 'ready' ? (
           <>
-            <header className={styles.header}>
-              <p className={styles.eyebrow}>Рыба</p>
-              <h1 className={styles.title}>{state.data.name}</h1>
-              <p className={styles.metadata}>
-                Активных баз обитания: {state.data.bases.length.toLocaleString('ru-RU')}
-              </p>
+            <header className={`${styles.header} ${styles.fishDetailHeader}`}>
+              <div>
+                <p className={styles.eyebrow}>Рыба</p>
+                <h1 className={styles.title}>{state.data.name}</h1>
+                <p className={styles.metadata}>
+                  Активных баз обитания: {state.data.bases.length.toLocaleString('ru-RU')}
+                </p>
+              </div>
+              <FishImage fishName={state.data.name} image={state.data.image} variant="detail" />
             </header>
             <FishExplorer fish={state.data} />
           </>

@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { CatalogStatus } from './catalog.constants.js';
 import { catalogErrors } from './catalog-errors.js';
+import { FishImageDelivery } from './fish-image-delivery.js';
 
 const PUBLIC_NAMED_ITEM_SELECT = {
   id: true,
@@ -30,7 +31,10 @@ function statusWhere(status: CatalogStatus | undefined): { isActive?: boolean } 
 
 @Injectable()
 export class CatalogQueryService {
-  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
+  constructor(
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Inject(FishImageDelivery) private readonly fishImageDelivery: FishImageDelivery,
+  ) {}
 
   async listPublicFishingBases() {
     const fishingBases = await this.prisma.fishingBase.findMany({
@@ -116,13 +120,25 @@ export class CatalogQueryService {
   }
 
   async listPublicFish() {
-    const items = await this.prisma.fish.findMany({
+    const fish = await this.prisma.fish.findMany({
       where: { isActive: true },
       orderBy: [{ nameNormalized: 'asc' }, { id: 'asc' }],
-      select: PUBLIC_NAMED_ITEM_SELECT,
+      select: {
+        ...PUBLIC_NAMED_ITEM_SELECT,
+        officialFishImageKey: true,
+      },
     });
 
-    return { items };
+    return {
+      items: fish.map((item) => ({
+        id: item.id,
+        name: item.name,
+        image: this.fishImageDelivery.resolvePublicImage({
+          fishId: item.id,
+          officialFishImageKey: item.officialFishImageKey,
+        }),
+      })),
+    };
   }
 
   async getPublicFish(fishId: string) {
@@ -130,6 +146,7 @@ export class CatalogQueryService {
       where: { id: fishId, isActive: true },
       select: {
         ...PUBLIC_NAMED_ITEM_SELECT,
+        officialFishImageKey: true,
         fishingBaseLinks: {
           where: { fishingBase: { isActive: true } },
           orderBy: [{ fishingBase: { nameNormalized: 'asc' } }, { fishingBaseId: 'asc' }],
@@ -146,6 +163,10 @@ export class CatalogQueryService {
       fish: {
         id: fish.id,
         name: fish.name,
+        image: this.fishImageDelivery.resolvePublicImage({
+          fishId: fish.id,
+          officialFishImageKey: fish.officialFishImageKey,
+        }),
         bases: fish.fishingBaseLinks.map((link) => link.fishingBase),
       },
     };

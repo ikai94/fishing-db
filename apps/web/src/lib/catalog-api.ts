@@ -25,7 +25,15 @@ export type PublicLocation = PublicLocationSummary & {
   fishingBase: PublicCatalogItem;
 };
 
-export type PublicFishDetail = PublicCatalogItem & {
+export type PublicFishImage = {
+  url: string;
+};
+
+export type PublicFishSummary = PublicCatalogItem & {
+  image: PublicFishImage | null;
+};
+
+export type PublicFishDetail = PublicFishSummary & {
   bases: PublicCatalogItem[];
 };
 
@@ -45,6 +53,35 @@ function readCatalogItem(value: unknown): PublicCatalogItem {
   }
 
   return { id: value.id, name: value.name };
+}
+
+function readFishImage(value: unknown): PublicFishImage | null {
+  if (value === null) {
+    return null;
+  }
+
+  if (
+    !isRecord(value) ||
+    Object.keys(value).length !== 1 ||
+    typeof value.url !== 'string' ||
+    value.url.trim() === '' ||
+    !value.url.startsWith('/') ||
+    value.url.startsWith('//')
+  ) {
+    throw new Error('Сервер вернул некорректный ответ каталога');
+  }
+
+  return { url: value.url };
+}
+
+function readFishSummary(value: unknown): PublicFishSummary {
+  const item = readCatalogItem(value);
+
+  if (!isRecord(value) || !('image' in value)) {
+    throw new Error('Сервер вернул некорректный ответ каталога');
+  }
+
+  return { ...item, image: readFishImage(value.image) };
 }
 
 function readLocationSummary(value: unknown): PublicLocationSummary {
@@ -121,7 +158,7 @@ function readFishResponse(payload: unknown): PublicFishDetail {
   }
 
   return {
-    ...readCatalogItem(payload.fish),
+    ...readFishSummary(payload.fish),
     bases: payload.fish.bases.map(readCatalogItem),
   };
 }
@@ -162,9 +199,9 @@ export async function getLocation(
   return readLocationResponse(payload);
 }
 
-export async function listFish(signal?: AbortSignal): Promise<PublicCatalogItem[]> {
+export async function listFish(signal?: AbortSignal): Promise<PublicFishSummary[]> {
   const payload = await apiRequest<unknown>('/catalog/fish', { signal });
-  return readItems(payload, readCatalogItem);
+  return readItems(payload, readFishSummary);
 }
 
 export async function getFish(fishId: string, signal?: AbortSignal): Promise<PublicFishDetail> {

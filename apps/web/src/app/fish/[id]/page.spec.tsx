@@ -27,6 +27,7 @@ import FishDetailPage from './page';
 type TestFish = {
   id: string;
   name: string;
+  image: null | { url: string };
   bases: Array<{ id: string; name: string }>;
 };
 
@@ -43,6 +44,7 @@ function deferred<T>() {
 const fish: TestFish = {
   id: 'fish-1',
   name: 'Сом',
+  image: null,
   bases: [
     { id: 'base-a', name: 'Ахтуба' },
     { id: 'base-b', name: 'Волга' },
@@ -66,6 +68,7 @@ describe('FishDetailPage', () => {
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Сом' })).toBeVisible();
     expect(screen.getByText('Активных баз обитания: 2')).toBeVisible();
+    expect(screen.getByText('Нет изображения')).toBeVisible();
     expect(screen.getByTestId('fish-explorer')).toHaveAttribute('data-base-ids', 'base-a,base-b');
     expect(screen.getByRole('link', { name: '← Все рыбы' })).toHaveAttribute('href', '/fish');
     expect(screen.getByRole('link', { name: 'Базы' })).toHaveAttribute('href', '/bases');

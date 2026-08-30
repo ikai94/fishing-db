@@ -130,6 +130,8 @@ function readErrorCode(body: unknown): string {
 function assertPublicProjection(body: unknown): void {
   const serialized = JSON.stringify(body);
   assert.equal(serialized.includes('nameNormalized'), false);
+  assert.equal(serialized.includes('forumTopicId'), false);
+  assert.equal(serialized.includes('officialFishImageKey'), false);
   assert.equal(serialized.includes('isActive'), false);
   assert.equal(serialized.includes('createdAt'), false);
   assert.equal(serialized.includes('updatedAt'), false);
@@ -490,7 +492,12 @@ void describe('Catalog API (PostgreSQL e2e)', { concurrency: false }, () => {
 
   void test('public Fish and Bait lists hide inactive rows and expose BaitType safely', async () => {
     const firstFish = await prisma.fish.create({
-      data: { name: 'Карась', nameNormalized: 'карась' },
+      data: {
+        name: 'Карась',
+        nameNormalized: 'карась',
+        forumTopicId: 'catalog-public-list-topic',
+        officialFishImageKey: 9_000_001,
+      },
     });
     const secondFish = await prisma.fish.create({
       data: { name: 'Щука', nameNormalized: 'щука' },
@@ -516,8 +523,8 @@ void describe('Catalog API (PostgreSQL e2e)', { concurrency: false }, () => {
     const fishResponse = await api().get('/api/v1/catalog/fish').expect(200);
     assert.deepEqual(fishResponse.body, {
       items: [
-        { id: firstFish.id, name: firstFish.name },
-        { id: secondFish.id, name: secondFish.name },
+        { id: firstFish.id, name: firstFish.name, image: null },
+        { id: secondFish.id, name: secondFish.name, image: null },
       ],
     });
     assertPublicProjection(fishResponse.body);
@@ -534,7 +541,12 @@ void describe('Catalog API (PostgreSQL e2e)', { concurrency: false }, () => {
 
   void test('public Fish detail returns only active related Bases in normalized order', async () => {
     const fish = await prisma.fish.create({
-      data: { name: 'Сом', nameNormalized: 'сом' },
+      data: {
+        name: 'Сом',
+        nameNormalized: 'сом',
+        forumTopicId: 'catalog-public-detail-topic',
+        officialFishImageKey: 9_000_002,
+      },
     });
     const orphanFish = await prisma.fish.create({
       data: { name: 'Карась', nameNormalized: 'карась' },
@@ -565,6 +577,7 @@ void describe('Catalog API (PostgreSQL e2e)', { concurrency: false }, () => {
       fish: {
         id: fish.id,
         name: fish.name,
+        image: null,
         bases: [
           { id: first.id, name: first.name },
           { id: second.id, name: second.name },
@@ -575,7 +588,7 @@ void describe('Catalog API (PostgreSQL e2e)', { concurrency: false }, () => {
 
     const orphan = await api().get(`/api/v1/catalog/fish/${orphanFish.id}`).expect(200);
     assert.deepEqual(orphan.body, {
-      fish: { id: orphanFish.id, name: orphanFish.name, bases: [] },
+      fish: { id: orphanFish.id, name: orphanFish.name, image: null, bases: [] },
     });
 
     await prisma.fish.update({ where: { id: fish.id }, data: { isActive: false } });

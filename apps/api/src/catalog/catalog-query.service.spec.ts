@@ -3,6 +3,15 @@ import { NotFoundException } from '@nestjs/common';
 import { describe, it } from 'node:test';
 import type { PrismaService } from '../prisma/prisma.service.js';
 import { CatalogQueryService } from './catalog-query.service.js';
+import { DisabledFishImageDelivery } from './disabled-fish-image-delivery.service.js';
+import type { FishImageDelivery } from './fish-image-delivery.js';
+
+function catalogQueryService(
+  prisma: PrismaService,
+  fishImageDelivery: FishImageDelivery = new DisabledFishImageDelivery(),
+): CatalogQueryService {
+  return new CatalogQueryService(prisma, fishImageDelivery);
+}
 
 function asObject(value: unknown): Record<string, unknown> {
   assert.ok(typeof value === 'object' && value !== null && !Array.isArray(value));
@@ -41,7 +50,7 @@ void describe('CatalogQueryService', () => {
         },
       },
     } as unknown as PrismaService;
-    const service = new CatalogQueryService(prisma);
+    const service = catalogQueryService(prisma);
 
     const result = await service.listPublicFishingBases();
     const queryObject = asObject(query);
@@ -84,7 +93,7 @@ void describe('CatalogQueryService', () => {
         },
       },
     } as unknown as PrismaService;
-    const service = new CatalogQueryService(prisma);
+    const service = catalogQueryService(prisma);
 
     await service.getPublicFishingBase('base-id');
     const queryObject = asObject(query);
@@ -106,12 +115,55 @@ void describe('CatalogQueryService', () => {
     const prisma = {
       fishingBase: { findFirst: () => Promise.resolve(null) },
     } as unknown as PrismaService;
-    const service = new CatalogQueryService(prisma);
+    const service = catalogQueryService(prisma);
 
     await assert.rejects(
       () => service.getPublicFishingBase('base-id'),
       hasCode('FISHING_BASE_NOT_FOUND'),
     );
+  });
+
+  void it('projects public Fish images without serializing persisted delivery metadata', async () => {
+    let query: unknown;
+    const deliverySources: unknown[] = [];
+    const prisma = {
+      fish: {
+        findMany: (input: unknown) => {
+          query = input;
+          return Promise.resolve([
+            {
+              id: 'fish-id',
+              name: 'Сом',
+              officialFishImageKey: 1463,
+            },
+          ]);
+        },
+      },
+    } as unknown as PrismaService;
+    const delivery = {
+      resolvePublicImage: (source: unknown) => {
+        deliverySources.push(source);
+        return { url: '/fish-images/fish-id.webp' };
+      },
+    } as FishImageDelivery;
+    const service = catalogQueryService(prisma, delivery);
+
+    const result = await service.listPublicFish();
+    const select = asObject(asObject(query).select);
+
+    assert.deepEqual(Object.keys(select).sort(), ['id', 'name', 'officialFishImageKey']);
+    assert.equal('forumTopicId' in select, false);
+    assert.deepEqual(deliverySources, [{ fishId: 'fish-id', officialFishImageKey: 1463 }]);
+    assert.deepEqual(result, {
+      items: [
+        {
+          id: 'fish-id',
+          name: 'Сом',
+          image: { url: '/fish-images/fish-id.webp' },
+        },
+      ],
+    });
+    assert.equal('officialFishImageKey' in result.items[0], false);
   });
 
   void it('returns an active Fish with only its active related Bases in stable order', async () => {
@@ -123,6 +175,7 @@ void describe('CatalogQueryService', () => {
           return Promise.resolve({
             id: 'fish-id',
             name: 'Сом',
+            officialFishImageKey: 1463,
             fishingBaseLinks: [
               { fishingBase: { id: 'base-1', name: 'Ахтуба' } },
               { fishingBase: { id: 'base-2', name: 'Волга' } },
@@ -131,7 +184,14 @@ void describe('CatalogQueryService', () => {
         },
       },
     } as unknown as PrismaService;
-    const service = new CatalogQueryService(prisma);
+    const deliverySources: unknown[] = [];
+    const delivery = {
+      resolvePublicImage: (source: unknown) => {
+        deliverySources.push(source);
+        return null;
+      },
+    } as FishImageDelivery;
+    const service = catalogQueryService(prisma, delivery);
 
     const result = await service.getPublicFish('fish-id');
     const queryObject = asObject(query);
@@ -139,6 +199,8 @@ void describe('CatalogQueryService', () => {
     const fishingBaseLinks = asObject(select.fishingBaseLinks);
 
     assert.deepEqual(queryObject.where, { id: 'fish-id', isActive: true });
+    assert.equal(select.officialFishImageKey, true);
+    assert.equal('forumTopicId' in select, false);
     assert.deepEqual(fishingBaseLinks.where, { fishingBase: { isActive: true } });
     assert.deepEqual(fishingBaseLinks.orderBy, [
       { fishingBase: { nameNormalized: 'asc' } },
@@ -148,24 +210,30 @@ void describe('CatalogQueryService', () => {
       fish: {
         id: 'fish-id',
         name: 'Сом',
+        image: null,
         bases: [
           { id: 'base-1', name: 'Ахтуба' },
           { id: 'base-2', name: 'Волга' },
         ],
       },
     });
+    assert.deepEqual(deliverySources, [{ fishId: 'fish-id', officialFishImageKey: 1463 }]);
+    assert.equal('officialFishImageKey' in result.fish, false);
     assert.equal('fishingBaseLinks' in result.fish, false);
   });
 
   void it('supports an active Fish without Base memberships and hides missing or inactive Fish', async () => {
-    const rows: unknown[] = [{ id: 'fish-id', name: 'Сом', fishingBaseLinks: [] }, null];
+    const rows: unknown[] = [
+      { id: 'fish-id', name: 'Сом', officialFishImageKey: null, fishingBaseLinks: [] },
+      null,
+    ];
     const prisma = {
       fish: { findFirst: () => Promise.resolve(rows.shift()) },
     } as unknown as PrismaService;
-    const service = new CatalogQueryService(prisma);
+    const service = catalogQueryService(prisma);
 
     assert.deepEqual(await service.getPublicFish('fish-id'), {
-      fish: { id: 'fish-id', name: 'Сом', bases: [] },
+      fish: { id: 'fish-id', name: 'Сом', image: null, bases: [] },
     });
     await assert.rejects(() => service.getPublicFish('hidden-fish-id'), hasCode('FISH_NOT_FOUND'));
   });
@@ -185,7 +253,7 @@ void describe('CatalogQueryService', () => {
         },
       },
     } as unknown as PrismaService;
-    const service = new CatalogQueryService(prisma);
+    const service = catalogQueryService(prisma);
 
     const result = await service.getPublicLocation('location-id');
     const queryObject = asObject(query);
@@ -205,7 +273,7 @@ void describe('CatalogQueryService', () => {
     const prisma = {
       location: { findFirst: () => Promise.resolve(null) },
     } as unknown as PrismaService;
-    const service = new CatalogQueryService(prisma);
+    const service = catalogQueryService(prisma);
 
     await assert.rejects(
       () => service.getPublicLocation('location-id'),
@@ -231,7 +299,7 @@ void describe('CatalogQueryService', () => {
         },
       },
     } as unknown as PrismaService;
-    const service = new CatalogQueryService(prisma);
+    const service = catalogQueryService(prisma);
 
     const all = await service.listAdminFish();
     await service.listAdminFish('inactive');
@@ -263,7 +331,7 @@ void describe('CatalogQueryService', () => {
           }),
       },
     } as unknown as PrismaService;
-    const service = new CatalogQueryService(prisma);
+    const service = catalogQueryService(prisma);
 
     const result = await service.getAdminFishingBase('base-id');
 
@@ -288,7 +356,7 @@ void describe('CatalogQueryService', () => {
         },
       },
     } as unknown as PrismaService;
-    const service = new CatalogQueryService(prisma);
+    const service = catalogQueryService(prisma);
 
     assert.deepEqual(await service.listPublicScreenAnchors(), {
       items: [{ id: 'anchor-id', name: 'Удочка' }],
