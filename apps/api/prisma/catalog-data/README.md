@@ -74,6 +74,18 @@ tracked manifest entirely offline with `pnpm db:audit:fish-images:check`. Review
 changes can reclassify the existing tracked evidence without network access by passing
 `--reclassify` to the API audit command.
 
+After the Fish image-metadata schema migration is deployed, preview the guarded runtime
+materialization without writes with `pnpm db:materialize:fish-images --dry-run`. Apply requires the
+exact reviewed dry-run fingerprint:
+
+```bash
+pnpm db:materialize:fish-images --apply --expected-plan-fingerprint=<SHA-256>
+```
+
+Materialization reads the tracked manifest offline and writes only `Fish.forumTopicId` and
+`Fish.officialFishImageKey`. It never changes Fish identity/catalog fields, Base↔Fish memberships,
+or CatchReports, and neither application startup nor normal catalog reads load the manifest.
+
 The first three are required inputs for a reproducible future Fish/BaseFish apply. The list-fish
 manifest is not an apply input, but remains tracked because its reviewed supplemental identity
 mapping cannot be reconstructed from runtime state.

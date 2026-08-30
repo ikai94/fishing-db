@@ -21,6 +21,7 @@ const PHASE_FIVE_COMPATIBILITY_MIGRATIONS = [
 const PHASE_FIVE_INVARIANT_MIGRATION = '20260809151033_enforce_catch_report_v2_invariant';
 const CONTRIBUTOR_IDENTITY_MIGRATION = '20260820120000_add_catch_report_contributor_identity';
 const RELAX_OBSERVATIONS_MIGRATION = '20260826120000_relax_catch_report_observations';
+const FISH_IMAGE_METADATA_MIGRATION = '20260828190000_add_fish_image_metadata';
 
 loadEnvironmentFile({ path: `${API_DIRECTORY}/.env`, quiet: true });
 loadEnvironmentFile({ path: `${API_DIRECTORY}/test/.env`, quiet: true });
@@ -665,6 +666,104 @@ void describe('CatchReport contributor identity migration semantics', () => {
         `DROP SCHEMA IF EXISTS ${quotedIdentifier(identitySchema)} CASCADE`,
       );
       await identityClient.end();
+    }
+  });
+});
+
+void describe('Fish image metadata migration semantics', () => {
+  void test('adds nullable unique metadata without changing existing Fish and enforces positive image keys', async () => {
+    const configuration = getTestDatabaseConfiguration(process.env);
+    const imageSchema = `fish_image_metadata_${randomUUID().replaceAll('-', '')}`;
+    const imageClient = new Client({ connectionString: configuration.testDatabaseUrl });
+    await imageClient.connect();
+
+    try {
+      await imageClient.query(`CREATE SCHEMA ${quotedIdentifier(imageSchema)}`);
+      await imageClient.query(`SET search_path TO ${quotedIdentifier(imageSchema)}`);
+      await applyMigration(PHASE_FOUR_MIGRATIONS[1], imageClient);
+      await imageClient.query(`
+        INSERT INTO "Fish" ("id", "name", "nameNormalized", "isActive") VALUES
+          ('20000000-0000-4000-8000-000000000001', 'Сом', 'сом', TRUE),
+          ('20000000-0000-4000-8000-000000000002', 'Карп', 'карп', FALSE);
+      `);
+      const before = await imageClient.query<{
+        id: string;
+        isActive: boolean;
+        name: string;
+        nameNormalized: string;
+      }>(`SELECT "id", "name", "nameNormalized", "isActive" FROM "Fish" ORDER BY "id"`);
+
+      await applyMigration(FISH_IMAGE_METADATA_MIGRATION, imageClient);
+
+      const after = await imageClient.query<{
+        id: string;
+        isActive: boolean;
+        name: string;
+        nameNormalized: string;
+      }>(`SELECT "id", "name", "nameNormalized", "isActive" FROM "Fish" ORDER BY "id"`);
+      assert.deepEqual(after.rows, before.rows);
+
+      const columns = await imageClient.query<{
+        characterMaximumLength: number | null;
+        columnName: string;
+        dataType: string;
+        isNullable: 'YES';
+      }>(`
+        SELECT
+          column_name AS "columnName",
+          data_type AS "dataType",
+          character_maximum_length AS "characterMaximumLength",
+          is_nullable AS "isNullable"
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'Fish'
+          AND column_name IN ('forumTopicId', 'officialFishImageKey')
+        ORDER BY column_name
+      `);
+      assert.deepEqual(columns.rows, [
+        {
+          characterMaximumLength: 32,
+          columnName: 'forumTopicId',
+          dataType: 'character varying',
+          isNullable: 'YES',
+        },
+        {
+          characterMaximumLength: null,
+          columnName: 'officialFishImageKey',
+          dataType: 'integer',
+          isNullable: 'YES',
+        },
+      ]);
+
+      await imageClient.query(`
+        UPDATE "Fish"
+        SET "forumTopicId" = '91', "officialFishImageKey" = 3014
+        WHERE "id" = '20000000-0000-4000-8000-000000000001';
+      `);
+      await assert.rejects(
+        imageClient.query(`
+          UPDATE "Fish" SET "forumTopicId" = '91'
+          WHERE "id" = '20000000-0000-4000-8000-000000000002'
+        `),
+        /Fish_forumTopicId_key/u,
+      );
+      await assert.rejects(
+        imageClient.query(`
+          UPDATE "Fish" SET "officialFishImageKey" = 3014
+          WHERE "id" = '20000000-0000-4000-8000-000000000002'
+        `),
+        /Fish_officialFishImageKey_key/u,
+      );
+      await assert.rejects(
+        imageClient.query(`
+          UPDATE "Fish" SET "officialFishImageKey" = 0
+          WHERE "id" = '20000000-0000-4000-8000-000000000002'
+        `),
+        /Fish_officialFishImageKey_positive_check/u,
+      );
+    } finally {
+      await imageClient.query(`DROP SCHEMA IF EXISTS ${quotedIdentifier(imageSchema)} CASCADE`);
+      await imageClient.end();
     }
   });
 });
