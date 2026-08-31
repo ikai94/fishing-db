@@ -141,6 +141,28 @@ void describe('forum catalog resolver', () => {
     assert.equal(punctuation.status, 'UNRESOLVED');
   });
 
+  void it('accepts explicit caller-scoped catalog raw overrides without changing source raw fields', () => {
+    const resolved = resolveForumCandidate(
+      candidate({ fishNameRaw: 'Ерш', locationRaw: 'Омут!', baitRaw: 'Червь!' }),
+      snapshot(),
+      {
+        catalogRawOverride: () => ({
+          fishNameRaw: 'Ёрш',
+          locationRaw: 'Омут',
+          baitRaw: 'Червь',
+        }),
+      },
+    );
+
+    assert.equal(resolved.status, 'USABLE_COMPLETE');
+    assert.equal(resolved.fishNameRaw, 'Ерш');
+    assert.equal(resolved.locationRaw, 'Омут!');
+    assert.equal(resolved.baitRaw, 'Червь!');
+    assert.equal(resolved.resolution.fish.name, 'Ёрш');
+    assert.equal(resolved.resolution.location.name, 'Омут');
+    assert.equal(resolved.resolution.bait.name, 'Червь');
+  });
+
   void it('preserves exact inactive reference identity but does not mark it usable', () => {
     const resolved = resolveForumCandidate(candidate({ fishNameRaw: 'Сом' }), snapshot());
 

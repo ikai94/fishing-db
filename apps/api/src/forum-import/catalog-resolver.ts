@@ -90,6 +90,15 @@ export interface ResolvedForumCandidate extends Omit<
 const CONTRIBUTOR_KEY = /^external:rus-fishsoft:member:v1:[0-9a-f]{64}$/u;
 const IMPORT_KEY = /^external:rus-fishsoft:observation:v1:[0-9a-f]{64}$/u;
 
+export interface ForumCandidateResolutionOptions {
+  importKeyPattern?: RegExp;
+  catalogRawOverride?: (candidate: ParsedForumCandidate) => {
+    fishNameRaw?: string;
+    locationRaw?: string;
+    baitRaw?: string;
+  };
+}
+
 function missingResolution(): CatalogResolution {
   return { status: 'MISSING', reason: 'MISSING_INPUT', id: null, name: null };
 }
@@ -306,11 +315,17 @@ function isPositiveInteger(value: number | null): value is number {
 export function resolveForumCandidate(
   candidate: ParsedForumCandidate,
   snapshot: CatalogSnapshot,
+  options: ForumCandidateResolutionOptions = {},
 ): ResolvedForumCandidate {
-  const fish = resolveNamed(candidate.fishNameRaw, snapshot.fish);
+  const catalogRaw = options.catalogRawOverride?.(candidate) ?? {};
+  const fish = resolveNamed(catalogRaw.fishNameRaw ?? candidate.fishNameRaw, snapshot.fish);
   const fishingBase = resolveNamed(candidate.fishingBaseRaw, snapshot.fishingBases);
-  const location = resolveLocation(candidate.locationRaw, fishingBase, snapshot.locations);
-  const bait = resolveBait(candidate.baitRaw, snapshot.baits);
+  const location = resolveLocation(
+    catalogRaw.locationRaw ?? candidate.locationRaw,
+    fishingBase,
+    snapshot.locations,
+  );
+  const bait = resolveBait(catalogRaw.baitRaw ?? candidate.baitRaw, snapshot.baits);
   const fishingBaseFish = resolveMembership(fishingBase, fish, snapshot);
   const fishingMethod = methodFromBait(bait);
   const issues: ForumStagingIssue[] = candidate.issues.map(({ code, field }) =>
@@ -328,7 +343,7 @@ export function resolveForumCandidate(
     hasBlockingIssue = true;
   }
 
-  if (!IMPORT_KEY.test(candidate.importKey)) {
+  if (!(options.importKeyPattern ?? IMPORT_KEY).test(candidate.importKey)) {
     addIssue(issues, 'INVALID_IMPORT_KEY', 'importKey');
     hasBlockingIssue = true;
   }
@@ -434,6 +449,7 @@ export function resolveForumCandidate(
 export function resolveForumCandidates(
   candidates: readonly ParsedForumCandidate[],
   snapshot: CatalogSnapshot,
+  options: ForumCandidateResolutionOptions = {},
 ): ResolvedForumCandidate[] {
-  return candidates.map((candidate) => resolveForumCandidate(candidate, snapshot));
+  return candidates.map((candidate) => resolveForumCandidate(candidate, snapshot, options));
 }

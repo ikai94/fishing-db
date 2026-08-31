@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "source": "rus-fishsoft:forum83",
+  "scopeKey": "forum83-all-forum-83",
+  "decision": "APPROVED_COMPLETE_ONLY",
+  "reviewedDecisionsSha256": "bbfbfe0537867de75660baf7b645b710e653868ae9c21b92967ab8ef05b30e7d",
+  "hashes": {
+    "scan": "f60f97e399234bf1c58764c28cc0782fe68d2656a040e9c7bb8141cfc5272a13",
+    "topicMap": "ae3e20f8954c2bf33eb624aea89056181007366b61dc367f07a4d75c8cb99d2c",
+    "candidateIdentities": "bbeccf171f88824be257c9292aa9287ce573194e520a80be5076cd2e3118b326",
+    "catalogSnapshot": "12e01c8c8c78035d62c3a0396f4ff5a3b5ffd75b149346e37727f1ea22a21e2e",
+    "staging": "fcd0f1ee9fec4c65206ab20b8b6bebf0971a50738b948534ea538ba5358adc0b",
+    "audit": "e9793b7e687a7a9d9027f8e7d42fd40554c2793a54396343f3bdae4cc6236846"
+  },
+  "catalogPostState": {
+    "catalogSnapshotFingerprint": "47c53753dafdf66657b2552ba857e2f6de46ac988f80c2df4ddeee0427e459f4",
+    "baseFishReconciliationFingerprint": "2467a45d6da7e0033f7c69c80eb87acf2fd7853bd053206c6a84cd93cc1927f1",
+    "membershipsCount": 3603,
+    "reviewedAdditionsPresent": 7
+  },
+  "candidatePopulation": {
+    "total": 33939,
+    "complete": 33884,
+    "reviewedExcluded": 55,
+    "exclusionCounts": {
+      "MISSING_BAIT": 10,
+      "REJECTED_AMBIGUOUS_BAIT": 4,
+      "OFF_TOPIC_BASE_LOCATION_CONFLICT": 16,
+      "REJECTED_BASE_FISH": 25
+    },
+    "reviewedExclusionsSha256": "dfa72e9fffd7430560a51dfd73a39e26c7ff6fc5655ba7f79c67a73f57c3ccff",
+    "completeImportKeysSha256": "59c98c73dfc3336f76d78a7746392f5901055110cfe5e7de448623351ed882a4",
+    "duplicateImportKeys": 0,
+    "contributors": {
+      "all": 415,
+      "complete": 410,
+      "missing": 0
+    }
+  }
+}

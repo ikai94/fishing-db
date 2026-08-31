@@ -170,4 +170,21 @@ void describe('forum staging reader', () => {
     const result = await readVerifiedForumStagingBundle(outputDirectory);
     assert.equal(result.candidates[0]?.status, 'USABLE_COMPLETE');
   });
+
+  void it('keeps the forum69 importKey default while allowing an explicit source-scoped reader', async () => {
+    const outputDirectory = await directory();
+    const forum83 = candidate(1, {
+      importKey: `external:rus-fishsoft:forum83:observation:v1:${'a'.repeat(64)}`,
+    });
+    await writeBundle(outputDirectory, [forum83]);
+
+    await assert.rejects(
+      readVerifiedForumStagingBundle(outputDirectory),
+      ForumStagingArtifactError,
+    );
+    const result = await readVerifiedForumStagingBundle(outputDirectory, {
+      importKeyPattern: /^external:rus-fishsoft:forum83:observation:v1:[0-9a-f]{64}$/u,
+    });
+    assert.equal(result.candidates[0]?.importKey, forum83.importKey);
+  });
 });

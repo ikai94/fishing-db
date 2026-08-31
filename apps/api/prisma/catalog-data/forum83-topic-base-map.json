@@ -1,0 +1,279 @@
+{
+  "version": 1,
+  "source": "rus-fishsoft:forum83",
+  "forumId": "83",
+  "topics": [
+    { "topicId": "355", "topicTitle": "Амур", "baseName": "Амур", "resolution": "EXACT" },
+    { "topicId": "357", "topicTitle": "Ахтуба", "baseName": "Ахтуба", "resolution": "EXACT" },
+    {
+      "topicId": "358",
+      "topicTitle": "Верхняя Тунгуска",
+      "baseName": "Верхняя Тунгуска",
+      "resolution": "EXACT"
+    },
+    { "topicId": "359", "topicTitle": "Волга", "baseName": "Волга", "resolution": "EXACT" },
+    { "topicId": "360", "topicTitle": "Волхов", "baseName": "Волхов", "resolution": "EXACT" },
+    { "topicId": "361", "topicTitle": "Вуокса", "baseName": "Вуокса", "resolution": "EXACT" },
+    { "topicId": "362", "topicTitle": "Дема", "baseName": "Дема", "resolution": "EXACT" },
+    {
+      "topicId": "363",
+      "topicTitle": "Золотая Рыбка",
+      "baseName": "Золотая рыбка",
+      "resolution": "EXACT"
+    },
+    { "topicId": "383", "topicTitle": "Клязьма", "baseName": "Клязьма", "resolution": "EXACT" },
+    { "topicId": "386", "topicTitle": "Кола", "baseName": "Кола", "resolution": "EXACT" },
+    {
+      "topicId": "387",
+      "topicTitle": "Красивая Меча",
+      "baseName": "Красивая меча",
+      "resolution": "EXACT"
+    },
+    { "topicId": "388", "topicTitle": "Лабынкыр", "baseName": "Лабынкыр", "resolution": "EXACT" },
+    { "topicId": "389", "topicTitle": "Лопасня", "baseName": "Лопасня", "resolution": "EXACT" },
+    { "topicId": "392", "topicTitle": "Майгунгна", "baseName": "Майгунгна", "resolution": "EXACT" },
+    {
+      "topicId": "395",
+      "topicTitle": "Москва Центр",
+      "baseName": "Москва центр",
+      "resolution": "EXACT"
+    },
+    { "topicId": "398", "topicTitle": "Нева", "baseName": "Нева", "resolution": "EXACT" },
+    { "topicId": "400", "topicTitle": "Озеро", "baseName": "Озеро", "resolution": "EXACT" },
+    { "topicId": "402", "topicTitle": "Пахра", "baseName": "Пахра", "resolution": "EXACT" },
+    { "topicId": "403", "topicTitle": "Паша", "baseName": "Паша", "resolution": "EXACT" },
+    {
+      "topicId": "405",
+      "topicTitle": "Подкаменная Тунгуска",
+      "baseName": "Подкаменная Тунгуска",
+      "resolution": "EXACT"
+    },
+    { "topicId": "406", "topicTitle": "Рыбхоз", "baseName": "Рыбхоз", "resolution": "EXACT" },
+    { "topicId": "408", "topicTitle": "Сара", "baseName": "Сара", "resolution": "EXACT" },
+    { "topicId": "409", "topicTitle": "Свирь", "baseName": "Свирь", "resolution": "EXACT" },
+    {
+      "topicId": "410",
+      "topicTitle": "Сейшелы",
+      "baseName": "Сейшельские острова",
+      "resolution": "REVIEWED"
+    },
+    { "topicId": "412", "topicTitle": "Селигер", "baseName": "Селигер", "resolution": "EXACT" },
+    { "topicId": "413", "topicTitle": "Урал", "baseName": "Урал", "resolution": "EXACT" },
+    { "topicId": "416", "topicTitle": "Хопер", "baseName": "Хопёр", "resolution": "REVIEWED" },
+    { "topicId": "696", "topicTitle": "Чаган", "baseName": "Чаган", "resolution": "EXACT" },
+    { "topicId": "697", "topicTitle": "Киржач", "baseName": "Киржач", "resolution": "EXACT" },
+    { "topicId": "22697", "topicTitle": "Амга", "baseName": "Амга", "resolution": "EXACT" },
+    {
+      "topicId": "22699",
+      "topicTitle": "Балаганнах",
+      "baseName": "Балаганнах",
+      "resolution": "EXACT"
+    },
+    {
+      "topicId": "22700",
+      "topicTitle": "Буор-Юрях",
+      "baseName": "Буор-Юрях",
+      "resolution": "EXACT"
+    },
+    { "topicId": "22701", "topicTitle": "Колыма", "baseName": "Колыма", "resolution": "EXACT" },
+    { "topicId": "22702", "topicTitle": "Кухтуй", "baseName": "Кухтуй", "resolution": "EXACT" },
+    { "topicId": "22705", "topicTitle": "Пенжина", "baseName": "Пенжина", "resolution": "EXACT" },
+    { "topicId": "22707", "topicTitle": "Ундюлюнг", "baseName": "Ундюлюнг", "resolution": "EXACT" },
+    { "topicId": "22710", "topicTitle": "Хороту", "baseName": "Хороту", "resolution": "EXACT" },
+    { "topicId": "22712", "topicTitle": "Суздаль", "baseName": "Суздаль", "resolution": "EXACT" },
+    {
+      "topicId": "22713",
+      "topicTitle": "Переславль-Залесский",
+      "baseName": "Переславль-Залесский",
+      "resolution": "EXACT"
+    },
+    {
+      "topicId": "31382",
+      "topicTitle": "Днепр - Дельта",
+      "baseName": "Днепр-дельта",
+      "resolution": "REVIEWED"
+    },
+    {
+      "topicId": "31383",
+      "topicTitle": "Днепр - Киев",
+      "baseName": "Днепр-Киев",
+      "resolution": "REVIEWED"
+    },
+    {
+      "topicId": "31654",
+      "topicTitle": "Северная Ладога",
+      "baseName": "Северная Ладога",
+      "resolution": "EXACT"
+    },
+    {
+      "topicId": "31655",
+      "topicTitle": "Залив Александры",
+      "baseName": "Залив Александры",
+      "resolution": "EXACT"
+    },
+    {
+      "topicId": "31656",
+      "topicTitle": "Большой Шантар",
+      "baseName": "Большой Шантар",
+      "resolution": "EXACT"
+    },
+    {
+      "topicId": "32073",
+      "topicTitle": "Большой Барьерный Риф",
+      "baseName": "Большой Барьерный Риф",
+      "resolution": "EXACT"
+    },
+    {
+      "topicId": "32075",
+      "topicTitle": "Дав Лэйк (Озеро Дав Лэйк)",
+      "baseName": "Озеро Дав Лэйк",
+      "resolution": "REVIEWED"
+    },
+    {
+      "topicId": "32076",
+      "topicTitle": "Юго-восточное побережье",
+      "baseName": "Юго-восточное побережье",
+      "resolution": "EXACT"
+    },
+    {
+      "topicId": "32251",
+      "topicTitle": "Восточный Крит",
+      "baseName": "Восточный Крит",
+      "resolution": "EXACT"
+    },
+    { "topicId": "32252", "topicTitle": "Влтава", "baseName": "Влтава", "resolution": "EXACT" },
+    { "topicId": "32253", "topicTitle": "Майн", "baseName": "Майн", "resolution": "EXACT" },
+    {
+      "topicId": "32254",
+      "topicTitle": "Женевское озеро",
+      "baseName": "Женевское озеро",
+      "resolution": "EXACT"
+    },
+    {
+      "topicId": "32255",
+      "topicTitle": "Фирвальдштетское озеро",
+      "baseName": "Фирвальдштетское озеро",
+      "resolution": "EXACT"
+    },
+    {
+      "topicId": "32256",
+      "topicTitle": "Дунайский канал",
+      "baseName": "Дунайский канал",
+      "resolution": "EXACT"
+    },
+    {
+      "topicId": "32257",
+      "topicTitle": "Кёнигзее",
+      "baseName": "Кенигзее",
+      "resolution": "REVIEWED"
+    },
+    {
+      "topicId": "32258",
+      "topicTitle": "Каналы Амстердама",
+      "baseName": "Каналы Амстердама",
+      "resolution": "EXACT"
+    },
+    { "topicId": "32465", "topicTitle": "Амазония", "baseName": "Амазония", "resolution": "EXACT" },
+    {
+      "topicId": "32466",
+      "topicTitle": "Колпакова",
+      "baseName": "Колпакова",
+      "resolution": "EXACT"
+    },
+    {
+      "topicId": "32467",
+      "topicTitle": "Побережье Камчатки",
+      "baseName": "Побережье Камчатки",
+      "resolution": "EXACT"
+    },
+    {
+      "topicId": "32578",
+      "topicTitle": "Полинезия",
+      "baseName": "Полинезия",
+      "resolution": "EXACT"
+    },
+    {
+      "topicId": "32579",
+      "topicTitle": "Гренландия",
+      "baseName": "Гренландия",
+      "resolution": "EXACT"
+    },
+    {
+      "topicId": "32780",
+      "topicTitle": "Побережье Чили",
+      "baseName": "Побережье Чили",
+      "resolution": "EXACT"
+    },
+    {
+      "topicId": "32781",
+      "topicTitle": "Патагонское озеро",
+      "baseName": "Патагонское озеро",
+      "resolution": "EXACT"
+    },
+    { "topicId": "32950", "topicTitle": "Акадия", "baseName": "Акадия", "resolution": "EXACT" },
+    {
+      "topicId": "32951",
+      "topicTitle": "Миссисипи",
+      "baseName": "Миссисипи",
+      "resolution": "EXACT"
+    },
+    {
+      "topicId": "32952",
+      "topicTitle": "Лофотенские острова",
+      "baseName": "Лофотенские острова",
+      "resolution": "EXACT"
+    },
+    { "topicId": "32995", "topicTitle": "Байкал", "baseName": "Байкал", "resolution": "EXACT" },
+    {
+      "topicId": "33072",
+      "topicTitle": "Кроноцкий залив",
+      "baseName": "Кроноцкий залив",
+      "resolution": "EXACT"
+    },
+    { "topicId": "33215", "topicTitle": "Нил", "baseName": "Нил", "resolution": "EXACT" },
+    {
+      "topicId": "33216",
+      "topicTitle": "Красное море",
+      "baseName": "Красное море",
+      "resolution": "EXACT"
+    },
+    {
+      "topicId": "33332",
+      "topicTitle": "Побережье Танзании",
+      "baseName": "Побережье Танзании",
+      "resolution": "EXACT"
+    },
+    {
+      "topicId": "33335",
+      "topicTitle": "Озера Танзании",
+      "baseName": "Озера Танзании",
+      "resolution": "EXACT"
+    },
+    {
+      "topicId": "33469",
+      "topicTitle": "Саргассово море",
+      "baseName": "Саргассово море",
+      "resolution": "EXACT"
+    },
+    {
+      "topicId": "33553",
+      "topicTitle": "Побережье ЮАР",
+      "baseName": "ЮАР",
+      "resolution": "REVIEWED"
+    },
+    { "topicId": "33615", "topicTitle": "Борнео", "baseName": "Борнео", "resolution": "EXACT" },
+    {
+      "topicId": "33695",
+      "topicTitle": "Гавайские острова",
+      "baseName": "Гавайские острова",
+      "resolution": "EXACT"
+    },
+    { "topicId": "33757", "topicTitle": "Янцзы", "baseName": "Янцзы", "resolution": "EXACT" },
+    {
+      "topicId": "33818",
+      "topicTitle": "Антарктика",
+      "baseName": "Антарктика",
+      "resolution": "EXACT"
+    }
+  ]
+}

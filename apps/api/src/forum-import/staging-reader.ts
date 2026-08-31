@@ -53,6 +53,11 @@ const CANDIDATE_STATUSES = new Set<ForumCandidateStatus>([
   'UNRESOLVED',
 ]);
 
+export interface ForumStagingReaderOptions {
+  importKeyPattern?: RegExp;
+  decodeManifest?: (value: unknown) => StagingManifest;
+}
+
 export class ForumStagingArtifactError extends Error {
   readonly code = 'FORUM_STAGING_ARTIFACT_INVALID';
 
@@ -186,7 +191,7 @@ function decodeIssue(value: unknown, path: string): ForumStagingIssue {
   return row.field === undefined ? { code } : { code, field: string(row.field, `${path}.field`) };
 }
 
-function decodeCandidate(value: unknown, line: number): StagingCandidate {
+function decodeCandidate(value: unknown, line: number, importKeyPattern: RegExp): StagingCandidate {
   const path = `candidates.jsonl:${String(line)}`;
   const row = object(value, path);
   exactKeys(row, CANDIDATE_KEYS, path);
@@ -204,7 +209,7 @@ function decodeCandidate(value: unknown, line: number): StagingCandidate {
     invalid(`${path}.contributorKey is not a rus-fishsoft contributor key`);
   }
   const importKey = string(row.importKey, `${path}.importKey`);
-  if (!IMPORT_KEY.test(importKey)) {
+  if (!importKeyPattern.test(importKey)) {
     invalid(`${path}.importKey is not a rus-fishsoft import key`);
   }
 
@@ -342,6 +347,7 @@ export function assertCompleteStagingCandidate(candidate: StagingCandidate): voi
 
 export async function readVerifiedForumStagingBundle(
   stagingDirectory: string,
+  options: ForumStagingReaderOptions = {},
 ): Promise<VerifiedForumStagingBundle> {
   const manifestSource = await requiredFile(join(stagingDirectory, 'manifest.json'));
   let manifestValue: unknown;
@@ -350,7 +356,7 @@ export async function readVerifiedForumStagingBundle(
   } catch {
     return invalid('manifest.json is not valid JSON');
   }
-  const manifest = decodeManifest(manifestValue);
+  const manifest = (options.decodeManifest ?? decodeManifest)(manifestValue);
   const contents = new Map<string, string>();
   for (const file of manifest.files) {
     const source = await requiredFile(join(stagingDirectory, file.path));
@@ -368,7 +374,7 @@ export async function readVerifiedForumStagingBundle(
   if (lines.some((line) => line.length === 0)) invalid('candidates.jsonl contains an empty line');
   const candidates = lines.map((line, index) => {
     try {
-      return decodeCandidate(JSON.parse(line), index + 1);
+      return decodeCandidate(JSON.parse(line), index + 1, options.importKeyPattern ?? IMPORT_KEY);
     } catch (error: unknown) {
       if (error instanceof ForumStagingArtifactError) throw error;
       return invalid(`candidates.jsonl:${String(index + 1)} is not valid JSON`);

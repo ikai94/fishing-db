@@ -35,6 +35,12 @@
     "forum:audit": "tsx src/forum-import/cli.ts audit",
     "forum:review": "tsx src/forum-import/cli.ts review",
     "forum:import-complete": "tsx src/forum-import/cli.ts import-complete",
+    "forum83:scan": "tsx src/forum-import/forum83/cli.ts scan",
+    "forum83:stage": "tsx src/forum-import/forum83/cli.ts stage",
+    "forum83:audit": "tsx src/forum-import/forum83/cli.ts audit",
+    "forum83:review": "tsx src/forum-import/forum83/cli.ts review",
+    "forum83:import-complete": "tsx src/forum-import/forum83/cli.ts import-complete",
+    "forum83:reconcile-base-fish": "tsx src/forum-import/forum83/base-fish-reconciliation.ts",
     "prisma:studio": "prisma studio"
   },
   "dependencies": {
