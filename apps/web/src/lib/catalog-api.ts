@@ -1,4 +1,4 @@
-import { apiRequest } from './api-client';
+import { apiBaseUrl, apiRequest } from './api-client';
 
 export type BaitType = 'BAIT' | 'LURE';
 
@@ -64,14 +64,12 @@ function readFishImage(value: unknown): PublicFishImage | null {
     !isRecord(value) ||
     Object.keys(value).length !== 1 ||
     typeof value.url !== 'string' ||
-    value.url.trim() === '' ||
-    !value.url.startsWith('/') ||
-    value.url.startsWith('//')
+    !/^\/api\/v1\/fish-images\/[1-9]\d*-[a-f0-9]{64}\.png$/u.test(value.url)
   ) {
     throw new Error('Сервер вернул некорректный ответ каталога');
   }
 
-  return { url: value.url };
+  return { url: new URL(value.url, apiBaseUrl).href };
 }
 
 function readFishSummary(value: unknown): PublicFishSummary {

@@ -1,7 +1,9 @@
 const DEFAULT_API_PORT = 3001;
 const NODE_ENVIRONMENTS = ['development', 'test', 'production'] as const;
+const FISH_IMAGE_DELIVERY_MODES = ['disabled', 'local'] as const;
 
 export type NodeEnvironment = (typeof NODE_ENVIRONMENTS)[number];
+export type FishImageDeliveryMode = (typeof FISH_IMAGE_DELIVERY_MODES)[number];
 
 function requiredString(config: Record<string, unknown>, key: string): string {
   const value = config[key];
@@ -63,16 +65,33 @@ function validateNodeEnvironment(value: string): NodeEnvironment {
   return value as NodeEnvironment;
 }
 
+function validateFishImageDeliveryMode(value: unknown): FishImageDeliveryMode {
+  const mode = value === undefined ? 'disabled' : typeof value === 'string' ? value.trim() : '';
+  if (!FISH_IMAGE_DELIVERY_MODES.includes(mode as FishImageDeliveryMode)) {
+    throw new Error('FISH_IMAGE_DELIVERY_MODE must be one of: disabled, local');
+  }
+  return mode as FishImageDeliveryMode;
+}
+
 export function validateEnvironment(config: Record<string, unknown>): Record<string, unknown> {
   const databaseUrl = validateDatabaseUrl(requiredString(config, 'DATABASE_URL'));
   const webOrigin = validateWebOrigin(requiredString(config, 'WEB_ORIGIN'));
   const nodeEnvironment = validateNodeEnvironment(requiredString(config, 'NODE_ENV'));
+  const fishImageDeliveryMode = validateFishImageDeliveryMode(config.FISH_IMAGE_DELIVERY_MODE);
+  const fishImageStorageRoot =
+    fishImageDeliveryMode === 'local'
+      ? requiredString(config, 'FISH_IMAGE_STORAGE_ROOT')
+      : undefined;
 
   return {
     ...config,
     NODE_ENV: nodeEnvironment,
     PORT: parsePort(config.PORT),
     DATABASE_URL: databaseUrl,
+    FISH_IMAGE_DELIVERY_MODE: fishImageDeliveryMode,
+    ...(fishImageStorageRoot === undefined
+      ? {}
+      : { FISH_IMAGE_STORAGE_ROOT: fishImageStorageRoot }),
     WEB_ORIGIN: webOrigin,
   };
 }

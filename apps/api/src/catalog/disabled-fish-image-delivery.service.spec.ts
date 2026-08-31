@@ -14,5 +14,12 @@ void describe('DisabledFishImageDelivery', () => {
       delivery.resolvePublicImage({ fishId: 'fish-without-image', officialFishImageKey: null }),
       null,
     );
+    assert.equal(delivery.mappedImageCount, 0);
+  });
+
+  void it('serves no files while delivery is disabled', async () => {
+    const delivery = new DisabledFishImageDelivery();
+
+    assert.equal(await delivery.readPublicAsset('1463-deadbeef.png'), null);
   });
 });

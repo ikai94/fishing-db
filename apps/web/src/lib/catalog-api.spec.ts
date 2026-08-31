@@ -5,10 +5,15 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('./api-client', () => ({
+  apiBaseUrl: 'http://localhost:3001',
   apiRequest: mocks.apiRequest,
 }));
 
 import { getFish, listFish, listFishingBases } from './catalog-api';
+
+const IMAGE_HASH = 'a'.repeat(64);
+const IMAGE_PATH = `/api/v1/fish-images/101-${IMAGE_HASH}.png`;
+const IMAGE_URL = `http://localhost:3001${IMAGE_PATH}`;
 
 describe('public catalog API', () => {
   beforeEach(() => mocks.apiRequest.mockReset());
@@ -91,13 +96,13 @@ describe('public catalog API', () => {
     mocks.apiRequest.mockResolvedValue({
       items: [
         { id: 'fish-1', name: 'Сом', image: null },
-        { id: 'fish-2', name: 'Щука', image: { url: '/fish-images/fish-2.webp' } },
+        { id: 'fish-2', name: 'Щука', image: { url: IMAGE_PATH } },
       ],
     });
 
     await expect(listFish()).resolves.toEqual([
       { id: 'fish-1', name: 'Сом', image: null },
-      { id: 'fish-2', name: 'Щука', image: { url: '/fish-images/fish-2.webp' } },
+      { id: 'fish-2', name: 'Щука', image: { url: IMAGE_URL } },
     ]);
   });
 
@@ -107,7 +112,11 @@ describe('public catalog API', () => {
     { url: '' },
     { url: 'https://rus-fishsoft.ru/fish/1.png' },
     { url: '//rus-fishsoft.ru/fish/1.png' },
-    { url: '/fish-images/fish-1.webp', officialFishImageKey: 1 },
+    { url: '/fish-images/fish-1.webp' },
+    { url: `/api/v1/fish-images/0-${IMAGE_HASH}.png` },
+    { url: `/api/v1/fish-images/101-${IMAGE_HASH.toUpperCase()}.png` },
+    { url: `${IMAGE_PATH}?download=1` },
+    { url: IMAGE_PATH, officialFishImageKey: 101 },
   ])('rejects malformed or non-application Fish image delivery: %o', async (image) => {
     mocks.apiRequest.mockResolvedValue({ items: [{ id: 'fish-1', name: 'Сом', image }] });
 
