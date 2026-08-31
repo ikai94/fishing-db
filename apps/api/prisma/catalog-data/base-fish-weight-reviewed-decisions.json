@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "mode": "REVIEWED",
+  "sources": {
+    "workbookFileName": "Klevalka-2026.xlsx",
+    "workbookSha256": "58c13109fe71e3c041f40d6e721b6c6cd0d0bbade43fe7dc1b0063dd8ba7eac3",
+    "reconciliationSha256": "9fc0545e3754e1be0fa0f45a1d2e27f2e3856d98c7fe0d80955b275e4da7a7f6",
+    "forum69Sha256": "d02e29cbec275375626870a84091ac4cc198e9ca522bd9190352132ff47f1060"
+  },
+  "policy": {
+    "missingBoundsAreValidNullableData": true,
+    "automaticSwapsOrFixes": false,
+    "conflictsRequireExplicitDecision": true
+  },
+  "decisions": [
+    {
+      "baseName": "Золотая рыбка",
+      "canonicalFish": "Арапаима",
+      "forumTopicId": "240",
+      "minWeightGrams": 5000,
+      "maxWeightGrams": 385000,
+      "sourceRows": [
+        {
+          "sourceSheet": "Золотая рыбка",
+          "fishCell": "A1",
+          "minCell": "E1",
+          "maxCell": "F1",
+          "rawMin": "5000",
+          "rawMax": "385000"
+        }
+      ],
+      "rationale": "Reviewed numeric text in the minimum cell; accept exact integer bounds"
+    },
+    {
+      "baseName": "Майгунгна",
+      "canonicalFish": "Валёк",
+      "forumTopicId": "93",
+      "minWeightGrams": 80,
+      "maxWeightGrams": 1210,
+      "sourceRows": [
+        {
+          "sourceSheet": "Майгунгна",
+          "fishCell": "A1",
+          "minCell": "E1",
+          "maxCell": "F1",
+          "rawMin": "80",
+          "rawMax": "1210"
+        }
+      ],
+      "rationale": "Reviewed numeric text in the maximum cell; accept exact integer bounds"
+    },
+    {
+      "baseName": "Москва центр",
+      "canonicalFish": "Банка",
+      "forumTopicId": "31659",
+      "minWeightGrams": null,
+      "maxWeightGrams": null,
+      "sourceRows": [
+        {
+          "sourceSheet": "Москва",
+          "fishCell": "A26",
+          "minCell": "E26",
+          "maxCell": "F26",
+          "rawMin": "используется для блесен",
+          "rawMax": null
+        }
+      ],
+      "rationale": "Source text is not a weight bound; retain both bounds as nullable data"
+    },
+    {
+      "baseName": "Побережье Чили",
+      "canonicalFish": "Малый полосатик",
+      "forumTopicId": "31615",
+      "minWeightGrams": 300000,
+      "maxWeightGrams": null,
+      "sourceRows": [
+        {
+          "sourceSheet": "Поб.Чили",
+          "fishCell": "A39",
+          "minCell": "E39",
+          "maxCell": "F39",
+          "rawMin": "300000",
+          "rawMax": "6550000"
+        },
+        {
+          "sourceSheet": "Поб.Чили",
+          "fishCell": "A63",
+          "minCell": "E63",
+          "maxCell": "F63",
+          "rawMin": "300000",
+          "rawMax": "6800000"
+        }
+      ],
+      "rationale": "Duplicate source rows agree on the minimum and conflict on the maximum; keep only the independently known minimum"
+    }
+  ]
+}

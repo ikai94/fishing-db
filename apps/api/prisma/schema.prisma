@@ -120,11 +120,13 @@ model Bait {
 }
 
 model FishingBaseFish {
-  fishingBaseId String      @db.Uuid
-  fishId        String      @db.Uuid
-  createdAt     DateTime    @default(now()) @db.Timestamptz(3)
-  fishingBase   FishingBase @relation(fields: [fishingBaseId], references: [id], onDelete: Restrict)
-  fish          Fish        @relation(fields: [fishId], references: [id], onDelete: Restrict)
+  fishingBaseId  String      @db.Uuid
+  fishId         String      @db.Uuid
+  minWeightGrams Int?
+  maxWeightGrams Int?
+  createdAt      DateTime    @default(now()) @db.Timestamptz(3)
+  fishingBase    FishingBase @relation(fields: [fishingBaseId], references: [id], onDelete: Restrict)
+  fish           Fish        @relation(fields: [fishId], references: [id], onDelete: Restrict)
 
   @@id([fishingBaseId, fishId])
   @@index([fishId])

@@ -34,6 +34,7 @@ apps/api/.local/forum-import/
 
 # Reproducible Fish reconciliation audits (manifests under catalog-data stay tracked)
 /apps/api/prisma/catalog-data/audits/fish-catalog/
+/apps/api/prisma/catalog-data/audits/base-fish-weights/
 
 # Generated Fish image review projection (the full metadata manifest stays tracked)
 /apps/api/prisma/catalog-data/fish-image-manual-review.audit.json

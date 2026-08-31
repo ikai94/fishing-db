@@ -22,6 +22,7 @@ const PHASE_FIVE_INVARIANT_MIGRATION = '20260809151033_enforce_catch_report_v2_i
 const CONTRIBUTOR_IDENTITY_MIGRATION = '20260820120000_add_catch_report_contributor_identity';
 const RELAX_OBSERVATIONS_MIGRATION = '20260826120000_relax_catch_report_observations';
 const FISH_IMAGE_METADATA_MIGRATION = '20260828190000_add_fish_image_metadata';
+const BASE_FISH_WEIGHT_MIGRATION = '20260901120000_add_fishing_base_fish_weights';
 
 loadEnvironmentFile({ path: `${API_DIRECTORY}/.env`, quiet: true });
 loadEnvironmentFile({ path: `${API_DIRECTORY}/test/.env`, quiet: true });
@@ -764,6 +765,150 @@ void describe('Fish image metadata migration semantics', () => {
     } finally {
       await imageClient.query(`DROP SCHEMA IF EXISTS ${quotedIdentifier(imageSchema)} CASCADE`);
       await imageClient.end();
+    }
+  });
+});
+
+void describe('FishingBaseFish weight migration semantics', () => {
+  void test('adds nullable integer bounds without changing memberships and enforces conservative checks', async () => {
+    const configuration = getTestDatabaseConfiguration(process.env);
+    const weightSchema = `base_fish_weights_${randomUUID().replaceAll('-', '')}`;
+    const weightClient = new Client({ connectionString: configuration.testDatabaseUrl });
+    await weightClient.connect();
+
+    try {
+      await weightClient.query(`CREATE SCHEMA ${quotedIdentifier(weightSchema)}`);
+      await weightClient.query(`SET search_path TO ${quotedIdentifier(weightSchema)}`);
+      for (const migration of PHASE_FOUR_MIGRATIONS) {
+        await applyMigration(migration, weightClient);
+      }
+      for (const migration of PHASE_FIVE_COMPATIBILITY_MIGRATIONS) {
+        await applyMigration(migration, weightClient);
+      }
+      await weightClient.query(`
+        INSERT INTO "FishingBase" ("id", "name", "nameNormalized") VALUES
+          ('30000000-0000-4000-8000-000000000001', 'Weight Base', 'weight base');
+        INSERT INTO "Fish" ("id", "name", "nameNormalized") VALUES
+          ('30000000-0000-4000-8000-000000000002', 'Weight Fish', 'weight fish');
+        INSERT INTO "FishingBaseFish" ("fishingBaseId", "fishId", "createdAt") VALUES
+          (
+            '30000000-0000-4000-8000-000000000001',
+            '30000000-0000-4000-8000-000000000002',
+            '2026-08-31T12:00:00Z'
+          );
+      `);
+      const before = await weightClient.query<{
+        createdAt: Date;
+        fishId: string;
+        fishingBaseId: string;
+      }>(`
+        SELECT "fishingBaseId", "fishId", "createdAt"
+        FROM "FishingBaseFish"
+      `);
+
+      await applyMigration(BASE_FISH_WEIGHT_MIGRATION, weightClient);
+
+      const after = await weightClient.query<{
+        createdAt: Date;
+        fishId: string;
+        fishingBaseId: string;
+        maxWeightGrams: number | null;
+        minWeightGrams: number | null;
+      }>(`
+        SELECT
+          "fishingBaseId",
+          "fishId",
+          "createdAt",
+          "minWeightGrams",
+          "maxWeightGrams"
+        FROM "FishingBaseFish"
+      `);
+      assert.deepEqual(
+        after.rows.map((membership) => ({
+          fishingBaseId: membership.fishingBaseId,
+          fishId: membership.fishId,
+          createdAt: membership.createdAt,
+        })),
+        before.rows,
+      );
+      assert.equal(after.rows[0]?.minWeightGrams, null);
+      assert.equal(after.rows[0]?.maxWeightGrams, null);
+
+      const columns = await weightClient.query<{
+        columnName: string;
+        dataType: string;
+        isNullable: 'YES';
+      }>(`
+        SELECT
+          column_name AS "columnName",
+          data_type AS "dataType",
+          is_nullable AS "isNullable"
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'FishingBaseFish'
+          AND column_name IN ('minWeightGrams', 'maxWeightGrams')
+        ORDER BY column_name
+      `);
+      assert.deepEqual(columns.rows, [
+        { columnName: 'maxWeightGrams', dataType: 'integer', isNullable: 'YES' },
+        { columnName: 'minWeightGrams', dataType: 'integer', isNullable: 'YES' },
+      ]);
+
+      const constraints = await weightClient.query<{
+        constraintName: string;
+        isValidated: boolean;
+      }>(`
+        SELECT conname AS "constraintName", convalidated AS "isValidated"
+        FROM pg_constraint
+        JOIN pg_class ON pg_class.oid = pg_constraint.conrelid
+        JOIN pg_namespace ON pg_namespace.oid = pg_class.relnamespace
+        WHERE pg_namespace.nspname = current_schema()
+          AND pg_class.relname = 'FishingBaseFish'
+          AND conname IN (
+            'FishingBaseFish_minWeightGrams_positive_check',
+            'FishingBaseFish_maxWeightGrams_positive_check',
+            'FishingBaseFish_weight_bounds_order_check'
+          )
+        ORDER BY conname
+      `);
+      assert.deepEqual(constraints.rows, [
+        {
+          constraintName: 'FishingBaseFish_maxWeightGrams_positive_check',
+          isValidated: true,
+        },
+        {
+          constraintName: 'FishingBaseFish_minWeightGrams_positive_check',
+          isValidated: true,
+        },
+        {
+          constraintName: 'FishingBaseFish_weight_bounds_order_check',
+          isValidated: true,
+        },
+      ]);
+
+      await weightClient.query(`
+        UPDATE "FishingBaseFish" SET "minWeightGrams" = NULL, "maxWeightGrams" = 100;
+        UPDATE "FishingBaseFish" SET "minWeightGrams" = 10, "maxWeightGrams" = NULL;
+        UPDATE "FishingBaseFish" SET "minWeightGrams" = 10, "maxWeightGrams" = 10;
+        UPDATE "FishingBaseFish" SET "minWeightGrams" = NULL, "maxWeightGrams" = NULL;
+      `);
+      await assert.rejects(
+        weightClient.query(`UPDATE "FishingBaseFish" SET "minWeightGrams" = 0`),
+        /FishingBaseFish_minWeightGrams_positive_check/u,
+      );
+      await assert.rejects(
+        weightClient.query(`UPDATE "FishingBaseFish" SET "maxWeightGrams" = -1`),
+        /FishingBaseFish_maxWeightGrams_positive_check/u,
+      );
+      await assert.rejects(
+        weightClient.query(`
+          UPDATE "FishingBaseFish" SET "minWeightGrams" = 101, "maxWeightGrams" = 100
+        `),
+        /FishingBaseFish_weight_bounds_order_check/u,
+      );
+    } finally {
+      await weightClient.query(`DROP SCHEMA IF EXISTS ${quotedIdentifier(weightSchema)} CASCADE`);
+      await weightClient.end();
     }
   });
 });

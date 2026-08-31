@@ -104,6 +104,25 @@ tracked manifests plus live read-only reference and recovery evidence with
 `pnpm db:audit:fish-catalog:manual-review:check`. Terminal `DO_NOT_MAP`, `EXCLUDE_NON_FISH`, and
 `EXCLUDE_NOISE` rows remain source evidence with no Fish or FishingBaseFish target.
 
+## BaseFish weight source audit
+
+Audit the accepted workbook weight columns without database access using
+`pnpm db:audit:base-fish-weights`; verify deterministic ignored JSON/CSV evidence with
+`pnpm db:audit:base-fish-weights:check`. Normal sheets use Fish/Min/Max columns `A/E/F`; `Волга`
+uses `C/G/H`. Identity comes only from the tracked Excel reconciliation to forum69 topic IDs.
+The audit does not read CatchReports, mutate catalog data, or swap bounds. Reviewed exceptions are
+tracked in `base-fish-weight-reviewed-decisions.json`; the same command deterministically builds
+the tracked `fishing-base-fish-weights.json` `APPLY_READY` manifest. Missing minimum or maximum
+bounds remain valid nullable data. Derived classification uses each independently known bound and
+the exact integer comparison `weightGrams * 20 <= maxWeightGrams * 21` for the 105% mutant limit.
+
+After the nullable `FishingBaseFish` weight migration is deployed, preview the exact reviewed
+manifest against existing memberships with
+`pnpm db:materialize:base-fish-weights --dry-run`. Apply is separately guarded by the unchanged
+manifest SHA-256 and `--apply --expected-plan-fingerprint=<dry-run fingerprint>`. The command only
+updates weight fields on matched memberships; it never creates or deletes Base, Fish, or membership
+rows and does not read CatchReports.
+
 Preview the apply-ready Fish/BaseFish/CatchReport poststate without writes with:
 
 ```bash
