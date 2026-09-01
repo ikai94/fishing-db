@@ -1,4 +1,5 @@
 import { render, screen, within } from '@testing-library/react';
+import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -7,6 +8,12 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/catalog-api', () => ({
   listFishingBases: mocks.listFishingBases,
+}));
+
+vi.mock('@/components/application-shell/application-shell', () => ({
+  ApplicationShell: ({ children }: { children: ReactNode }) => (
+    <div data-testid="application-shell">{children}</div>
+  ),
 }));
 
 import FishingBasesPage from './page';
@@ -22,7 +29,9 @@ describe('FishingBasesPage', () => {
 
     render(<FishingBasesPage />);
 
-    const table = await screen.findByRole('table', { name: /рыболовные базы/i });
+    const table = await screen.findByRole('table', { name: 'Базы и локации' });
+    expect(screen.getByTestId('application-shell')).toBeVisible();
+    expect(screen.getByRole('heading', { level: 1, name: 'Базы и локации' })).toBeVisible();
     expect(within(table).getByRole('columnheader', { name: 'Локаций' })).toBeVisible();
     expect(within(table).getByRole('columnheader', { name: 'Рыб' })).toBeVisible();
 

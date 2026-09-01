@@ -3,7 +3,9 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback, useId, useMemo, useState } from 'react';
-import styles from '../../public-catalog.module.css';
+import styles from '../../bases-locations.module.css';
+import { ApplicationShell } from '@/components/application-shell/application-shell';
+import { ShellIcon } from '@/components/application-shell/shell-icon';
 import { getFishingBase } from '@/lib/catalog-api';
 import {
   catalogSearchTokens,
@@ -39,15 +41,22 @@ export default function FishingBasePage() {
   const isFishSearchActive = catalogSearchTokens(fishQuery).length > 0;
 
   return (
-    <main className={styles.page}>
-      <div className={styles.container}>
-        <nav className={styles.topNav} aria-label="Навигация по каталогу">
-          <Link className={styles.backLink} href="/bases">
-            ← Все базы
+    <ApplicationShell>
+      <div className={styles.page}>
+        <nav className={styles.sectionNavigation} aria-label="Навигация по разделу">
+          <Link className={styles.sectionLink} href="/bases">
+            Базы и локации
           </Link>
-          <Link className={styles.navLink} href="/">
-            На главную
-          </Link>
+          {state.kind === 'ready' ? (
+            <>
+              <span className={styles.navigationSeparator} aria-hidden="true">
+                /
+              </span>
+              <span className={styles.navigationCurrent} aria-current="page">
+                {state.data.name}
+              </span>
+            </>
+          ) : null}
         </nav>
 
         {state.kind === 'loading' ? (
@@ -78,8 +87,13 @@ export default function FishingBasePage() {
         {state.kind === 'ready' ? (
           <>
             <header className={styles.header}>
-              <p className={styles.eyebrow}>Рыболовная база</p>
-              <h1 className={styles.title}>{state.data.name}</h1>
+              <div className={styles.titleRow}>
+                <span className={styles.titleIcon}>
+                  <ShellIcon name="bases" />
+                </span>
+                <h1 className={styles.title}>{state.data.name}</h1>
+              </div>
+              <p className={styles.subtitle}>Рыболовная база</p>
             </header>
 
             <div className={styles.baseReferenceGrid}>
@@ -126,14 +140,19 @@ export default function FishingBasePage() {
                       <label className={styles.searchLabel} htmlFor={fishSearchId}>
                         Поиск по рыбам
                       </label>
-                      <input
-                        className={styles.searchInput}
-                        id={fishSearchId}
-                        onChange={(event) => setFishQuery(event.target.value)}
-                        placeholder="Например, сом"
-                        type="search"
-                        value={fishQuery}
-                      />
+                      <div className={styles.searchControl}>
+                        <span className={styles.searchIcon}>
+                          <ShellIcon name="search" />
+                        </span>
+                        <input
+                          className={styles.searchInput}
+                          id={fishSearchId}
+                          onChange={(event) => setFishQuery(event.target.value)}
+                          placeholder="Например, сом"
+                          type="search"
+                          value={fishQuery}
+                        />
+                      </div>
                     </div>
                     {isFishSearchActive ? (
                       <p className={styles.resultCount} aria-live="polite">
@@ -160,6 +179,6 @@ export default function FishingBasePage() {
           </>
         ) : null}
       </div>
-    </main>
+    </ApplicationShell>
   );
 }

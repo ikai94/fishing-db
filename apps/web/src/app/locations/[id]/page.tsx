@@ -3,8 +3,10 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback } from 'react';
-import styles from '../../public-catalog.module.css';
+import styles from '../../bases-locations.module.css';
 import { LocationObservations } from './_components/location-observations';
+import { ApplicationShell } from '@/components/application-shell/application-shell';
+import { ShellIcon } from '@/components/application-shell/shell-icon';
 import { getLocation } from '@/lib/catalog-api';
 import { getLocationObservations } from '@/lib/catch-reports-api';
 import { useApiResource } from '@/lib/use-api-resource';
@@ -27,15 +29,31 @@ export default function LocationPage() {
   );
 
   return (
-    <main className={styles.page}>
-      <div className={styles.container}>
-        <nav className={styles.topNav} aria-label="Навигация по каталогу">
-          <Link className={styles.backLink} href="/bases">
-            ← Все базы
+    <ApplicationShell>
+      <div className={styles.page}>
+        <nav className={styles.sectionNavigation} aria-label="Навигация по разделу">
+          <Link className={styles.sectionLink} href="/bases">
+            Базы и локации
           </Link>
-          <Link className={styles.navLink} href="/fish">
-            Все рыбы
-          </Link>
+          {state.kind === 'ready' ? (
+            <>
+              <span className={styles.navigationSeparator} aria-hidden="true">
+                /
+              </span>
+              <Link
+                className={styles.sectionLink}
+                href={`/bases/${state.data.location.fishingBase.id}`}
+              >
+                {state.data.location.fishingBase.name}
+              </Link>
+              <span className={styles.navigationSeparator} aria-hidden="true">
+                /
+              </span>
+              <span className={styles.navigationCurrent} aria-current="page">
+                {state.data.location.number}. {state.data.location.name}
+              </span>
+            </>
+          ) : null}
         </nav>
 
         {state.kind === 'loading' ? (
@@ -66,10 +84,15 @@ export default function LocationPage() {
         {state.kind === 'ready' ? (
           <>
             <header className={styles.header}>
-              <p className={styles.eyebrow}>Локация</p>
-              <h1 className={styles.title}>
-                {state.data.location.number}. {state.data.location.name}
-              </h1>
+              <div className={styles.titleRow}>
+                <span className={styles.titleIcon}>
+                  <ShellIcon name="bases" />
+                </span>
+                <h1 className={styles.title}>
+                  {state.data.location.number}. {state.data.location.name}
+                </h1>
+              </div>
+              <p className={styles.subtitle}>Локация</p>
               <p className={styles.metadata}>
                 Рыболовная база:{' '}
                 <Link
@@ -97,6 +120,6 @@ export default function LocationPage() {
           </>
         ) : null}
       </div>
-    </main>
+    </ApplicationShell>
   );
 }

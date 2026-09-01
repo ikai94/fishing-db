@@ -1,7 +1,8 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import styles from '../../public-catalog.module.css';
+import styles from '../../bases-locations.module.css';
 
 const mocks = vi.hoisted(() => ({
   getFishingBase: vi.fn(),
@@ -13,6 +14,12 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('@/lib/catalog-api', () => ({
   getFishingBase: mocks.getFishingBase,
+}));
+
+vi.mock('@/components/application-shell/application-shell', () => ({
+  ApplicationShell: ({ children }: { children: ReactNode }) => (
+    <div data-testid="application-shell">{children}</div>
+  ),
 }));
 
 import FishingBasePage from './page';
@@ -42,6 +49,10 @@ describe('FishingBasePage', () => {
     render(<FishingBasePage />);
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Ахтуба' })).toBeVisible();
+    expect(screen.getByTestId('application-shell')).toBeVisible();
+    expect(screen.getByRole('navigation', { name: 'Навигация по разделу' })).toHaveTextContent(
+      'Базы и локации/Ахтуба',
+    );
     const locationsHeading = screen.getByRole('heading', { level: 2, name: 'Локации' });
     const fishHeading = screen.getByRole('heading', { level: 2, name: 'Рыбы' });
     const locationsSection = locationsHeading.closest('section');

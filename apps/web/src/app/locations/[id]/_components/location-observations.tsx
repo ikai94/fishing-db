@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useId, useMemo, useState } from 'react';
-import styles from '../../../public-catalog.module.css';
+import styles from '../../../bases-locations.module.css';
 import type {
   CatchReport,
   LocationObservations as LocationObservationsData,

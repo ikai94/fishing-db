@@ -36,10 +36,13 @@ describe('SidebarNavigation', () => {
     expect(within(navigation).getByRole('link', { current: 'page' })).toHaveTextContent('Рыбы');
   });
 
-  test('treats a Location detail as part of Bases and locations', () => {
-    mocks.pathname = '/locations/location-id';
-    render(<SidebarNavigation />);
+  test.each(['/bases', '/bases/base-id', '/locations/location-id'])(
+    'treats %s as part of Bases and locations',
+    (pathname) => {
+      mocks.pathname = pathname;
+      render(<SidebarNavigation />);
 
-    expect(screen.getByRole('link', { current: 'page' })).toHaveTextContent('Базы и локации');
-  });
+      expect(screen.getByRole('link', { current: 'page' })).toHaveTextContent('Базы и локации');
+    },
+  );
 });

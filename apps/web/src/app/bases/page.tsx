@@ -2,7 +2,9 @@
 
 import Link from 'next/link';
 import { useCallback } from 'react';
-import styles from '../public-catalog.module.css';
+import styles from '../bases-locations.module.css';
+import { ApplicationShell } from '@/components/application-shell/application-shell';
+import { ShellIcon } from '@/components/application-shell/shell-icon';
 import { listFishingBases } from '@/lib/catalog-api';
 import { useApiResource } from '@/lib/use-api-resource';
 
@@ -14,27 +16,17 @@ export default function FishingBasesPage() {
   );
 
   return (
-    <main className={styles.page}>
-      <div className={styles.container}>
-        <nav className={styles.topNav} aria-label="Каталог">
-          <Link className={styles.backLink} href="/">
-            ← На главную
-          </Link>
-          <div className={styles.navGroup}>
-            <Link className={styles.navLink} href="/fish">
-              Рыбы
-            </Link>
-            <Link className={styles.navLink} href="/baits">
-              Наживки и приманки
-            </Link>
-          </div>
-        </nav>
-
+    <ApplicationShell>
+      <div className={styles.page}>
         <header className={styles.header}>
-          <p className={styles.eyebrow}>Игровой каталог</p>
-          <h1 className={styles.title} id="bases-title">
-            Рыболовные базы
-          </h1>
+          <div className={styles.titleRow}>
+            <span className={styles.titleIcon}>
+              <ShellIcon name="bases" />
+            </span>
+            <h1 className={styles.title} id="bases-title">
+              Базы и локации
+            </h1>
+          </div>
           <p className={styles.subtitle}>Активные базы, их локации и виды рыб.</p>
         </header>
 
@@ -102,6 +94,6 @@ export default function FishingBasesPage() {
           </div>
         ) : null}
       </div>
-    </main>
+    </ApplicationShell>
   );
 }

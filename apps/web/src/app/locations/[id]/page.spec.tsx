@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -16,6 +17,12 @@ vi.mock('@/lib/catalog-api', () => ({
 
 vi.mock('@/lib/catch-reports-api', () => ({
   getLocationObservations: mocks.getLocationObservations,
+}));
+
+vi.mock('@/components/application-shell/application-shell', () => ({
+  ApplicationShell: ({ children }: { children: ReactNode }) => (
+    <div data-testid="application-shell">{children}</div>
+  ),
 }));
 
 vi.mock('./_components/location-observations', () => ({
@@ -58,11 +65,17 @@ describe('LocationPage', () => {
     render(<LocationPage />);
 
     expect(await screen.findByRole('heading', { level: 1, name: '7. Протока' })).toBeVisible();
+    expect(screen.getByTestId('application-shell')).toBeVisible();
     expect(mocks.getLocationObservations).toHaveBeenCalledWith(
       'location-1',
       expect.any(AbortSignal),
     );
-    expect(screen.getByRole('link', { name: 'Ахтуба' })).toHaveAttribute('href', '/bases/base-1');
+    const baseLinks = screen.getAllByRole('link', { name: 'Ахтуба' });
+    expect(baseLinks).toHaveLength(2);
+    expect(baseLinks.every((link) => link.getAttribute('href') === '/bases/base-1')).toBe(true);
+    expect(screen.getByRole('navigation', { name: 'Навигация по разделу' })).toHaveTextContent(
+      'Базы и локации/Ахтуба/7. Протока',
+    );
     expect(screen.getByRole('link', { name: 'Каталог рыб базы «Ахтуба»' })).toHaveAttribute(
       'href',
       '/bases/base-1#fish',
