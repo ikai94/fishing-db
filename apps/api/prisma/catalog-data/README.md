@@ -123,6 +123,11 @@ manifest SHA-256 and `--apply --expected-plan-fingerprint=<dry-run fingerprint>`
 updates weight fields on matched memberships; it never creates or deletes Base, Fish, or membership
 rows and does not read CatchReports.
 
+Normal catalog seeding preserves existing membership weight bounds. ADMIN edits are runtime data,
+but a later explicitly approved `db:materialize:base-fish-weights --apply` synchronizes matched
+memberships back to this tracked manifest and may overwrite those edits. Review every dry-run delta
+before supplying its plan fingerprint to an apply.
+
 Preview the apply-ready Fish/BaseFish/CatchReport poststate without writes with:
 
 ```bash

@@ -333,6 +333,8 @@ void describe('CatalogQueryService', () => {
             fishLinks: [
               {
                 createdAt,
+                minWeightGrams: 100,
+                maxWeightGrams: 20_000,
                 fish: { id: 'fish-id', name: 'Осётр', isActive: false },
               },
             ],
@@ -349,6 +351,8 @@ void describe('CatalogQueryService', () => {
         name: 'Осётр',
         isActive: false,
         relationCreatedAt: createdAt,
+        minWeightGrams: 100,
+        maxWeightGrams: 20_000,
       },
     ]);
     assert.equal('fishLinks' in result.base, false);

@@ -5,6 +5,7 @@ import {
   catalogErrors,
   catalogNameValidationException,
   emptyUpdateException,
+  invalidFishingBaseFishWeightBoundsException,
   isPrismaError,
   isPrismaUniqueConstraintErrorFor,
 } from './catalog-errors.js';
@@ -21,6 +22,7 @@ import type { CreateLocationDto } from './dto/create-location.dto.js';
 import type { CreateScreenAnchorDto } from './dto/create-screen-anchor.dto.js';
 import type { UpdateBaitDto } from './dto/update-bait.dto.js';
 import type { UpdateFishDto } from './dto/update-fish.dto.js';
+import type { UpdateFishingBaseFishDto } from './dto/update-fishing-base-fish.dto.js';
 import type { UpdateFishingBaseDto } from './dto/update-fishing-base.dto.js';
 import type { UpdateLocationDto } from './dto/update-location.dto.js';
 import type { UpdateScreenAnchorDto } from './dto/update-screen-anchor.dto.js';
@@ -41,6 +43,14 @@ const ADMIN_LOCATION_SELECT = {
   isActive: true,
   createdAt: true,
   updatedAt: true,
+} as const;
+
+const ADMIN_FISHING_BASE_FISH_SELECT = {
+  fishingBaseId: true,
+  fishId: true,
+  minWeightGrams: true,
+  maxWeightGrams: true,
+  createdAt: true,
 } as const;
 
 const LEGACY_SPINNING_FISH_SUFFIX = ' (спиннинг)';
@@ -511,5 +521,49 @@ export class CatalogAdminService {
 
       throw error;
     }
+  }
+
+  async updateFishingBaseFish(baseId: string, fishId: string, dto: UpdateFishingBaseFishDto) {
+    if (hasNoDefinedValues([dto.minWeightGrams, dto.maxWeightGrams])) {
+      throw emptyUpdateException();
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const [current] = await tx.$queryRaw<
+        Array<{ minWeightGrams: number | null; maxWeightGrams: number | null }>
+      >`
+        SELECT "minWeightGrams", "maxWeightGrams"
+        FROM "FishingBaseFish"
+        WHERE "fishingBaseId" = ${baseId}::uuid
+          AND "fishId" = ${fishId}::uuid
+        FOR UPDATE
+      `;
+
+      if (current === undefined) {
+        throw catalogErrors.fishingBaseFishNotFound();
+      }
+
+      const minWeightGrams =
+        dto.minWeightGrams === undefined ? current.minWeightGrams : dto.minWeightGrams;
+      const maxWeightGrams =
+        dto.maxWeightGrams === undefined ? current.maxWeightGrams : dto.maxWeightGrams;
+
+      if (minWeightGrams !== null && maxWeightGrams !== null && minWeightGrams > maxWeightGrams) {
+        throw invalidFishingBaseFishWeightBoundsException();
+      }
+
+      const fishingBaseFish = await tx.fishingBaseFish.update({
+        where: {
+          fishingBaseId_fishId: { fishingBaseId: baseId, fishId },
+        },
+        data: {
+          ...(dto.minWeightGrams !== undefined ? { minWeightGrams: dto.minWeightGrams } : {}),
+          ...(dto.maxWeightGrams !== undefined ? { maxWeightGrams: dto.maxWeightGrams } : {}),
+        },
+        select: ADMIN_FISHING_BASE_FISH_SELECT,
+      });
+
+      return { fishingBaseFish };
+    });
   }
 }

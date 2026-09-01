@@ -17,6 +17,7 @@ import {
 } from '@/lib/admin-catalog-api';
 import { getApiErrorMessage, isApiError } from '@/lib/api-client';
 import { useApiResource } from '@/lib/use-api-resource';
+import { BaseFishWeightTable } from './_components/base-fish-weight-table';
 
 type BasePageData = {
   base: AdminFishingBaseDetail;
@@ -528,44 +529,16 @@ function BaseEditor({
 
       <section className={styles.panel}>
         <h2 className={styles.panelTitle}>Рыбы базы</h2>
-        <p className={styles.muted}>Связь действует для всех локаций базы.</p>
-        {base.fish.length === 0 ? (
-          <p className={styles.muted}>Связи с рыбами ещё не добавлены.</p>
-        ) : (
-          <ul className={styles.list}>
-            {base.fish.map((fish) => (
-              <li className={styles.listItem} key={fish.id}>
-                <div className={styles.itemMain}>
-                  <p className={styles.itemName}>{fish.name}</p>
-                  <p className={styles.metadata}>
-                    Связь создана: {formatDate(fish.relationCreatedAt)}
-                  </p>
-                </div>
-                <div className={styles.inlineActions}>
-                  <span
-                    className={`${styles.status} ${fish.isActive ? styles.activeStatus : styles.inactiveStatus}`}
-                  >
-                    {fish.isActive ? 'Активна' : 'Рыба неактивна'}
-                  </span>
-                  <button
-                    className={styles.dangerButton}
-                    type="button"
-                    onClick={() => void handleRemoveFish(fish.id, fish.name)}
-                    disabled={removingFishId !== null}
-                  >
-                    {removingFishId === fish.id ? 'Убираем…' : 'Убрать связь'}
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
+        <p className={styles.muted}>
+          Связь действует для всех локаций базы. Пустая граница означает, что она неизвестна.
+        </p>
+        <BaseFishWeightTable
+          baseId={base.id}
+          fish={base.fish}
+          removingFishId={removingFishId}
+          onRemove={(fishId, fishName) => void handleRemoveFish(fishId, fishName)}
+        />
       </section>
     </>
   );
-}
-
-function formatDate(value: string): string {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('ru-RU');
 }

@@ -304,6 +304,104 @@ void describe('CatalogAdminService', () => {
     );
   });
 
+  void it('locks, merges, and updates only supplied FishingBaseFish weight bounds', async () => {
+    const calls: string[] = [];
+    let updateQuery: unknown;
+    let lockSql = '';
+    const transactionClient = {
+      $queryRaw: (strings: TemplateStringsArray) => {
+        calls.push('lock');
+        lockSql = strings.join('?');
+        return Promise.resolve([{ minWeightGrams: 100, maxWeightGrams: 1_000 }]);
+      },
+      fishingBaseFish: {
+        update: (input: unknown) => {
+          calls.push('update');
+          updateQuery = input;
+          return Promise.resolve({
+            fishingBaseId: 'base-id',
+            fishId: 'fish-id',
+            minWeightGrams: 150,
+            maxWeightGrams: 1_000,
+            createdAt: NOW,
+          });
+        },
+      },
+    };
+    const prisma = Object.assign(transactionClient, {
+      $transaction: <Result>(callback: (tx: typeof transactionClient) => Promise<Result>) =>
+        callback(transactionClient),
+    }) as unknown as PrismaService;
+    const service = new CatalogAdminService(prisma);
+
+    const result = await service.updateFishingBaseFish('base-id', 'fish-id', {
+      minWeightGrams: 150,
+    });
+
+    assert.deepEqual(calls, ['lock', 'update']);
+    assert.match(lockSql, /FOR UPDATE/u);
+    assert.deepEqual(asObject(asObject(updateQuery).data), { minWeightGrams: 150 });
+    assert.equal('maxWeightGrams' in asObject(asObject(updateQuery).data), false);
+    assert.deepEqual(result.fishingBaseFish, {
+      fishingBaseId: 'base-id',
+      fishId: 'fish-id',
+      minWeightGrams: 150,
+      maxWeightGrams: 1_000,
+      createdAt: NOW,
+    });
+  });
+
+  void it('allows null clearing and rejects empty, missing, or reversed merged bounds', async () => {
+    let updateQuery: unknown;
+    const transactionClient = {
+      $queryRaw: () => Promise.resolve([{ minWeightGrams: 100, maxWeightGrams: 1_000 }]),
+      fishingBaseFish: {
+        update: (input: unknown) => {
+          updateQuery = input;
+          return Promise.resolve({
+            fishingBaseId: 'base-id',
+            fishId: 'fish-id',
+            minWeightGrams: 100,
+            maxWeightGrams: null,
+            createdAt: NOW,
+          });
+        },
+      },
+    };
+    const prisma = Object.assign(transactionClient, {
+      $transaction: <Result>(callback: (tx: typeof transactionClient) => Promise<Result>) =>
+        callback(transactionClient),
+    }) as unknown as PrismaService;
+    const service = new CatalogAdminService(prisma);
+
+    await service.updateFishingBaseFish('base-id', 'fish-id', { maxWeightGrams: null });
+    assert.deepEqual(asObject(asObject(updateQuery).data), { maxWeightGrams: null });
+    await assert.rejects(
+      () => service.updateFishingBaseFish('base-id', 'fish-id', {}),
+      hasCode('VALIDATION_ERROR'),
+    );
+    await assert.rejects(
+      () => service.updateFishingBaseFish('base-id', 'fish-id', { minWeightGrams: 1_001 }),
+      hasCode('VALIDATION_ERROR'),
+    );
+
+    const missingTransactionClient = {
+      $queryRaw: () => Promise.resolve([]),
+      fishingBaseFish: { update: () => Promise.reject(new Error('must not update')) },
+    };
+    const missingPrisma = Object.assign(missingTransactionClient, {
+      $transaction: <Result>(callback: (tx: typeof missingTransactionClient) => Promise<Result>) =>
+        callback(missingTransactionClient),
+    }) as unknown as PrismaService;
+    await assert.rejects(
+      () =>
+        new CatalogAdminService(missingPrisma).updateFishingBaseFish('base-id', 'fish-id', {
+          minWeightGrams: null,
+        }),
+      hasCode('FISHING_BASE_FISH_NOT_FOUND'),
+    );
+  });
+
   void it('deactivates an entity without deleting its relations', async () => {
     let updateQuery: unknown;
     let relationDeleteCalled = false;

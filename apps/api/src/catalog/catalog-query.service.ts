@@ -233,6 +233,8 @@ export class CatalogQueryService {
           orderBy: [{ fish: { nameNormalized: 'asc' } }, { fishId: 'asc' }],
           select: {
             createdAt: true,
+            minWeightGrams: true,
+            maxWeightGrams: true,
             fish: {
               select: {
                 id: true,
@@ -262,6 +264,8 @@ export class CatalogQueryService {
           name: link.fish.name,
           isActive: link.fish.isActive,
           relationCreatedAt: link.createdAt,
+          minWeightGrams: link.minWeightGrams,
+          maxWeightGrams: link.maxWeightGrams,
         })),
       },
     };

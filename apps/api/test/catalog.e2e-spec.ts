@@ -1005,6 +1005,117 @@ void describe('Catalog API (PostgreSQL e2e)', { concurrency: false }, () => {
     assert.equal(readErrorCode(inactiveBase.body as unknown), 'FISHING_BASE_INACTIVE');
   });
 
+  void test('ADMIN partially edits locked FishingBaseFish bounds and catch reads use them without rewriting reports', async () => {
+    const admin = await createActor('ADMIN');
+    const user = await createActor('USER');
+    const bannedAdmin = await createActor('ADMIN', true);
+    const base = await createBase(admin.cookie, 'База весовых границ');
+    const location = await createLocation(admin.cookie, base.id, 1, 'Весовая локация');
+    const fish = await createFish(admin.cookie, 'Весовая рыба');
+    const bait = await createBait(admin.cookie, 'Весовая наживка', 'BAIT');
+    await unsafe(api().post(`/api/v1/admin/catalog/bases/${base.id}/fish`), admin.cookie)
+      .send({ fishId: fish.id })
+      .expect(201);
+
+    const createdReportResponse = await unsafe(api().post('/api/v1/catch-reports'), user.cookie)
+      .send({
+        locationId: location.id,
+        fishId: fish.id,
+        baitId: bait.id,
+        weightGrams: 100,
+      })
+      .expect(201);
+    const reportId = asString(
+      readEnvelope(createdReportResponse.body as unknown, 'report').id,
+      'report.id',
+    );
+    const reportBefore = await prisma.catchReport.findUniqueOrThrow({ where: { id: reportId } });
+    const membershipPath = `/api/v1/admin/catalog/bases/${base.id}/fish/${fish.id}`;
+
+    const initialUpdate = await unsafe(api().patch(membershipPath), admin.cookie)
+      .send({ minWeightGrams: 50, maxWeightGrams: 200 })
+      .expect(200);
+    assert.deepEqual(readEnvelope(initialUpdate.body as unknown, 'fishingBaseFish'), {
+      fishingBaseId: base.id,
+      fishId: fish.id,
+      minWeightGrams: 50,
+      maxWeightGrams: 200,
+      createdAt: asString(
+        readEnvelope(initialUpdate.body as unknown, 'fishingBaseFish').createdAt,
+        'createdAt',
+      ),
+    });
+
+    const adminBase = await api()
+      .get(`/api/v1/admin/catalog/bases/${base.id}`)
+      .set('Cookie', admin.cookie)
+      .expect(200);
+    const membership = asObject(asArray(readEnvelope(adminBase.body as unknown, 'base').fish)[0]);
+    assert.equal(membership.minWeightGrams, 50);
+    assert.equal(membership.maxWeightGrams, 200);
+
+    await unsafe(api().patch(membershipPath), admin.cookie)
+      .send({ minWeightGrams: 150 })
+      .expect(200);
+    const publicReport = readEnvelope(
+      (await api().get(`/api/v1/catch-reports/${reportId}`).expect(200)).body as unknown,
+      'report',
+    );
+    assert.deepEqual(asObject(publicReport.weightAssessment), {
+      classification: 'suspicious-low',
+      minWeightGrams: 150,
+      maxWeightGrams: 200,
+    });
+    const weightStatistics = asObject(
+      (
+        await api()
+          .get('/api/v1/catch-reports/statistics/weights')
+          .query({ fishId: fish.id, baseIds: base.id })
+          .expect(200)
+      ).body as unknown,
+    );
+    assert.equal(asObject(weightStatistics.counts)['suspicious-low'], 1);
+
+    const cleared = await unsafe(api().patch(membershipPath), admin.cookie)
+      .send({ minWeightGrams: null })
+      .expect(200);
+    assert.equal(readEnvelope(cleared.body as unknown, 'fishingBaseFish').minWeightGrams, null);
+    assert.equal(readEnvelope(cleared.body as unknown, 'fishingBaseFish').maxWeightGrams, 200);
+
+    for (const invalidBody of [
+      {},
+      { minWeightGrams: 0 },
+      { minWeightGrams: 1.5 },
+      { maxWeightGrams: 2_147_483_648 },
+      { minWeightGrams: 201 },
+    ]) {
+      const invalid = await unsafe(api().patch(membershipPath), admin.cookie)
+        .send(invalidBody)
+        .expect(400);
+      assert.equal(readErrorCode(invalid.body as unknown), 'VALIDATION_ERROR');
+    }
+
+    await unsafe(api().patch(membershipPath), user.cookie)
+      .send({ maxWeightGrams: null })
+      .expect(403);
+    await unsafe(api().patch(membershipPath), bannedAdmin.cookie)
+      .send({ maxWeightGrams: null })
+      .expect(403);
+    await unsafe(api().patch(membershipPath)).send({ maxWeightGrams: null }).expect(401);
+    const missing = await unsafe(
+      api().patch(`/api/v1/admin/catalog/bases/${base.id}/fish/${randomUUID()}`),
+      admin.cookie,
+    )
+      .send({ maxWeightGrams: null })
+      .expect(404);
+    assert.equal(readErrorCode(missing.body as unknown), 'FISHING_BASE_FISH_NOT_FOUND');
+
+    assert.deepEqual(
+      await prisma.catchReport.findUniqueOrThrow({ where: { id: reportId } }),
+      reportBefore,
+    );
+  });
+
   void test('PostgreSQL enforces FishingBaseFish composite identity and foreign keys', async () => {
     const base = await prisma.fishingBase.create({
       data: { name: 'DB база', nameNormalized: 'db база' },

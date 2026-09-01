@@ -2,10 +2,11 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { type FormEvent, useCallback, useState } from 'react';
+import { type FormEvent, useCallback, useMemo, useState } from 'react';
 import styles from '../../../catalog.module.css';
 import { createFishingBase, listAdminFishingBases } from '@/lib/admin-catalog-api';
 import { getApiErrorMessage, isApiError } from '@/lib/api-client';
+import { filterCatalogItems } from '@/lib/catalog-search';
 import { useApiResource } from '@/lib/use-api-resource';
 
 export default function AdminFishingBasesPage() {
@@ -20,6 +21,11 @@ export default function AdminFishingBasesPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const visibleBases = useMemo(
+    () => (state.kind === 'ready' ? filterCatalogItems(state.data, searchQuery) : []),
+    [searchQuery, state],
+  );
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -120,6 +126,22 @@ export default function AdminFishingBasesPage() {
       <section className={styles.panel}>
         <h2 className={styles.panelTitle}>Все базы</h2>
 
+        {state.kind === 'ready' && state.data.length > 0 ? (
+          <div className={styles.compactSearchField}>
+            <label className={styles.label} htmlFor="admin-base-search">
+              Найти базу
+            </label>
+            <input
+              className={styles.input}
+              id="admin-base-search"
+              type="search"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Название базы"
+            />
+          </div>
+        ) : null}
+
         {state.kind === 'loading' ? (
           <p className={styles.muted} aria-live="polite">
             Загружаем базы…
@@ -139,9 +161,13 @@ export default function AdminFishingBasesPage() {
           <p className={styles.muted}>Базы ещё не созданы.</p>
         ) : null}
 
-        {state.kind === 'ready' && state.data.length > 0 ? (
+        {state.kind === 'ready' && state.data.length > 0 && visibleBases.length === 0 ? (
+          <p className={styles.muted}>Баз с таким названием не найдено.</p>
+        ) : null}
+
+        {state.kind === 'ready' && visibleBases.length > 0 ? (
           <ul className={styles.list}>
-            {state.data.map((base) => (
+            {visibleBases.map((base) => (
               <li className={styles.listItem} key={base.id}>
                 <div className={styles.itemMain}>
                   <p className={styles.itemName}>{base.name}</p>

@@ -29,6 +29,8 @@ export type AdminFishingBaseFish = {
   name: string;
   isActive: boolean;
   relationCreatedAt: string;
+  minWeightGrams: number | null;
+  maxWeightGrams: number | null;
 };
 
 export type AdminFishingBaseDetail = AdminFishingBase & {
@@ -58,6 +60,10 @@ export type CreateBaitInput = { name: string; type: BaitType };
 export type UpdateBaitInput = { name?: string; type?: BaitType; isActive?: boolean };
 export type CreateScreenAnchorInput = { name: string };
 export type UpdateScreenAnchorInput = { name?: string; isActive?: boolean };
+export type UpdateFishingBaseFishInput = {
+  minWeightGrams?: number | null;
+  maxWeightGrams?: number | null;
+};
 
 export type FishingBaseFishRelation = {
   fishingBaseId: string;
@@ -65,12 +71,33 @@ export type FishingBaseFishRelation = {
   createdAt: string;
 };
 
+export type FishingBaseFishWeightRelation = FishingBaseFishRelation & {
+  minWeightGrams: number | null;
+  maxWeightGrams: number | null;
+};
+
+const POSTGRES_INTEGER_MAX = 2_147_483_647;
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function invalidResponse(): never {
   throw new Error('Сервер вернул некорректный ответ административного каталога');
+}
+
+function readNullableWeightGrams(value: unknown): number | null {
+  if (value === null) return null;
+  if (
+    typeof value !== 'number' ||
+    !Number.isInteger(value) ||
+    value < 1 ||
+    value > POSTGRES_INTEGER_MAX
+  ) {
+    invalidResponse();
+  }
+
+  return value;
 }
 
 function readAdminEntity(value: unknown): AdminCatalogEntity {
@@ -150,8 +177,16 @@ function readFishingBaseFish(value: unknown): AdminFishingBaseFish {
     typeof value.id !== 'string' ||
     typeof value.name !== 'string' ||
     typeof value.isActive !== 'boolean' ||
-    typeof value.relationCreatedAt !== 'string'
+    typeof value.relationCreatedAt !== 'string' ||
+    !('minWeightGrams' in value) ||
+    !('maxWeightGrams' in value)
   ) {
+    invalidResponse();
+  }
+
+  const minWeightGrams = readNullableWeightGrams(value.minWeightGrams);
+  const maxWeightGrams = readNullableWeightGrams(value.maxWeightGrams);
+  if (minWeightGrams !== null && maxWeightGrams !== null && minWeightGrams > maxWeightGrams) {
     invalidResponse();
   }
 
@@ -160,6 +195,39 @@ function readFishingBaseFish(value: unknown): AdminFishingBaseFish {
     name: value.name,
     isActive: value.isActive,
     relationCreatedAt: value.relationCreatedAt,
+    minWeightGrams,
+    maxWeightGrams,
+  };
+}
+
+function readFishingBaseFishWeightRelation(payload: unknown): FishingBaseFishWeightRelation {
+  if (!isRecord(payload) || !isRecord(payload.fishingBaseFish)) {
+    invalidResponse();
+  }
+
+  const relation = payload.fishingBaseFish;
+  if (
+    typeof relation.fishingBaseId !== 'string' ||
+    typeof relation.fishId !== 'string' ||
+    typeof relation.createdAt !== 'string' ||
+    !('minWeightGrams' in relation) ||
+    !('maxWeightGrams' in relation)
+  ) {
+    invalidResponse();
+  }
+
+  const minWeightGrams = readNullableWeightGrams(relation.minWeightGrams);
+  const maxWeightGrams = readNullableWeightGrams(relation.maxWeightGrams);
+  if (minWeightGrams !== null && maxWeightGrams !== null && minWeightGrams > maxWeightGrams) {
+    invalidResponse();
+  }
+
+  return {
+    fishingBaseId: relation.fishingBaseId,
+    fishId: relation.fishId,
+    createdAt: relation.createdAt,
+    minWeightGrams,
+    maxWeightGrams,
   };
 }
 
@@ -373,6 +441,19 @@ export async function removeFishFromFishingBase(
     `/admin/catalog/bases/${encodeURIComponent(fishingBaseId)}/fish/${encodeURIComponent(fishId)}`,
     { method: 'DELETE' },
   );
+}
+
+export async function updateFishingBaseFish(
+  fishingBaseId: string,
+  fishId: string,
+  input: UpdateFishingBaseFishInput,
+): Promise<FishingBaseFishWeightRelation> {
+  const payload = await apiRequest<unknown>(
+    `/admin/catalog/bases/${encodeURIComponent(fishingBaseId)}/fish/${encodeURIComponent(fishId)}`,
+    { method: 'PATCH', body: JSON.stringify(input) },
+  );
+
+  return readFishingBaseFishWeightRelation(payload);
 }
 
 export async function listAdminScreenAnchors(

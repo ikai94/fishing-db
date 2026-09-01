@@ -372,11 +372,114 @@
   margin-bottom: 14px;
 }
 
+.compactSearchField {
+  display: grid;
+  max-width: 420px;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.compactTableScroll {
+  overflow-x: auto;
+  border: 1px solid #dfe7e2;
+  border-radius: 8px;
+}
+
+.compactAdminTable {
+  width: 100%;
+  min-width: 860px;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.compactAdminTable th,
+.compactAdminTable td {
+  padding: 9px 10px;
+  border-bottom: 1px solid #e7ede9;
+  text-align: left;
+  vertical-align: top;
+}
+
+.compactAdminTable thead th {
+  color: #425349;
+  background: #f3f7f4;
+  font-size: 0.78rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.compactAdminTable tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+.compactItemName,
+.compactMetadata,
+.compactRowError,
+.compactRowSuccess {
+  display: block;
+}
+
+.compactItemName {
+  overflow-wrap: anywhere;
+  color: #17251d;
+  font-weight: 700;
+}
+
+.compactMetadata {
+  margin-top: 3px;
+  color: #66736b;
+  font-size: 0.78rem;
+  font-weight: 400;
+}
+
+.compactRowError,
+.compactRowSuccess {
+  margin-top: 5px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.compactRowError {
+  color: #8f2424;
+}
+
+.compactRowSuccess {
+  color: #185d31;
+}
+
+.compactNumberInput {
+  width: 118px;
+  min-height: 36px;
+  padding: 6px 8px;
+  border: 1px solid #aebcb3;
+  border-radius: 7px;
+  color: #17251d;
+  background: #ffffff;
+}
+
+.compactActions {
+  display: flex;
+  gap: 6px;
+}
+
+.compactActions .button,
+.compactActions .dangerButton {
+  min-height: 36px;
+  padding: 6px 9px;
+}
+
 .divider {
   height: 1px;
   margin: 20px 0;
   border: 0;
   background: #e4ebe6;
+}
+
+.compactTableScroll:focus-visible,
+.compactNumberInput:focus-visible {
+  outline: 3px solid rgb(55 108 75 / 24%);
+  outline-offset: 2px;
 }
 
 @media (max-width: 680px) {

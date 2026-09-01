@@ -38,6 +38,17 @@ export function emptyUpdateException(): BadRequestException {
   });
 }
 
+export function invalidFishingBaseFishWeightBoundsException(): BadRequestException {
+  return new BadRequestException({
+    statusCode: 400,
+    code: 'VALIDATION_ERROR',
+    message: 'Проверьте введённые данные',
+    errors: {
+      body: ['Минимальный вес не должен превышать максимальный'],
+    },
+  });
+}
+
 export const catalogErrors = {
   fishingBaseNotFound: (): NotFoundException =>
     notFound('FISHING_BASE_NOT_FOUND', 'Рыболовная база не найдена'),

@@ -34,6 +34,7 @@ import { CreateLocationDto } from './dto/create-location.dto.js';
 import { CreateScreenAnchorDto } from './dto/create-screen-anchor.dto.js';
 import { UpdateBaitDto } from './dto/update-bait.dto.js';
 import { UpdateFishDto } from './dto/update-fish.dto.js';
+import { UpdateFishingBaseFishDto } from './dto/update-fishing-base-fish.dto.js';
 import { UpdateFishingBaseDto } from './dto/update-fishing-base.dto.js';
 import { UpdateLocationDto } from './dto/update-location.dto.js';
 import { UpdateScreenAnchorDto } from './dto/update-screen-anchor.dto.js';
@@ -177,6 +178,16 @@ export class AdminCatalogController {
     @Body(createApplicationValidationPipe(AddFishingBaseFishDto)) dto: AddFishingBaseFishDto,
   ) {
     return this.catalogAdmin.addFishToFishingBase(params.baseId, dto);
+  }
+
+  @Patch('bases/:baseId/fish/:fishId')
+  updateFishingBaseFish(
+    @Param(createApplicationValidationPipe(FishingBaseFishParamsDto))
+    params: FishingBaseFishParamsDto,
+    @Body(createApplicationValidationPipe(UpdateFishingBaseFishDto))
+    dto: UpdateFishingBaseFishDto,
+  ) {
+    return this.catalogAdmin.updateFishingBaseFish(params.baseId, params.fishId, dto);
   }
 
   @Delete('bases/:baseId/fish/:fishId')
