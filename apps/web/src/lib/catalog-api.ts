@@ -33,8 +33,13 @@ export type PublicFishSummary = PublicCatalogItem & {
   image: PublicFishImage | null;
 };
 
+export type PublicFishBase = PublicCatalogItem & {
+  minWeightGrams: number | null;
+  maxWeightGrams: number | null;
+};
+
 export type PublicFishDetail = PublicFishSummary & {
-  bases: PublicCatalogItem[];
+  bases: PublicFishBase[];
 };
 
 export type PublicBait = PublicCatalogItem & {
@@ -100,6 +105,25 @@ function readNonNegativeInteger(value: unknown): number {
   return value;
 }
 
+function readNullablePositiveInteger(value: unknown): number | null {
+  if (value === null) return null;
+  if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
+    throw new Error('Сервер вернул некорректный ответ каталога');
+  }
+  return value;
+}
+
+function readFishBase(value: unknown): PublicFishBase {
+  const item = readCatalogItem(value);
+  if (!isRecord(value)) throw new Error('Сервер вернул некорректный ответ каталога');
+  const minWeightGrams = readNullablePositiveInteger(value.minWeightGrams);
+  const maxWeightGrams = readNullablePositiveInteger(value.maxWeightGrams);
+  if (minWeightGrams !== null && maxWeightGrams !== null && minWeightGrams > maxWeightGrams) {
+    throw new Error('Сервер вернул некорректный ответ каталога');
+  }
+  return { ...item, minWeightGrams, maxWeightGrams };
+}
+
 function readFishingBaseSummary(value: unknown): PublicFishingBaseSummary {
   const item = readCatalogItem(value);
 
@@ -157,7 +181,7 @@ function readFishResponse(payload: unknown): PublicFishDetail {
 
   return {
     ...readFishSummary(payload.fish),
-    bases: payload.fish.bases.map(readCatalogItem),
+    bases: payload.fish.bases.map(readFishBase),
   };
 }
 

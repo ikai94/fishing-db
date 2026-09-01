@@ -232,6 +232,18 @@
   font-weight: 800;
 }
 
+.weightStack {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+}
+
+.weightAnomaly {
+  color: #765616;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
 .locationLine {
   margin: 14px 0 0;
   color: #36493e;

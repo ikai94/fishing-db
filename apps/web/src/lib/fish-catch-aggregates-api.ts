@@ -1,4 +1,5 @@
 import { apiRequest } from './api-client';
+import { isBaseFishWeightClassification, type BaseFishWeightAssessment } from './base-fish-weight';
 
 export type FishCatchAggregate = {
   fish: { id: string; name: string };
@@ -8,6 +9,7 @@ export type FishCatchAggregate = {
   intensity: number;
   contributorCount: number;
   maxObservedWeightGrams: number;
+  maxObservedWeightAssessment: BaseFishWeightAssessment;
 };
 
 export type FishCatchAggregatePage = {
@@ -33,6 +35,7 @@ const ITEM_KEYS = [
   'intensity',
   'contributorCount',
   'maxObservedWeightGrams',
+  'maxObservedWeightAssessment',
 ] as const;
 const NAMED_KEYS = ['id', 'name'] as const;
 const LOCATION_KEYS = ['id', 'number', 'name'] as const;
@@ -68,6 +71,26 @@ function readNamedItem(value: unknown): { id: string; name: string } {
     invalidResponse();
   }
   return { id: value.id, name: value.name };
+}
+
+function readNullablePositiveSafeInteger(value: unknown): number | null {
+  return value === null ? null : readPositiveSafeInteger(value);
+}
+
+function readWeightAssessment(value: unknown): BaseFishWeightAssessment {
+  if (
+    !isRecord(value) ||
+    !hasExactKeys(value, ['classification', 'minWeightGrams', 'maxWeightGrams']) ||
+    !isBaseFishWeightClassification(value.classification)
+  ) {
+    invalidResponse();
+  }
+  const minWeightGrams = readNullablePositiveSafeInteger(value.minWeightGrams);
+  const maxWeightGrams = readNullablePositiveSafeInteger(value.maxWeightGrams);
+  if (minWeightGrams !== null && maxWeightGrams !== null && minWeightGrams > maxWeightGrams) {
+    invalidResponse();
+  }
+  return { classification: value.classification, minWeightGrams, maxWeightGrams };
 }
 
 export function decodeFishCatchAggregate(value: unknown): FishCatchAggregate {
@@ -107,6 +130,7 @@ export function decodeFishCatchAggregate(value: unknown): FishCatchAggregate {
     intensity,
     contributorCount,
     maxObservedWeightGrams: readPositiveSafeInteger(value.maxObservedWeightGrams),
+    maxObservedWeightAssessment: readWeightAssessment(value.maxObservedWeightAssessment),
   };
 }
 

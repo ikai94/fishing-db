@@ -6,6 +6,7 @@ import { useCallback } from 'react';
 import styles from '../../catch-reports.module.css';
 import { formatCatchDate, formatWeight } from '../_components/catch-report-list';
 import { getCatchReport } from '@/lib/catch-reports-api';
+import { formatBaseFishWeightBounds, weightClassificationLabel } from '@/lib/base-fish-weight';
 import {
   fishingMethodLabel,
   fishingNoteLabel,
@@ -102,6 +103,17 @@ export default function CatchReportDetailPage() {
                 <div>
                   <dt>Рыба</dt>
                   <dd>{state.data.fish.name}</dd>
+                </div>
+                <div>
+                  <dt>Классификация веса</dt>
+                  <dd>
+                    {weightClassificationLabel(state.data.weightAssessment.classification)} · по
+                    текущим границам базы
+                  </dd>
+                </div>
+                <div>
+                  <dt>Границы веса на базе</dt>
+                  <dd>{formatBaseFishWeightBounds(state.data.weightAssessment)}</dd>
                 </div>
                 <div>
                   <dt>{state.data.fishingMethod === 'BAIT_FISHING' ? 'Наживка' : 'Приманка'}</dt>

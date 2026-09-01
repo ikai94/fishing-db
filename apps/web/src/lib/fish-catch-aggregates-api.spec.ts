@@ -18,6 +18,11 @@ const aggregate = {
   intensity: 18,
   contributorCount: 7,
   maxObservedWeightGrams: 12_450,
+  maxObservedWeightAssessment: {
+    classification: 'mutant',
+    minWeightGrams: 100,
+    maxWeightGrams: 12_000,
+  },
 };
 
 describe('Fish catch aggregate decoder', () => {
@@ -51,6 +56,15 @@ describe('Fish catch aggregate decoder', () => {
     { ...aggregate, contributorCount: 19 },
     { ...aggregate, maxObservedWeightGrams: 0 },
     { ...aggregate, location: { ...aggregate.location, number: 0 } },
+    { ...aggregate, maxObservedWeightAssessment: null },
+    {
+      ...aggregate,
+      maxObservedWeightAssessment: {
+        classification: 'ordinary',
+        minWeightGrams: 200,
+        maxWeightGrams: 100,
+      },
+    },
   ])('rejects malformed aggregate values', (value) => {
     expect(() => decodeFishCatchAggregate(value)).toThrow();
   });

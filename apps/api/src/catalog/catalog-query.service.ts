@@ -150,7 +150,11 @@ export class CatalogQueryService {
         fishingBaseLinks: {
           where: { fishingBase: { isActive: true } },
           orderBy: [{ fishingBase: { nameNormalized: 'asc' } }, { fishingBaseId: 'asc' }],
-          select: { fishingBase: { select: PUBLIC_NAMED_ITEM_SELECT } },
+          select: {
+            minWeightGrams: true,
+            maxWeightGrams: true,
+            fishingBase: { select: PUBLIC_NAMED_ITEM_SELECT },
+          },
         },
       },
     });
@@ -167,7 +171,11 @@ export class CatalogQueryService {
           fishId: fish.id,
           officialFishImageKey: fish.officialFishImageKey,
         }),
-        bases: fish.fishingBaseLinks.map((link) => link.fishingBase),
+        bases: fish.fishingBaseLinks.map((link) => ({
+          ...link.fishingBase,
+          minWeightGrams: link.minWeightGrams,
+          maxWeightGrams: link.maxWeightGrams,
+        })),
       },
     };
   }

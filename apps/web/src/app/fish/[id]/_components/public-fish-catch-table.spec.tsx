@@ -15,6 +15,11 @@ const aggregate: FishCatchAggregate = {
   intensity: 18,
   contributorCount: 7,
   maxObservedWeightGrams: 1_250,
+  maxObservedWeightAssessment: {
+    classification: 'ordinary',
+    minWeightGrams: 100,
+    maxWeightGrams: 2_000,
+  },
 };
 
 describe('public Fish catch formatters', () => {
@@ -81,5 +86,25 @@ describe('PublicFishCatchTable', () => {
       within(table).queryByText(/автор|дата|яма|точка|условия|комментарий/i),
     ).not.toBeInTheDocument();
     expect(within(table).queryByRole('time')).not.toBeInTheDocument();
+  });
+
+  test('shows only anomaly classifications beside the observed maximum', () => {
+    const { rerender } = render(
+      <PublicFishCatchTable
+        rows={[
+          {
+            ...aggregate,
+            maxObservedWeightAssessment: {
+              ...aggregate.maxObservedWeightAssessment,
+              classification: 'mutant',
+            },
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByText('Мутант')).toBeInTheDocument();
+
+    rerender(<PublicFishCatchTable rows={[aggregate]} />);
+    expect(screen.queryByText('Обычный')).not.toBeInTheDocument();
   });
 });

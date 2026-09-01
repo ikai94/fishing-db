@@ -31,6 +31,11 @@ const publicReport = {
   fish: { id: 'fish', name: 'Кижуч' },
   bait: { id: 'bait', name: 'Vib-rapan' },
   weightGrams: 7242,
+  weightAssessment: {
+    classification: 'ordinary',
+    minWeightGrams: 100,
+    maxWeightGrams: 10_000,
+  },
   fishingMethod: 'SPINNING',
   holeDepthCm: null,
   spotPositionRaw: null,
@@ -85,6 +90,15 @@ describe('decodePublicCatchReport', () => {
     expect(() =>
       decodePublicCatchReport({ ...publicReport, bait: { ...publicReport.bait, type: 'LURE' } }),
     ).toThrow();
+  });
+
+  test.each([
+    undefined,
+    { classification: 'ordinary', minWeightGrams: 100 },
+    { classification: 'unknown', minWeightGrams: null, maxWeightGrams: null },
+    { classification: 'ordinary', minWeightGrams: 200, maxWeightGrams: 100 },
+  ])('rejects malformed read-time weight assessment: %o', (weightAssessment) => {
+    expect(() => decodePublicCatchReport({ ...publicReport, weightAssessment })).toThrow();
   });
 
   test('accepts raw source only through the explicit owner projection', () => {

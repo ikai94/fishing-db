@@ -57,6 +57,8 @@ interface CreateCatalogOptions {
   baitActive?: boolean;
   baitType?: 'BAIT' | 'LURE';
   withFishingBaseFish?: boolean;
+  minWeightGrams?: number | null;
+  maxWeightGrams?: number | null;
 }
 
 interface CatchReportInput {
@@ -112,6 +114,13 @@ interface FishCatchAggregateItem {
   intensity: number;
   contributorCount: number;
   maxObservedWeightGrams: number;
+  maxObservedWeightAssessment: WeightAssessment;
+}
+
+interface WeightAssessment {
+  classification: 'suspicious-low' | 'ordinary' | 'mutant' | 'suspicious-high' | 'unclassified';
+  minWeightGrams: number | null;
+  maxWeightGrams: number | null;
 }
 
 interface FishingConditionStatisticsItem {
@@ -348,6 +357,7 @@ function readFishCatchAggregatePage(body: unknown): {
       'fishingBase',
       'intensity',
       'location',
+      'maxObservedWeightAssessment',
       'maxObservedWeightGrams',
     ]);
     const fish = asObject(item.fish);
@@ -379,6 +389,7 @@ function readFishCatchAggregatePage(body: unknown): {
       intensity: asNumber(item.intensity, 'intensity'),
       contributorCount: asNumber(item.contributorCount, 'contributorCount'),
       maxObservedWeightGrams: asNumber(item.maxObservedWeightGrams, 'maxObservedWeightGrams'),
+      maxObservedWeightAssessment: readWeightAssessment(item.maxObservedWeightAssessment),
     };
 
     assert.ok(result.intensity >= result.contributorCount);
@@ -408,6 +419,31 @@ function readFishCatchAggregatePage(body: unknown): {
   });
 
   return { items, nextCursor: payload.nextCursor };
+}
+
+function readWeightAssessment(value: unknown): WeightAssessment {
+  const assessment = asObject(value);
+  assert.deepEqual(Object.keys(assessment).sort(), [
+    'classification',
+    'maxWeightGrams',
+    'minWeightGrams',
+  ]);
+  assert.ok(
+    ['suspicious-low', 'ordinary', 'mutant', 'suspicious-high', 'unclassified'].includes(
+      asString(assessment.classification, 'classification'),
+    ),
+  );
+  return {
+    classification: assessment.classification as WeightAssessment['classification'],
+    minWeightGrams:
+      assessment.minWeightGrams === null
+        ? null
+        : asNumber(assessment.minWeightGrams, 'minWeightGrams'),
+    maxWeightGrams:
+      assessment.maxWeightGrams === null
+        ? null
+        : asNumber(assessment.maxWeightGrams, 'maxWeightGrams'),
+  };
 }
 
 function readFishingConditionStatistics(body: unknown): FishingConditionStatisticsItem[] {
@@ -503,6 +539,7 @@ function assertPublicReportProjection(report: Record<string, unknown>): void {
     'spotPositionRaw',
     'updatedAt',
     'userNoteRaw',
+    'weightAssessment',
     'weightGrams',
   ]);
   assert.deepEqual(Object.keys(asObject(report.author)).sort(), ['id', 'nickname']);
@@ -510,6 +547,7 @@ function assertPublicReportProjection(report: Record<string, unknown>): void {
   assert.deepEqual(Object.keys(asObject(report.location)).sort(), ['id', 'name', 'number']);
   assert.deepEqual(Object.keys(asObject(report.fish)).sort(), ['id', 'name']);
   assert.deepEqual(Object.keys(asObject(report.bait)).sort(), ['id', 'name']);
+  readWeightAssessment(report.weightAssessment);
 
   const serialized = JSON.stringify(report);
   for (const forbiddenField of [
@@ -547,6 +585,7 @@ function assertOwnerReportProjection(report: Record<string, unknown>): void {
     'spotPositionRaw',
     'updatedAt',
     'userNoteRaw',
+    'weightAssessment',
     'weightGrams',
   ]);
 
@@ -649,7 +688,12 @@ async function createCatalog(options: CreateCatalogOptions = {}): Promise<Catalo
 
   if (options.withFishingBaseFish ?? true) {
     await prisma.fishingBaseFish.create({
-      data: { fishingBaseId: base.id, fishId: fish.id },
+      data: {
+        fishingBaseId: base.id,
+        fishId: fish.id,
+        minWeightGrams: options.minWeightGrams,
+        maxWeightGrams: options.maxWeightGrams,
+      },
     });
   }
 
@@ -2660,6 +2704,72 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
       const invalid = await api().get(url).expect(400);
       assert.equal(readErrorCode(invalid.body as unknown), 'VALIDATION_ERROR');
     }
+  });
+
+  void test('weight statistics route uses exact current bounds without hiding unlinked reports', async () => {
+    const actor = await createActor();
+    const catalog = await createCatalog({ minWeightGrams: 100, maxWeightGrams: 101 });
+    const reports: Array<{ id: string }> = [];
+    for (const weightGrams of [99, 100, 101, 102, 106, 107]) {
+      reports.push(await createStatisticsReport(actor, catalog, { weightGrams }));
+    }
+
+    const endpoint = '/api/v1/catch-reports/statistics/weights';
+    const scope = { fishId: catalog.fish.id, baseIds: catalog.base.id };
+    const response = asObject((await api().get(endpoint).query(scope).expect(200)).body as unknown);
+    assert.deepEqual(Object.keys(response), ['counts']);
+    assert.deepEqual(asObject(response.counts), {
+      'suspicious-low': 1,
+      ordinary: 2,
+      mutant: 2,
+      'suspicious-high': 1,
+      unclassified: 0,
+    });
+
+    const detail = readReport(
+      (await api().get(`/api/v1/catch-reports/${reports[1]?.id}`).expect(200)).body as unknown,
+    );
+    assert.deepEqual(readWeightAssessment(detail.weightAssessment), {
+      classification: 'ordinary',
+      minWeightGrams: 100,
+      maxWeightGrams: 101,
+    });
+
+    await prisma.fishingBaseFish.delete({
+      where: {
+        fishingBaseId_fishId: {
+          fishingBaseId: catalog.base.id,
+          fishId: catalog.fish.id,
+        },
+      },
+    });
+
+    const afterUnlink = asObject(
+      (await api().get(endpoint).query(scope).expect(200)).body as unknown,
+    );
+    assert.deepEqual(asObject(afterUnlink.counts), {
+      'suspicious-low': 0,
+      ordinary: 0,
+      mutant: 0,
+      'suspicious-high': 0,
+      unclassified: 6,
+    });
+    const list = asObject(
+      (
+        await api()
+          .get('/api/v1/catch-reports')
+          .query({ ...scope, limit: 20 })
+          .expect(200)
+      ).body as unknown,
+    );
+    assert.equal(asArray(list.items).length, 6);
+    assert.ok(
+      asArray(list.items).every(
+        (item) =>
+          readWeightAssessment(asObject(item).weightAssessment).classification === 'unclassified',
+      ),
+    );
+    assert.equal(await prisma.catchReport.count(), 6);
   });
 
   void test('Bait statistics is isolated to exactly one Base and collapses methods by Bait', async () => {

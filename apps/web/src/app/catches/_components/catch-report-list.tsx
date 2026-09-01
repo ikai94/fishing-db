@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import styles from '../../catch-reports.module.css';
+import { anomalyWeightLabel } from '@/lib/base-fish-weight';
 import type { CatchReport } from '@/lib/catch-reports-api';
 import {
   fishingNoteLabel,
@@ -20,6 +21,7 @@ export function CatchReportList({ reports, renderActions }: CatchReportListProps
     <section className={styles.reportList} aria-label="Отчёты об уловах">
       {reports.map((report) => {
         const fishingNote = fishingNoteLabel(report.fishingNote);
+        const weightAnomaly = anomalyWeightLabel(report.weightAssessment.classification);
 
         return (
           <article className={styles.reportCard} key={report.id}>
@@ -28,7 +30,12 @@ export function CatchReportList({ reports, renderActions }: CatchReportListProps
                 <p className={styles.reportEyebrow}>{report.fishingBase.name}</p>
                 <h2 className={styles.reportTitle}>{report.fish.name}</h2>
               </div>
-              <p className={styles.weight}>{formatWeight(report.weightGrams)}</p>
+              <div className={styles.weightStack}>
+                <p className={styles.weight}>{formatWeight(report.weightGrams)}</p>
+                {weightAnomaly ? (
+                  <span className={styles.weightAnomaly}>{weightAnomaly}</span>
+                ) : null}
+              </div>
             </div>
 
             <p className={styles.locationLine}>

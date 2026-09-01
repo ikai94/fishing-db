@@ -42,6 +42,11 @@ const report: CatchReport = {
   fish: { id: 'fish-1', name: 'Амурская Щука' },
   bait: { id: 'bait-1', name: 'Мотыль' },
   weightGrams: 1000,
+  weightAssessment: {
+    classification: 'ordinary',
+    minWeightGrams: 100,
+    maxWeightGrams: 2_000,
+  },
   fishingMethod: 'BAIT_FISHING',
   holeDepthCm: 600,
   spotPositionRaw: 'удочка',

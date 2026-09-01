@@ -15,6 +15,11 @@ const baseReport: CatchReport = {
   fish: { id: 'fish-beluga', name: 'Белуга' },
   bait: { id: 'bait-1', name: 'Vib-rapan' },
   weightGrams: 7_242,
+  weightAssessment: {
+    classification: 'ordinary',
+    minWeightGrams: 100,
+    maxWeightGrams: 10_000,
+  },
   fishingMethod: 'SPINNING',
   holeDepthCm: 763,
   spotPositionRaw: 'левый край рюкзака',
@@ -46,6 +51,7 @@ const observations: LocationObservationsData = {
       id: 'report-som',
       fish: { id: 'fish-som', name: 'Сом' },
       bait: { id: 'bait-2', name: 'Мотыль' },
+      weightAssessment: { ...baseReport.weightAssessment, classification: 'mutant' },
       fishingMethod: 'BAIT_FISHING',
       fishingNote: 'FROM_BOTTOM',
       spinningSize: null,
@@ -109,6 +115,8 @@ describe('LocationObservations', () => {
     expect(cells[4]).toHaveTextContent('Яма 7,63 м · левый край рюкзака');
     expect(cells[4]).not.toHaveTextContent('вполводы');
     expect(within(catchTable).getByText('Комментарий:')).toBeVisible();
+    expect(within(catchTable).getByText('Мутант')).toBeVisible();
+    expect(within(catchTable).queryByText('Обычный')).not.toBeInTheDocument();
   });
 
   test('filters both sections while keeping unchecked caught Fish selectable', async () => {

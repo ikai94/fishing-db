@@ -6,6 +6,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import styles from '../../../public-catalog.module.css';
 import { getApiErrorMessage } from '@/lib/api-client';
 import { type BaitStatistic, listBaitStatistics } from '@/lib/bait-statistics-api';
+import { formatBaseFishWeightBounds } from '@/lib/base-fish-weight';
 import type { PublicFishDetail } from '@/lib/catalog-api';
 import { type FishCatchAggregate, listFishCatchAggregates } from '@/lib/fish-catch-aggregates-api';
 import { readFishBaseSelection, writeFishBaseSelection } from '@/lib/fish-base-selection';
@@ -14,10 +15,12 @@ import {
   listFishingConditionStatistics,
 } from '@/lib/fishing-condition-statistics-api';
 import { type HoleStatistic, listHoleStatistics } from '@/lib/hole-statistics-api';
+import { type WeightStatistics, listWeightStatistics } from '@/lib/weight-statistics-api';
 import { BaitStatisticsTable } from './bait-statistics-table';
 import { CommonHoleTable } from './common-hole-table';
 import { FishingConditionStatisticsTable } from './fishing-condition-statistics-table';
 import { PublicFishCatchTable } from './public-fish-catch-table';
+import { WeightStatisticsTable } from './weight-statistics-table';
 
 const AGGREGATE_PAGE_SIZE = 20;
 
@@ -48,6 +51,12 @@ type FishingConditionStatisticsState =
   | { kind: 'idle'; scopeKey: string }
   | { kind: 'loading'; scopeKey: string }
   | { kind: 'ready'; scopeKey: string; items: FishingConditionStatistic[] }
+  | { kind: 'error'; scopeKey: string; message: string };
+
+type WeightStatisticsState =
+  | { kind: 'idle'; scopeKey: string }
+  | { kind: 'loading'; scopeKey: string }
+  | { kind: 'ready'; scopeKey: string; counts: WeightStatistics }
   | { kind: 'error'; scopeKey: string; message: string };
 
 type ActiveRequest = {
@@ -133,6 +142,16 @@ function FishExplorerState({
         onToggle={toggleBase}
         onSelectAll={() => updateSelection(availableBaseIds)}
         onClearAll={() => updateSelection([])}
+      />
+
+      <FishWeightStatistics
+        key={`weight-statistics:${scopeKey}`}
+        fishId={fish.id}
+        selectedBaseIds={canonicalSelectedBaseIds}
+        scopeKey={scopeKey}
+        loadingMessage={
+          hasChangedScope ? 'Обновляем статистику веса…' : 'Загружаем статистику веса…'
+        }
       />
 
       <FishConditionStatistics
@@ -239,15 +258,145 @@ function BaseMembershipSelector({
                   />
                   <span className={styles.visuallyHidden}>Учитывать базу «{base.name}»</span>
                 </label>
-                <Link className={styles.entityLink} href={`/bases/${base.id}`}>
-                  {base.name}
-                </Link>
+                <div className={styles.membershipContent}>
+                  <Link className={styles.entityLink} href={`/bases/${base.id}`}>
+                    {base.name}
+                  </Link>
+                  <span className={styles.membershipWeight}>
+                    Вес: {formatBaseFishWeightBounds(base)}
+                  </span>
+                </div>
               </li>
             );
           })}
         </ul>
       )}
     </fieldset>
+  );
+}
+
+export function FishWeightStatistics({
+  fishId,
+  selectedBaseIds,
+  scopeKey,
+  loadingMessage = 'Загружаем статистику веса…',
+}: {
+  fishId: string;
+  selectedBaseIds: readonly string[];
+  scopeKey: string;
+  loadingMessage?: string;
+}) {
+  const revisionRef = useRef(0);
+  const requestRef = useRef<ActiveRequest | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const [state, setState] = useState<WeightStatisticsState>(() =>
+    selectedBaseIds.length === 0 ? { kind: 'idle', scopeKey } : { kind: 'loading', scopeKey },
+  );
+
+  useEffect(() => {
+    const revision = revisionRef.current + 1;
+    revisionRef.current = revision;
+    requestRef.current?.controller.abort();
+    requestRef.current = null;
+
+    if (selectedBaseIds.length === 0) return;
+
+    const controller = new AbortController();
+    const request = { controller, revision, scopeKey };
+    requestRef.current = request;
+
+    async function loadStatistics() {
+      try {
+        const counts = await listWeightStatistics({
+          fishId,
+          baseIds: [...selectedBaseIds],
+          signal: controller.signal,
+        });
+        if (!isCurrentRequest(requestRef.current, request, scopeKey, revisionRef.current)) return;
+        setState({ kind: 'ready', scopeKey, counts });
+      } catch (error) {
+        if (!isCurrentRequest(requestRef.current, request, scopeKey, revisionRef.current)) return;
+        setState({
+          kind: 'error',
+          scopeKey,
+          message: getApiErrorMessage(
+            error,
+            'Не удалось загрузить статистику веса. Попробуйте ещё раз.',
+          ),
+        });
+      } finally {
+        if (isCurrentRequest(requestRef.current, request, scopeKey, revisionRef.current)) {
+          requestRef.current = null;
+        }
+      }
+    }
+
+    void loadStatistics();
+    return () => {
+      controller.abort();
+      if (requestRef.current === request) requestRef.current = null;
+    };
+  }, [attempt, fishId, scopeKey, selectedBaseIds]);
+
+  useEffect(
+    () => () => {
+      revisionRef.current += 1;
+      requestRef.current?.controller.abort();
+      requestRef.current = null;
+    },
+    [],
+  );
+
+  function retry() {
+    setState({ kind: 'loading', scopeKey });
+    setAttempt((current) => current + 1);
+  }
+
+  const currentState = state.scopeKey === scopeKey ? state : null;
+  const isLoading =
+    selectedBaseIds.length > 0 && (currentState === null || currentState.kind === 'loading');
+  const reportsCount =
+    currentState?.kind === 'ready'
+      ? Object.values(currentState.counts).reduce((total, count) => total + count, 0)
+      : 0;
+
+  return (
+    <section
+      className={styles.resultsRegion}
+      aria-labelledby="fish-weight-statistics-heading"
+      aria-busy={isLoading}
+    >
+      <div className={styles.sectionHeader}>
+        <h2 className={styles.sectionTitle} id="fish-weight-statistics-heading">
+          Классификация веса
+        </h2>
+      </div>
+
+      {selectedBaseIds.length === 0 ? (
+        <p className={styles.statusMessage}>
+          Выберите хотя бы одну базу, чтобы увидеть статистику веса.
+        </p>
+      ) : null}
+      {isLoading ? (
+        <p className={styles.statusMessage} role="status">
+          {loadingMessage}
+        </p>
+      ) : null}
+      {currentState?.kind === 'error' ? (
+        <div className={`${styles.statusMessage} ${styles.errorMessage}`} role="alert">
+          <p>{currentState.message}</p>
+          <button className={styles.secondaryButton} type="button" onClick={retry}>
+            Повторить загрузку статистики веса
+          </button>
+        </div>
+      ) : null}
+      {currentState?.kind === 'ready' && reportsCount === 0 ? (
+        <p className={styles.statusMessage}>Для выбранных баз данных о весе пока нет.</p>
+      ) : null}
+      {currentState?.kind === 'ready' && reportsCount > 0 ? (
+        <WeightStatisticsTable counts={currentState.counts} />
+      ) : null}
+    </section>
   );
 }
 

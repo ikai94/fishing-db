@@ -121,6 +121,26 @@ function reportScalarRecord(
   };
 }
 
+function weightMembershipDelegate(
+  bounds: { minWeightGrams: number | null; maxWeightGrams: number | null } = {
+    minWeightGrams: 30,
+    maxWeightGrams: 50,
+  },
+) {
+  return {
+    findMany: (query: unknown) => {
+      const where = asObject(asObject(query).where);
+      const fishingBaseIds = asObject(where.fishingBaseId).in as string[];
+      const fishIds = asObject(where.fishId).in as string[];
+      return Promise.resolve(
+        fishingBaseIds.flatMap((fishingBaseId) =>
+          fishIds.map((fishId) => ({ fishingBaseId, fishId, ...bounds })),
+        ),
+      );
+    },
+  };
+}
+
 function createDto(overrides: Partial<CreateCatchReportDto> = {}): CreateCatchReportDto {
   return {
     locationId: LOCATION_ID,
@@ -236,7 +256,16 @@ function createPrisma(options: CreateMockOptions = {}) {
                   : options.membership === undefined
                     ? { fishingBaseId: BASE_ID }
                     : options.membership;
-              return membership === null ? [] : [{ fishingBaseId: BASE_ID, fishId }];
+              return membership === null
+                ? []
+                : [
+                    {
+                      fishingBaseId: BASE_ID,
+                      fishId,
+                      minWeightGrams: 30,
+                      maxWeightGrams: 50,
+                    },
+                  ];
             }),
           );
         },
@@ -519,6 +548,7 @@ void describe('CatchReportsService v2', () => {
           }),
       },
       fishingBase: { findUnique: () => Promise.resolve({ id: BASE_ID, name: 'База' }) },
+      fishingBaseFish: weightMembershipDelegate(),
       fish: { findUnique: () => Promise.resolve({ id: FISH_ID, name: 'Рыба' }) },
     }) as unknown as PrismaService;
 
@@ -603,6 +633,7 @@ void describe('CatchReportsService v2', () => {
           return Promise.resolve(record);
         },
       },
+      fishingBaseFish: weightMembershipDelegate(),
     } as unknown as PrismaService;
     const service = new CatchReportsService(prisma);
 
@@ -627,6 +658,7 @@ void describe('CatchReportsService v2', () => {
           return Promise.resolve([reportRecord()]);
         },
       },
+      fishingBaseFish: weightMembershipDelegate(),
     } as unknown as PrismaService;
     const service = new CatchReportsService(prisma);
     const cursorDate = new Date('2026-08-09T11:00:00.000Z');
@@ -651,7 +683,44 @@ void describe('CatchReportsService v2', () => {
     assert.equal('contributorKey' in asObject(queryObject.select), false);
     assert.equal('importKey' in asObject(queryObject.select), false);
     assert.equal(result.items.length, 1);
+    assert.deepEqual(result.items[0]?.weightAssessment, {
+      classification: 'ordinary',
+      minWeightGrams: 30,
+      maxWeightGrams: 50,
+    });
     assert.equal(result.nextCursor, null);
+  });
+
+  void it('batch-resolves list memberships once and keeps missing memberships unclassified', async () => {
+    let membershipQueries = 0;
+    const prisma = {
+      catchReport: {
+        findMany: () =>
+          Promise.resolve([
+            reportRecord(),
+            { ...reportRecord(), id: '20000000-0000-4000-8000-000000000002' },
+          ]),
+      },
+      fishingBaseFish: {
+        findMany: () => {
+          membershipQueries += 1;
+          return Promise.resolve([]);
+        },
+      },
+    } as unknown as PrismaService;
+
+    const result = await new CatchReportsService(prisma).listPublic({ limit: 20 });
+
+    assert.equal(membershipQueries, 1);
+    assert.equal(result.items.length, 2);
+    assert.ok(
+      result.items.every(
+        (report) =>
+          report.weightAssessment.classification === 'unclassified' &&
+          report.weightAssessment.minWeightGrams === null &&
+          report.weightAssessment.maxWeightGrams === null,
+      ),
+    );
   });
 
   void it('builds complete exact-Location observations from contributor identity without catalog membership filters', async () => {
@@ -714,6 +783,7 @@ void describe('CatchReportsService v2', () => {
           ]);
         },
       },
+      fishingBaseFish: weightMembershipDelegate(),
     } as unknown as PrismaService;
 
     const result = await new CatchReportsService(prisma).listLocationObservations(LOCATION_ID);
@@ -880,6 +950,7 @@ function updatePrisma(options: UpdatePrismaOptions = {}) {
         }),
     },
     fishingBase: { findUnique: () => Promise.resolve({ id: BASE_ID, name: 'База' }) },
+    fishingBaseFish: weightMembershipDelegate(),
     fish: { findUnique: () => Promise.resolve({ id: FISH_ID, name: 'Рыба' }) },
   }) as unknown as PrismaService;
 

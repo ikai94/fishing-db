@@ -28,7 +28,12 @@ type TestFish = {
   id: string;
   name: string;
   image: null | { url: string };
-  bases: Array<{ id: string; name: string }>;
+  bases: Array<{
+    id: string;
+    name: string;
+    minWeightGrams: number | null;
+    maxWeightGrams: number | null;
+  }>;
 };
 
 function deferred<T>() {
@@ -46,8 +51,8 @@ const fish: TestFish = {
   name: 'Сом',
   image: null,
   bases: [
-    { id: 'base-a', name: 'Ахтуба' },
-    { id: 'base-b', name: 'Волга' },
+    { id: 'base-a', name: 'Ахтуба', minWeightGrams: 100, maxWeightGrams: 20_000 },
+    { id: 'base-b', name: 'Волга', minWeightGrams: null, maxWeightGrams: 25_000 },
   ],
 };
 

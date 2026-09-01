@@ -7,6 +7,7 @@ import type {
   CatchReport,
   LocationObservations as LocationObservationsData,
 } from '@/lib/catch-reports-api';
+import { anomalyWeightLabel } from '@/lib/base-fish-weight';
 import {
   fishingMethodLabel,
   fishingNoteLabel,
@@ -282,6 +283,8 @@ function ReportRows({
   report: CatchReport;
   reportNumber: number;
 }) {
+  const weightAnomaly = anomalyWeightLabel(report.weightAssessment.classification);
+
   return (
     <>
       <tr className={styles.catchRow}>
@@ -301,7 +304,10 @@ function ReportRows({
             report.fish.name
           )}
         </td>
-        <td className={styles.weightCell}>{formatWeight(report.weightGrams)}</td>
+        <td className={styles.weightCell}>
+          {formatWeight(report.weightGrams)}
+          {weightAnomaly ? <span className={styles.secondaryText}>{weightAnomaly}</span> : null}
+        </td>
         <td>{report.bait.name}</td>
         <td className={styles.conditionCell}>{formatMethodAndSettings(report)}</td>
         <td className={styles.positionCell}>{formatHoleAndSpot(report)}</td>

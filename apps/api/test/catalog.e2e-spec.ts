@@ -565,8 +565,18 @@ void describe('Catalog API (PostgreSQL e2e)', { concurrency: false }, () => {
     });
     await prisma.fishingBaseFish.createMany({
       data: [
-        { fishingBaseId: second.id, fishId: fish.id },
-        { fishingBaseId: first.id, fishId: fish.id },
+        {
+          fishingBaseId: second.id,
+          fishId: fish.id,
+          minWeightGrams: null,
+          maxWeightGrams: 25_000,
+        },
+        {
+          fishingBaseId: first.id,
+          fishId: fish.id,
+          minWeightGrams: 100,
+          maxWeightGrams: 20_000,
+        },
         { fishingBaseId: inactive.id, fishId: fish.id },
       ],
     });
@@ -579,8 +589,18 @@ void describe('Catalog API (PostgreSQL e2e)', { concurrency: false }, () => {
         name: fish.name,
         image: null,
         bases: [
-          { id: first.id, name: first.name },
-          { id: second.id, name: second.name },
+          {
+            id: first.id,
+            name: first.name,
+            minWeightGrams: 100,
+            maxWeightGrams: 20_000,
+          },
+          {
+            id: second.id,
+            name: second.name,
+            minWeightGrams: null,
+            maxWeightGrams: 25_000,
+          },
         ],
       },
     });

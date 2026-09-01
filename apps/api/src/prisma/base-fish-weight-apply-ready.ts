@@ -4,11 +4,10 @@ import type {
   BaseFishWeightAuditRow,
   WeightRowStatus,
 } from './base-fish-weight-audit.js';
+export { classifyBaseFishWeight } from '../catalog/base-fish-weight-classification.js';
+export type { BaseFishWeightClassification } from '../catalog/base-fish-weight-classification.js';
 
 const POSTGRES_INTEGER_MAX = 2_147_483_647;
-
-export type BaseFishWeightClassification =
-  'suspicious-low' | 'ordinary' | 'mutant' | 'suspicious-high' | 'unclassified';
 
 export interface BaseFishWeightDecisionSourceRow {
   sourceSheet: string;
@@ -110,26 +109,6 @@ function assertPositiveInteger(value: number, label: string): void {
   if (!Number.isInteger(value) || value <= 0 || value > POSTGRES_INTEGER_MAX) {
     throw new Error(`${label} must be a positive PostgreSQL integer`);
   }
-}
-
-export function classifyBaseFishWeight(
-  weightGrams: number,
-  minWeightGrams: number | null,
-  maxWeightGrams: number | null,
-): BaseFishWeightClassification {
-  assertPositiveInteger(weightGrams, 'weightGrams');
-  if (minWeightGrams !== null) assertPositiveInteger(minWeightGrams, 'minWeightGrams');
-  if (maxWeightGrams !== null) assertPositiveInteger(maxWeightGrams, 'maxWeightGrams');
-  if (minWeightGrams !== null && maxWeightGrams !== null && minWeightGrams > maxWeightGrams) {
-    throw new Error('minWeightGrams must not exceed maxWeightGrams');
-  }
-
-  if (minWeightGrams !== null && weightGrams < minWeightGrams) return 'suspicious-low';
-  if (maxWeightGrams !== null && weightGrams > maxWeightGrams) {
-    return BigInt(weightGrams) * 20n <= BigInt(maxWeightGrams) * 21n ? 'mutant' : 'suspicious-high';
-  }
-  if (minWeightGrams !== null && maxWeightGrams !== null) return 'ordinary';
-  return 'unclassified';
 }
 
 function decisionEvidence(row: BaseFishWeightAuditRow): BaseFishWeightDecisionSourceRow {

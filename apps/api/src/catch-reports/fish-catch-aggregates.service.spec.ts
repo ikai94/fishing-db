@@ -37,6 +37,8 @@ function databaseRow(
     intensity: 18n,
     contributorCount: 7n,
     maxObservedWeightGrams: 12_450,
+    minWeightGrams: 100,
+    maxWeightGrams: 12_000,
     ...overrides,
   };
 }
@@ -59,9 +61,10 @@ void describe('FishCatchAggregatesService', () => {
     assert.match(sqlQuery.text, /COUNT\(\*\) AS "intensity"/);
     assert.match(sqlQuery.text, /COUNT\(DISTINCT report\."contributorKey"\) AS "contributorCount"/);
     assert.match(sqlQuery.text, /MAX\(report\."weightGrams"\) AS "maxObservedWeightGrams"/);
+    assert.match(sqlQuery.text, /LEFT JOIN "FishingBaseFish" AS base_fish/);
     assert.match(
       sqlQuery.text,
-      /GROUP BY\s+fish\."id",\s+fishing_base\."id",\s+source_location\."id",\s+bait\."id"/,
+      /GROUP BY\s+fish\."id",\s+fishing_base\."id",\s+source_location\."id",\s+bait\."id",\s+base_fish\."minWeightGrams",\s+base_fish\."maxWeightGrams"/,
     );
     for (const field of [
       'holeDepthCm',
@@ -76,7 +79,6 @@ void describe('FishCatchAggregatesService', () => {
     ]) {
       assert.equal(sqlQuery.text.includes(field), false, field);
     }
-    assert.equal(sqlQuery.text.includes('"FishingBaseFish"'), false);
     assert.match(
       sqlQuery.text,
       /ORDER BY\s+aggregate_row\."baseNameNormalized" COLLATE "C" ASC,\s+aggregate_row\."baseId" ASC,\s+aggregate_row\."locationNumber" ASC,\s+aggregate_row\."locationId" ASC,\s+aggregate_row\."intensity" DESC,\s+aggregate_row\."baitNameNormalized" COLLATE "C" ASC,\s+aggregate_row\."baitId" ASC/,
@@ -90,6 +92,11 @@ void describe('FishCatchAggregatesService', () => {
         intensity: 18,
         contributorCount: 7,
         maxObservedWeightGrams: 12_450,
+        maxObservedWeightAssessment: {
+          classification: 'mutant',
+          minWeightGrams: 100,
+          maxWeightGrams: 12_000,
+        },
       },
     ]);
     assert.ok(result.nextCursor);

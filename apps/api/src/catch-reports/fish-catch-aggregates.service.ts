@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { assessBaseFishWeight } from '../catalog/base-fish-weight-classification.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { FishCatchAggregateQueryDto } from './dto/fish-catch-aggregate-query.dto.js';
@@ -26,6 +27,8 @@ export interface FishCatchAggregateDatabaseRow {
   intensity: bigint;
   contributorCount: bigint;
   maxObservedWeightGrams: number;
+  minWeightGrams: number | null;
+  maxWeightGrams: number | null;
 }
 
 function toSafeCount(value: bigint, field: 'intensity' | 'contributorCount'): number {
@@ -109,7 +112,9 @@ export function buildFishCatchAggregatesQuery(
         bait."isActive" AS "baitIsActive",
         COUNT(*) AS "intensity",
         COUNT(DISTINCT report."contributorKey") AS "contributorCount",
-        MAX(report."weightGrams") AS "maxObservedWeightGrams"
+        MAX(report."weightGrams") AS "maxObservedWeightGrams",
+        base_fish."minWeightGrams" AS "minWeightGrams",
+        base_fish."maxWeightGrams" AS "maxWeightGrams"
       FROM "CatchReport" AS report
       INNER JOIN "Location" AS source_location
         ON source_location."id" = report."locationId"
@@ -119,13 +124,18 @@ export function buildFishCatchAggregatesQuery(
         ON fish."id" = report."fishId"
       INNER JOIN "Bait" AS bait
         ON bait."id" = report."baitId"
+      LEFT JOIN "FishingBaseFish" AS base_fish
+        ON base_fish."fishingBaseId" = source_location."fishingBaseId"
+        AND base_fish."fishId" = report."fishId"
       WHERE report."fishId" = ${fishId}::uuid
         AND source_location."fishingBaseId" IN (${baseIdParameters})
       GROUP BY
         fish."id",
         fishing_base."id",
         source_location."id",
-        bait."id"
+        bait."id",
+        base_fish."minWeightGrams",
+        base_fish."maxWeightGrams"
     )
     SELECT *
     FROM "aggregateRows" AS aggregate_row
@@ -181,6 +191,10 @@ export class FishCatchAggregatesService {
         intensity,
         contributorCount,
         maxObservedWeightGrams: row.maxObservedWeightGrams,
+        maxObservedWeightAssessment: assessBaseFishWeight(row.maxObservedWeightGrams, {
+          minWeightGrams: row.minWeightGrams,
+          maxWeightGrams: row.maxWeightGrams,
+        }),
       };
     });
     const lastRow = rows.at(-1);

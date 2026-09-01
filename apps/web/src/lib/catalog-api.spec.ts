@@ -60,8 +60,8 @@ describe('public catalog API', () => {
         name: 'Сом',
         image: null,
         bases: [
-          { id: 'base-1', name: 'Ахтуба' },
-          { id: 'base-2', name: 'Амазония' },
+          { id: 'base-1', name: 'Ахтуба', minWeightGrams: 100, maxWeightGrams: 20_000 },
+          { id: 'base-2', name: 'Амазония', minWeightGrams: null, maxWeightGrams: 25_000 },
         ],
       },
     });
@@ -72,8 +72,8 @@ describe('public catalog API', () => {
       name: 'Сом',
       image: null,
       bases: [
-        { id: 'base-1', name: 'Ахтуба' },
-        { id: 'base-2', name: 'Амазония' },
+        { id: 'base-1', name: 'Ахтуба', minWeightGrams: 100, maxWeightGrams: 20_000 },
+        { id: 'base-2', name: 'Амазония', minWeightGrams: null, maxWeightGrams: 25_000 },
       ],
     });
     expect(mocks.apiRequest).toHaveBeenCalledWith('/catalog/fish/fish%2Fid%3F', {
@@ -84,11 +84,29 @@ describe('public catalog API', () => {
   test.each([
     {},
     { fish: { id: 'fish-1', name: 'Сом' } },
-    { fish: { id: 'fish-1', name: 'Сом', image: null, bases: [{ id: 1, name: 'Ахтуба' }] } },
+    {
+      fish: {
+        id: 'fish-1',
+        name: 'Сом',
+        image: null,
+        bases: [{ id: 1, name: 'Ахтуба', minWeightGrams: 1, maxWeightGrams: 2 }],
+      },
+    },
     { fish: { id: 'fish-1', name: 'Сом', image: {}, bases: [] } },
   ])('rejects a malformed Fish detail payload: %o', async (payload) => {
     mocks.apiRequest.mockResolvedValue(payload);
 
+    await expect(getFish('fish-1')).rejects.toThrow('Сервер вернул некорректный ответ каталога');
+  });
+
+  test.each([
+    { id: 'base-1', name: 'Ахтуба', minWeightGrams: 100 },
+    { id: 'base-1', name: 'Ахтуба', minWeightGrams: 0, maxWeightGrams: 100 },
+    { id: 'base-1', name: 'Ахтуба', minWeightGrams: 200, maxWeightGrams: 100 },
+  ])('rejects malformed Fish Base weight bounds: %o', async (base) => {
+    mocks.apiRequest.mockResolvedValue({
+      fish: { id: 'fish-1', name: 'Сом', image: null, bases: [base] },
+    });
     await expect(getFish('fish-1')).rejects.toThrow('Сервер вернул некорректный ответ каталога');
   });
 

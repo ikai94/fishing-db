@@ -1,5 +1,9 @@
 import { HttpException, Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import {
+  assessBaseFishWeight,
+  type BaseFishWeightBounds,
+} from '../catalog/base-fish-weight-classification.js';
 import { isPrismaError } from '../catalog/catalog-errors.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -292,7 +296,63 @@ interface PublicCatchReportFilters {
   baseIds?: string[];
 }
 
-function toPublicCatchReport(record: PublicCatchReportRecord) {
+type WeightBoundsDatabase = Pick<Prisma.TransactionClient, 'fishingBaseFish'>;
+
+const MISSING_WEIGHT_BOUNDS: BaseFishWeightBounds = {
+  minWeightGrams: null,
+  maxWeightGrams: null,
+};
+
+function baseFishWeightKey(fishingBaseId: string, fishId: string): string {
+  return `${fishingBaseId}:${fishId}`;
+}
+
+async function resolveBaseFishWeightBounds(
+  database: WeightBoundsDatabase,
+  records: readonly PublicCatchReportRecord[],
+): Promise<Map<string, BaseFishWeightBounds>> {
+  if (records.length === 0) return new Map();
+
+  const fishingBaseIds = [...new Set(records.map((record) => record.location.fishingBase.id))];
+  const fishIds = [...new Set(records.map((record) => record.fish.id))];
+  const memberships = await database.fishingBaseFish.findMany({
+    where: {
+      fishingBaseId: { in: fishingBaseIds },
+      fishId: { in: fishIds },
+    },
+    select: {
+      fishingBaseId: true,
+      fishId: true,
+      minWeightGrams: true,
+      maxWeightGrams: true,
+    },
+  });
+
+  return new Map(
+    memberships.map((membership) => [
+      baseFishWeightKey(membership.fishingBaseId, membership.fishId),
+      {
+        minWeightGrams: membership.minWeightGrams,
+        maxWeightGrams: membership.maxWeightGrams,
+      },
+    ]),
+  );
+}
+
+function weightAssessment(
+  record: PublicCatchReportRecord,
+  boundsByBaseFish: ReadonlyMap<string, BaseFishWeightBounds>,
+) {
+  const bounds =
+    boundsByBaseFish.get(baseFishWeightKey(record.location.fishingBase.id, record.fish.id)) ??
+    MISSING_WEIGHT_BOUNDS;
+  return assessBaseFishWeight(record.weightGrams, bounds);
+}
+
+function toPublicCatchReport(
+  record: PublicCatchReportRecord,
+  boundsByBaseFish: ReadonlyMap<string, BaseFishWeightBounds>,
+) {
   return {
     id: record.id,
     author: {
@@ -317,6 +377,7 @@ function toPublicCatchReport(record: PublicCatchReportRecord) {
       name: record.bait.name,
     },
     weightGrams: record.weightGrams,
+    weightAssessment: weightAssessment(record, boundsByBaseFish),
     fishingMethod: record.fishingMethod,
     holeDepthCm: record.holeDepthCm,
     spotPositionRaw: record.spotPositionRaw,
@@ -329,8 +390,11 @@ function toPublicCatchReport(record: PublicCatchReportRecord) {
   };
 }
 
-function toOwnerCatchReport(record: OwnerCatchReportRecord) {
-  const publicReport = toPublicCatchReport(record);
+function toOwnerCatchReport(
+  record: OwnerCatchReportRecord,
+  boundsByBaseFish: ReadonlyMap<string, BaseFishWeightBounds>,
+) {
+  const publicReport = toPublicCatchReport(record, boundsByBaseFish);
 
   return {
     id: publicReport.id,
@@ -340,6 +404,7 @@ function toOwnerCatchReport(record: OwnerCatchReportRecord) {
     fish: publicReport.fish,
     bait: publicReport.bait,
     weightGrams: publicReport.weightGrams,
+    weightAssessment: publicReport.weightAssessment,
     fishingMethod: publicReport.fishingMethod,
     holeDepthCm: publicReport.holeDepthCm,
     spotPositionRaw: publicReport.spotPositionRaw,
@@ -428,6 +493,7 @@ export class CatchReportsService {
       ],
       select: LOCATION_OBSERVATION_SELECT,
     });
+    const boundsByBaseFish = await resolveBaseFishWeightBounds(this.prisma, records);
     const observedFishById = new Map<string, ObservedFishAccumulator>();
 
     for (const record of records) {
@@ -465,7 +531,7 @@ export class CatchReportsService {
 
     return {
       observedFish,
-      reports: records.map(toPublicCatchReport),
+      reports: records.map((record) => toPublicCatchReport(record, boundsByBaseFish)),
     };
   }
 
@@ -476,7 +542,8 @@ export class CatchReportsService {
     });
 
     if (record === null) throw catchReportErrors.notFound();
-    return { report: toPublicCatchReport(record) };
+    const boundsByBaseFish = await resolveBaseFishWeightBounds(this.prisma, [record]);
+    return { report: toPublicCatchReport(record, boundsByBaseFish) };
   }
 
   async getMine(actorUserId: string, reportId: string) {
@@ -486,7 +553,8 @@ export class CatchReportsService {
     });
 
     if (record === null) throw catchReportErrors.notFound();
-    return { report: toOwnerCatchReport(record) };
+    const boundsByBaseFish = await resolveBaseFishWeightBounds(this.prisma, [record]);
+    return { report: toOwnerCatchReport(record, boundsByBaseFish) };
   }
 
   async create(actorUserId: string, dto: CreateCatchReportDto) {
@@ -714,9 +782,10 @@ export class CatchReportsService {
       select: PUBLIC_CATCH_REPORT_SELECT,
     });
     const page = buildCatchReportPage(fetchedRecords, limit);
+    const boundsByBaseFish = await resolveBaseFishWeightBounds(this.prisma, page.items);
 
     return {
-      items: page.items.map(toPublicCatchReport),
+      items: page.items.map((record) => toPublicCatchReport(record, boundsByBaseFish)),
       nextCursor: page.nextCursor,
     };
   }
@@ -839,7 +908,8 @@ export class CatchReportsService {
       fish,
       bait,
     };
+    const boundsByBaseFish = await resolveBaseFishWeightBounds(database, [ownerRecord]);
 
-    return { report: toOwnerCatchReport(ownerRecord) };
+    return { report: toOwnerCatchReport(ownerRecord, boundsByBaseFish) };
   }
 }

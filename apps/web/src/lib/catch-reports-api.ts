@@ -1,4 +1,5 @@
 import { apiRequest } from './api-client';
+import { isBaseFishWeightClassification, type BaseFishWeightAssessment } from './base-fish-weight';
 import type { BaitType } from './catalog-api';
 
 export type FishingMethod = 'BAIT_FISHING' | 'SPINNING';
@@ -14,6 +15,7 @@ export type CatchReport = {
   fish: { id: string; name: string };
   bait: { id: string; name: string };
   weightGrams: number;
+  weightAssessment: BaseFishWeightAssessment;
   fishingMethod: FishingMethod;
   holeDepthCm: number | null;
   spotPositionRaw: string | null;
@@ -179,6 +181,25 @@ function readNullablePositiveInteger(value: unknown): number | null {
   return value === null ? null : readPositiveInteger(value);
 }
 
+function readWeightAssessment(value: unknown): BaseFishWeightAssessment {
+  if (
+    !isRecord(value) ||
+    Object.keys(value).length !== 3 ||
+    !('classification' in value) ||
+    !('minWeightGrams' in value) ||
+    !('maxWeightGrams' in value) ||
+    !isBaseFishWeightClassification(value.classification)
+  ) {
+    invalidReport();
+  }
+  const minWeightGrams = readNullablePositiveInteger(value.minWeightGrams);
+  const maxWeightGrams = readNullablePositiveInteger(value.maxWeightGrams);
+  if (minWeightGrams !== null && maxWeightGrams !== null && minWeightGrams > maxWeightGrams) {
+    invalidReport();
+  }
+  return { classification: value.classification, minWeightGrams, maxWeightGrams };
+}
+
 function readEnum<T extends string>(value: unknown, allowed: ReadonlySet<T>): T {
   if (typeof value !== 'string' || !allowed.has(value as T)) {
     invalidReport();
@@ -228,6 +249,7 @@ export function decodePublicCatchReport(value: unknown): CatchReport {
     fish: readNamedItem(value.fish),
     bait: readNamedItem(value.bait),
     weightGrams: readPositiveInteger(value.weightGrams),
+    weightAssessment: readWeightAssessment(value.weightAssessment),
     fishingMethod: readEnum(value.fishingMethod, FISHING_METHODS),
     holeDepthCm: readNullablePositiveInteger(value.holeDepthCm),
     spotPositionRaw: value.spotPositionRaw,

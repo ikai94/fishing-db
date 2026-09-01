@@ -177,8 +177,16 @@ void describe('CatalogQueryService', () => {
             name: 'Сом',
             officialFishImageKey: 1463,
             fishingBaseLinks: [
-              { fishingBase: { id: 'base-1', name: 'Ахтуба' } },
-              { fishingBase: { id: 'base-2', name: 'Волга' } },
+              {
+                minWeightGrams: 100,
+                maxWeightGrams: 20_000,
+                fishingBase: { id: 'base-1', name: 'Ахтуба' },
+              },
+              {
+                minWeightGrams: null,
+                maxWeightGrams: 25_000,
+                fishingBase: { id: 'base-2', name: 'Волга' },
+              },
             ],
           });
         },
@@ -212,8 +220,8 @@ void describe('CatalogQueryService', () => {
         name: 'Сом',
         image: null,
         bases: [
-          { id: 'base-1', name: 'Ахтуба' },
-          { id: 'base-2', name: 'Волга' },
+          { id: 'base-1', name: 'Ахтуба', minWeightGrams: 100, maxWeightGrams: 20_000 },
+          { id: 'base-2', name: 'Волга', minWeightGrams: null, maxWeightGrams: 25_000 },
         ],
       },
     });

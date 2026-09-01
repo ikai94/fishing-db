@@ -1,11 +1,10 @@
 import styles from '../../../public-catalog.module.css';
+import { anomalyWeightLabel, formatCompactWeight } from '@/lib/base-fish-weight';
 import type { FishCatchAggregate } from '@/lib/fish-catch-aggregates-api';
 
 type PublicFishCatchTableProps = {
   rows: FishCatchAggregate[];
 };
-
-const THOUSAND = 1_000;
 
 export function PublicFishCatchTable({ rows }: PublicFishCatchTableProps) {
   return (
@@ -60,6 +59,11 @@ export function PublicFishCatchTable({ rows }: PublicFishCatchTableProps) {
               </td>
               <td className={styles.weightCell}>
                 {formatPublicFishCatchWeight(row.maxObservedWeightGrams)}
+                {anomalyWeightLabel(row.maxObservedWeightAssessment.classification) ? (
+                  <span className={styles.secondaryText}>
+                    {anomalyWeightLabel(row.maxObservedWeightAssessment.classification)}
+                  </span>
+                ) : null}
               </td>
             </tr>
           ))}
@@ -70,18 +74,7 @@ export function PublicFishCatchTable({ rows }: PublicFishCatchTableProps) {
 }
 
 export function formatPublicFishCatchWeight(weightGrams: number): string {
-  if (!Number.isInteger(weightGrams) || weightGrams <= 0) {
-    throw new Error('Некорректный вес улова.');
-  }
-
-  if (weightGrams < THOUSAND) return `${weightGrams.toLocaleString('ru-RU')} г`;
-
-  const kilograms = Math.trunc(weightGrams / THOUSAND);
-  const grams = weightGrams % THOUSAND;
-  if (grams === 0) return `${kilograms.toLocaleString('ru-RU')} кг`;
-
-  const fraction = String(grams).padStart(3, '0').replace(/0+$/u, '');
-  return `${kilograms.toLocaleString('ru-RU')}.${fraction} кг`;
+  return formatCompactWeight(weightGrams);
 }
 
 export function formatPublicFishCatchDate(value: string): string {
