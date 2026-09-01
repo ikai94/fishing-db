@@ -673,71 +673,6 @@
   border-bottom: 0;
 }
 
-.fishFilterDock {
-  position: sticky;
-  z-index: 5;
-  top: 0;
-  padding: 7px 0 8px;
-  border-bottom: 1px solid #cbd7cf;
-  background: #f4f7f5;
-}
-
-.alphabetFilter {
-  display: flex;
-  flex-wrap: wrap;
-  min-width: 0;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  gap: 4px;
-}
-
-.alphabetButton {
-  min-height: 32px;
-  padding: 4px 7px;
-  border: 1px solid #91a198;
-  border-radius: 3px;
-  color: #245c3a;
-  background: #fff;
-  font-size: 0.8125rem;
-  font-weight: 650;
-  cursor: pointer;
-}
-
-.alphabetButton:hover {
-  border-color: #587264;
-  background: #edf3ef;
-}
-
-.alphabetButtonActive,
-.alphabetButtonActive:hover {
-  border-color: #356f4b;
-  color: #fff;
-  background: #356f4b;
-}
-
-.fishReferenceList {
-  column-count: 3;
-  column-fill: balance;
-  column-gap: 28px;
-  margin: 0;
-  padding-left: 2.25rem;
-}
-
-.fishReferenceItem {
-  break-inside: avoid;
-  padding: 3px 5px;
-  border-bottom: 1px solid #e5ebe7;
-}
-
-.fishReferenceRow {
-  display: grid;
-  grid-template-columns: 64px minmax(0, 1fr);
-  align-items: center;
-  min-height: 44px;
-  gap: 8px;
-}
-
 .fishImageFrame {
   position: relative;
   display: grid;
@@ -776,31 +711,11 @@
   text-align: center;
 }
 
-.fishReferenceItem:last-child {
-  border-bottom: 0;
-}
-
-.fishReferenceItem::marker {
-  color: #58685e;
-  font-weight: 650;
-  font-variant-numeric: tabular-nums;
-}
-
 .searchField {
   display: grid;
   max-width: 34rem;
   gap: 3px;
   margin: 8px 0 7px;
-}
-
-.fishIndexSearch {
-  max-width: none;
-  margin-bottom: 0;
-}
-
-.searchScope {
-  color: #59675f;
-  font-size: 0.8rem;
 }
 
 .searchLabel {
@@ -966,7 +881,6 @@
 .baitTableRegion:focus-visible,
 .catchTableRegion:focus-visible,
 .observedFishSelectorSummary:focus-visible,
-.alphabetButton:focus-visible,
 .searchInput:focus-visible,
 .checkbox:focus-visible,
 .secondaryButton:focus-visible,
@@ -998,18 +912,6 @@
   }
 }
 
-@media (max-width: 1049px) {
-  .fishReferenceList {
-    column-count: 2;
-  }
-}
-
-@media (max-width: 649px) {
-  .fishReferenceList {
-    column-count: 1;
-  }
-}
-
 @media (max-width: 560px) {
   .page {
     padding: 20px 14px 36px;
@@ -1023,10 +925,6 @@
 
   .navGroup {
     justify-content: flex-start;
-  }
-
-  .fishFilterDock {
-    position: static;
   }
 
   .membershipGrid {

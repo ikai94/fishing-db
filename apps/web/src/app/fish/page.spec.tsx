@@ -1,7 +1,8 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import styles from '../public-catalog.module.css';
+import styles from './page.module.css';
 
 const mocks = vi.hoisted(() => ({
   listFish: vi.fn(),
@@ -9,6 +10,12 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/catalog-api', () => ({
   listFish: mocks.listFish,
+}));
+
+vi.mock('@/components/application-shell/application-shell', () => ({
+  ApplicationShell: ({ children }: { children: ReactNode }) => (
+    <div data-testid="application-shell">{children}</div>
+  ),
 }));
 
 import FishPage from './page';
@@ -43,16 +50,17 @@ function visibleFishNames(): string[] {
 describe('FishPage alphabet navigation', () => {
   beforeEach(() => mocks.listFish.mockReset());
 
-  test('defaults to All and renders one numbered, alphabetical list of direct links', async () => {
+  test('defaults to All and renders one unnumbered, alphabetical list of direct links', async () => {
     mocks.listFish.mockResolvedValue(fish);
     render(<FishPage />);
 
     const allButton = await screen.findByRole('button', { name: 'Все' });
+    expect(screen.getByTestId('application-shell')).toBeVisible();
     expect(allButton).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: 'А–Б' })).toHaveAttribute('aria-pressed', 'false');
     expect(screen.getAllByRole('button', { pressed: false })).toHaveLength(14);
     expect(screen.getAllByRole('list', { name: 'Рыбы каталога' })).toHaveLength(1);
-    expect(fishList().tagName).toBe('OL');
+    expect(fishList().tagName).toBe('UL');
     expect(fishList()).toHaveClass(styles.fishReferenceList);
     expect(visibleFishNames()).toEqual([
       'Амурская Щука',
@@ -73,9 +81,13 @@ describe('FishPage alphabet navigation', () => {
     const listItems = within(fishList()).getAllByRole('listitem');
     expect(fishList().querySelectorAll('[data-fish-image="thumbnail"]')).toHaveLength(fish.length);
     expect(screen.queryByText('Нет изображения')).not.toBeInTheDocument();
-    expect(listItems.map((item) => item.getAttribute('value'))).toEqual(
-      Array.from({ length: fish.length }, (_, index) => String(index + 1)),
-    );
+    for (const item of listItems) {
+      const row = item.firstElementChild;
+      expect(item).not.toHaveAttribute('value');
+      expect(row?.children).toHaveLength(2);
+      expect(row?.children[0]).toHaveAttribute('data-fish-image', 'thumbnail');
+      expect(row?.children[1]?.tagName).toBe('A');
+    }
     expect(
       within(fishList())
         .getAllByRole('link')

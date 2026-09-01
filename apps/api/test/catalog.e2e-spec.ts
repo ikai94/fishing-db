@@ -352,6 +352,64 @@ void describe('Catalog API (PostgreSQL e2e)', { concurrency: false }, () => {
     assertPublicProjection(response.body);
   });
 
+  void test('public catalog summary counts CatchReports and every registered User only', async () => {
+    const firstActor = await createActor('USER');
+    const bannedActor = await createActor('USER', true);
+    const base = await prisma.fishingBase.create({
+      data: { name: 'Амур', nameNormalized: 'амур' },
+    });
+    const location = await prisma.location.create({
+      data: {
+        fishingBaseId: base.id,
+        number: 1,
+        name: 'Берег',
+        nameNormalized: 'берег',
+      },
+    });
+    const fish = await prisma.fish.create({
+      data: { name: 'Карась', nameNormalized: 'карась' },
+    });
+    const bait = await prisma.bait.create({
+      data: { name: 'Мотыль', nameNormalized: 'мотыль', type: 'BAIT' },
+    });
+    await prisma.fishingBaseFish.create({
+      data: { fishingBaseId: base.id, fishId: fish.id },
+    });
+    await prisma.catchReport.createMany({
+      data: [
+        {
+          userId: firstActor.userId,
+          contributorKey: `local-user:${firstActor.userId}`,
+          locationId: location.id,
+          fishId: fish.id,
+          baitId: bait.id,
+          weightGrams: 1_000,
+          fishingMethod: 'BAIT_FISHING',
+        },
+        {
+          userId: bannedActor.userId,
+          contributorKey: `local-user:${bannedActor.userId}`,
+          locationId: location.id,
+          fishId: fish.id,
+          baitId: bait.id,
+          weightGrams: 1_250,
+          fishingMethod: 'BAIT_FISHING',
+        },
+      ],
+    });
+
+    const response = await api().get('/api/v1/catalog/summary').expect(200);
+
+    assert.deepEqual(response.body, {
+      catchReportsCount: 2,
+      registeredUsersCount: 2,
+    });
+    assert.deepEqual(Object.keys(asObject(response.body as unknown)).sort(), [
+      'catchReportsCount',
+      'registeredUsersCount',
+    ]);
+  });
+
   void test('public Base counts include only active Locations and active Fish', async () => {
     const base = await prisma.fishingBase.create({
       data: { name: 'Амур', nameNormalized: 'амур' },

@@ -1,0 +1,305 @@
+.page {
+  width: min(100%, 1280px);
+  margin: 0 auto;
+  padding: 18px 20px 24px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-md);
+  background: var(--app-surface);
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.header {
+  margin-bottom: 14px;
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.titleIcon {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid rgb(139 189 216 / 66%);
+  border-radius: 50%;
+  color: var(--app-accent-strong);
+  background: var(--app-accent-soft);
+}
+
+.titleIcon svg {
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.55;
+}
+
+.title {
+  margin: 0;
+  font-size: clamp(1.55rem, 3vw, 1.9rem);
+  line-height: 1.15;
+}
+
+.subtitle,
+.sectionLead,
+.resultCount,
+.searchScope {
+  color: var(--app-text-muted);
+}
+
+.subtitle {
+  max-width: 720px;
+  margin: 4px 0 0 42px;
+}
+
+.fishFilterDock {
+  position: sticky;
+  z-index: 20;
+  top: 62px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 320px);
+  align-items: center;
+  gap: 10px 14px;
+  margin: 0 -1px;
+  padding: 9px 10px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-md);
+  background: rgb(248 251 252 / 97%);
+}
+
+.alphabetFilter {
+  display: flex;
+  flex-wrap: wrap;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  gap: 4px;
+}
+
+.alphabetButton {
+  min-height: 31px;
+  padding: 4px 7px;
+  border: 1px solid var(--app-border-strong);
+  border-radius: 5px;
+  color: var(--app-accent-strong);
+  background: var(--app-surface);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.alphabetButton:hover {
+  border-color: var(--app-accent);
+  background: #edf7fc;
+}
+
+.alphabetButtonActive,
+.alphabetButtonActive:hover {
+  border-color: var(--app-accent);
+  color: #194f70;
+  background: var(--app-accent-soft);
+}
+
+.searchField {
+  display: grid;
+  gap: 3px;
+}
+
+.searchLabel {
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.searchControl {
+  position: relative;
+}
+
+.searchIcon {
+  position: absolute;
+  top: 50%;
+  left: 9px;
+  display: grid;
+  width: 17px;
+  height: 17px;
+  color: #69808b;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.searchIcon svg {
+  width: 17px;
+  height: 17px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.65;
+}
+
+.searchInput {
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 9px 6px 33px;
+  border: 1px solid var(--app-border-strong);
+  border-radius: var(--app-radius-sm);
+  color: var(--app-text);
+  background: var(--app-surface);
+}
+
+.searchScope {
+  font-size: 0.75rem;
+}
+
+.resultCount {
+  margin: 8px 2px 6px;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.sectionLead {
+  margin: 5px 0 9px;
+}
+
+.fishReferenceList {
+  column-count: 3;
+  column-fill: balance;
+  column-gap: 28px;
+  column-rule: 1px solid rgb(204 215 220 / 58%);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fishReferenceItem {
+  break-inside: avoid;
+  padding: 3px 6px;
+  border-bottom: 1px solid rgb(204 215 220 / 62%);
+  border-radius: var(--app-radius-sm);
+  transition: background-color 120ms ease;
+}
+
+.fishReferenceItem:last-child {
+  border-bottom: 0;
+}
+
+.fishReferenceRow {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  align-items: center;
+  min-height: 44px;
+  gap: 8px;
+}
+
+.entityLink {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  color: var(--app-text);
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.fishReferenceItem:hover,
+.fishReferenceItem:focus-within {
+  background: rgb(220 238 248 / 46%);
+}
+
+.entityLink:hover {
+  color: var(--app-accent-strong);
+}
+
+.statusMessage {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+  color: var(--app-text-muted);
+  background: var(--app-surface);
+}
+
+.statusMessage p {
+  margin: 0;
+}
+
+.statusMessage p + .secondaryButton {
+  margin-top: 7px;
+}
+
+.errorMessage {
+  border-color: #ddb4b0;
+  color: var(--app-danger);
+  background: var(--app-danger-soft);
+}
+
+.secondaryButton {
+  min-height: 33px;
+  padding: 5px 10px;
+  border: 1px solid var(--app-accent);
+  border-radius: var(--app-radius-sm);
+  color: var(--app-accent-strong);
+  background: var(--app-surface);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.secondaryButton:hover {
+  background: var(--app-accent-soft);
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.alphabetButton:focus-visible,
+.searchInput:focus-visible,
+.secondaryButton:focus-visible {
+  outline: 3px solid rgb(102 173 216 / 45%);
+  outline-offset: 2px;
+}
+
+.entityLink:focus-visible {
+  border-radius: 2px;
+  outline: 2px solid rgb(102 173 216 / 58%);
+  outline-offset: 1px;
+}
+
+@media (max-width: 1049px) {
+  .fishReferenceList {
+    column-count: 2;
+  }
+}
+
+@media (max-width: 720px) {
+  .fishFilterDock {
+    position: static;
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 649px) {
+  .page {
+    padding: 14px 12px 20px;
+  }
+
+  .subtitle {
+    margin-left: 0;
+  }
+
+  .fishReferenceList {
+    column-count: 1;
+  }
+}

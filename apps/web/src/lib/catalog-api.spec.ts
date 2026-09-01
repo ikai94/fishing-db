@@ -9,7 +9,7 @@ vi.mock('./api-client', () => ({
   apiRequest: mocks.apiRequest,
 }));
 
-import { getFish, listFish, listFishingBases } from './catalog-api';
+import { getCatalogSummary, getFish, listFish, listFishingBases } from './catalog-api';
 
 const IMAGE_HASH = 'a'.repeat(64);
 const IMAGE_PATH = `/api/v1/fish-images/101-${IMAGE_HASH}.png`;
@@ -39,6 +39,31 @@ describe('public catalog API', () => {
       },
     ]);
     expect(mocks.apiRequest).toHaveBeenCalledWith('/catalog/bases', { signal: undefined });
+  });
+
+  test('decodes the exact count-only public catalog summary and forwards the signal', async () => {
+    mocks.apiRequest.mockResolvedValue({ catchReportsCount: 31_337, registeredUsersCount: 42 });
+    const controller = new AbortController();
+
+    await expect(getCatalogSummary(controller.signal)).resolves.toEqual({
+      catchReportsCount: 31_337,
+      registeredUsersCount: 42,
+    });
+    expect(mocks.apiRequest).toHaveBeenCalledWith('/catalog/summary', {
+      signal: controller.signal,
+    });
+  });
+
+  test.each([
+    {},
+    { catchReportsCount: -1, registeredUsersCount: 2 },
+    { catchReportsCount: 1.5, registeredUsersCount: 2 },
+    { catchReportsCount: 1, registeredUsersCount: Number.MAX_SAFE_INTEGER + 1 },
+    { catchReportsCount: 1, registeredUsersCount: 2, users: [] },
+  ])('rejects malformed or expanded catalog summary payloads: %o', async (payload) => {
+    mocks.apiRequest.mockResolvedValue(payload);
+
+    await expect(getCatalogSummary()).rejects.toThrow('Сервер вернул некорректный ответ каталога');
   });
 
   test.each([

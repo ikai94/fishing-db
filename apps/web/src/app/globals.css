@@ -1,3 +1,30 @@
+:root {
+  --app-canvas: #f8f6f0;
+  --app-surface: #fffefb;
+  --app-sidebar: #fbfaf5;
+  --app-accent-soft: #dceef8;
+  --app-accent: #8bbdd8;
+  --app-accent-strong: #27658c;
+  --app-text: #1f2c33;
+  --app-text-muted: #5f6e76;
+  --app-border: #ccd7dc;
+  --app-border-strong: #aebfc8;
+  --app-danger: #923b3b;
+  --app-danger-soft: #fff2f0;
+  --app-focus: #66add8;
+  --app-space-1: 4px;
+  --app-space-2: 8px;
+  --app-space-3: 12px;
+  --app-space-4: 16px;
+  --app-space-5: 24px;
+  --app-space-6: 32px;
+  --app-radius-sm: 4px;
+  --app-radius-md: 7px;
+  --app-sidebar-width: 232px;
+  --app-shadow-subtle: 0 1px 2px rgb(31 44 51 / 8%);
+  --app-font-sans: Arial, Helvetica, sans-serif;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -10,7 +37,7 @@ body {
   margin: 0;
   color: #17251d;
   background: #f4f7f5;
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--app-font-sans);
 }
 
 button,

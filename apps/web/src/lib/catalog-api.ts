@@ -48,6 +48,11 @@ export type PublicBait = PublicCatalogItem & {
 
 export type PublicScreenAnchor = PublicCatalogItem;
 
+export type PublicCatalogSummary = {
+  catchReportsCount: number;
+  registeredUsersCount: number;
+};
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -103,6 +108,28 @@ function readNonNegativeInteger(value: unknown): number {
   }
 
   return value;
+}
+
+function readSafeNonNegativeInteger(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
+    throw new Error('Сервер вернул некорректный ответ каталога');
+  }
+
+  return value;
+}
+
+function readCatalogSummary(payload: unknown): PublicCatalogSummary {
+  if (
+    !isRecord(payload) ||
+    Object.keys(payload).sort().join(',') !== 'catchReportsCount,registeredUsersCount'
+  ) {
+    throw new Error('Сервер вернул некорректный ответ каталога');
+  }
+
+  return {
+    catchReportsCount: readSafeNonNegativeInteger(payload.catchReportsCount),
+    registeredUsersCount: readSafeNonNegativeInteger(payload.registeredUsersCount),
+  };
 }
 
 function readNullablePositiveInteger(value: unknown): number | null {
@@ -198,6 +225,11 @@ function readBait(value: unknown): PublicBait {
 export async function listFishingBases(signal?: AbortSignal): Promise<PublicFishingBaseSummary[]> {
   const payload = await apiRequest<unknown>('/catalog/bases', { signal });
   return readItems(payload, readFishingBaseSummary);
+}
+
+export async function getCatalogSummary(signal?: AbortSignal): Promise<PublicCatalogSummary> {
+  const payload = await apiRequest<unknown>('/catalog/summary', { signal });
+  return readCatalogSummary(payload);
 }
 
 export async function getFishingBase(

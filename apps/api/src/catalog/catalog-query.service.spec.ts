@@ -32,6 +32,31 @@ function hasCode(expectedCode: string): (error: unknown) => boolean {
 }
 
 void describe('CatalogQueryService', () => {
+  void it('returns only CatchReport and registered User counts for the public summary', async () => {
+    const queries: unknown[] = [];
+    const prisma = {
+      catchReport: {
+        count: (...args: unknown[]) => {
+          queries.push(args);
+          return Promise.resolve(31_337);
+        },
+      },
+      user: {
+        count: (...args: unknown[]) => {
+          queries.push(args);
+          return Promise.resolve(42);
+        },
+      },
+    } as unknown as PrismaService;
+    const service = catalogQueryService(prisma);
+
+    assert.deepEqual(await service.getPublicSummary(), {
+      catchReportsCount: 31_337,
+      registeredUsersCount: 42,
+    });
+    assert.deepEqual(queries, [[], []]);
+  });
+
   void it('counts active Locations and active Fish in one public Base-list query', async () => {
     let query: unknown;
     let queriesCount = 0;

@@ -2,8 +2,10 @@
 
 import Link from 'next/link';
 import { useCallback, useId, useMemo, useState } from 'react';
-import styles from '../public-catalog.module.css';
+import styles from './page.module.css';
 import { FishImage } from './_components/fish-image';
+import { ApplicationShell } from '@/components/application-shell/application-shell';
+import { ShellIcon } from '@/components/application-shell/shell-icon';
 import { listFish } from '@/lib/catalog-api';
 import {
   catalogSearchTokens,
@@ -43,25 +45,15 @@ export default function FishPage() {
   }
 
   return (
-    <main className={styles.page}>
-      <div className={styles.container}>
-        <nav className={styles.topNav} aria-label="Каталог">
-          <Link className={styles.backLink} href="/">
-            ← На главную
-          </Link>
-          <div className={styles.navGroup}>
-            <Link className={styles.navLink} href="/bases">
-              Базы
-            </Link>
-            <Link className={styles.navLink} href="/baits">
-              Наживки и приманки
-            </Link>
-          </div>
-        </nav>
-
+    <ApplicationShell>
+      <div className={styles.page}>
         <header className={styles.header}>
-          <p className={styles.eyebrow}>Игровой каталог</p>
-          <h1 className={styles.title}>Рыбы</h1>
+          <div className={styles.titleRow}>
+            <span className={styles.titleIcon}>
+              <ShellIcon name="fish" />
+            </span>
+            <h1 className={styles.title}>Рыбы</h1>
+          </div>
           <p className={styles.subtitle}>Глобальный список активных видов рыб.</p>
         </header>
 
@@ -86,7 +78,7 @@ export default function FishPage() {
 
         {state.kind === 'ready' && state.data.length > 0 ? (
           <section className={styles.section} aria-labelledby="fish-list-title">
-            <h2 className={styles.sectionTitle} id="fish-list-title">
+            <h2 className={styles.visuallyHidden} id="fish-list-title">
               Список рыб
             </h2>
             <div className={styles.fishFilterDock}>
@@ -107,18 +99,23 @@ export default function FishPage() {
                   );
                 })}
               </fieldset>
-              <div className={`${styles.searchField} ${styles.fishIndexSearch}`}>
+              <div className={styles.searchField}>
                 <label className={styles.searchLabel} htmlFor={searchId}>
                   Поиск по названию
                 </label>
-                <input
-                  className={styles.searchInput}
-                  id={searchId}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Например, сом"
-                  type="search"
-                  value={query}
-                />
+                <div className={styles.searchControl}>
+                  <span className={styles.searchIcon}>
+                    <ShellIcon name="search" />
+                  </span>
+                  <input
+                    className={styles.searchInput}
+                    id={searchId}
+                    onChange={(event) => setQuery(event.target.value)}
+                    placeholder="Например, сом"
+                    type="search"
+                    value={query}
+                  />
+                </div>
                 {isSearchActive ? (
                   <span className={styles.searchScope}>Поиск по всему каталогу</span>
                 ) : null}
@@ -132,9 +129,9 @@ export default function FishPage() {
                 {isSearchActive ? 'Ничего не найдено.' : 'В этой группе рыб пока нет.'}
               </p>
             ) : (
-              <ol className={styles.fishReferenceList} aria-label="Рыбы каталога">
-                {displayedFish.map((fish, index) => (
-                  <li className={styles.fishReferenceItem} key={fish.id} value={index + 1}>
+              <ul className={styles.fishReferenceList} aria-label="Рыбы каталога">
+                {displayedFish.map((fish) => (
+                  <li className={styles.fishReferenceItem} key={fish.id}>
                     <div className={styles.fishReferenceRow}>
                       <FishImage fishName={fish.name} image={fish.image} variant="thumbnail" />
                       <Link className={styles.entityLink} href={`/fish/${fish.id}`}>
@@ -143,11 +140,11 @@ export default function FishPage() {
                     </div>
                   </li>
                 ))}
-              </ol>
+              </ul>
             )}
           </section>
         ) : null}
       </div>
-    </main>
+    </ApplicationShell>
   );
 }

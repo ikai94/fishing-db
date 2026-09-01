@@ -11,6 +11,11 @@ import {
 export class CatalogController {
   constructor(@Inject(CatalogQueryService) private readonly catalogQuery: CatalogQueryService) {}
 
+  @Get('summary')
+  getSummary() {
+    return this.catalogQuery.getPublicSummary();
+  }
+
   @Get('bases')
   listFishingBases() {
     return this.catalogQuery.listPublicFishingBases();

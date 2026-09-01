@@ -36,6 +36,15 @@ export class CatalogQueryService {
     @Inject(FishImageDelivery) private readonly fishImageDelivery: FishImageDelivery,
   ) {}
 
+  async getPublicSummary() {
+    const [catchReportsCount, registeredUsersCount] = await Promise.all([
+      this.prisma.catchReport.count(),
+      this.prisma.user.count(),
+    ]);
+
+    return { catchReportsCount, registeredUsersCount };
+  }
+
   async listPublicFishingBases() {
     const fishingBases = await this.prisma.fishingBase.findMany({
       where: { isActive: true },
