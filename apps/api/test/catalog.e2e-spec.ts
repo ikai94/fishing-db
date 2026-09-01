@@ -41,6 +41,7 @@ interface CreatedLocation extends CreatedEntity {
 }
 
 const originalRuntimeEnvironment = {
+  BAIT_IMAGE_DELIVERY_MODE: process.env.BAIT_IMAGE_DELIVERY_MODE,
   DATABASE_URL: process.env.DATABASE_URL,
   NODE_ENV: process.env.NODE_ENV,
   PORT: process.env.PORT,
@@ -262,6 +263,7 @@ void describe('Catalog API (PostgreSQL e2e)', { concurrency: false }, () => {
     databaseConfiguration = getTestDatabaseConfiguration(process.env);
 
     process.env.DATABASE_URL = databaseConfiguration.testDatabaseUrl;
+    process.env.BAIT_IMAGE_DELIVERY_MODE = 'disabled';
     process.env.NODE_ENV = 'test';
     process.env.PORT = '3001';
     process.env.WEB_ORIGIN = WEB_ORIGIN;
@@ -323,6 +325,10 @@ void describe('Catalog API (PostgreSQL e2e)', { concurrency: false }, () => {
       await clearDatabase?.();
       await app?.close();
     } finally {
+      restoreEnvironmentValue(
+        'BAIT_IMAGE_DELIVERY_MODE',
+        originalRuntimeEnvironment.BAIT_IMAGE_DELIVERY_MODE,
+      );
       restoreEnvironmentValue('DATABASE_URL', originalRuntimeEnvironment.DATABASE_URL);
       restoreEnvironmentValue('NODE_ENV', originalRuntimeEnvironment.NODE_ENV);
       restoreEnvironmentValue('PORT', originalRuntimeEnvironment.PORT);
@@ -590,8 +596,8 @@ void describe('Catalog API (PostgreSQL e2e)', { concurrency: false }, () => {
     const baitResponse = await api().get('/api/v1/catalog/baits').expect(200);
     assert.deepEqual(baitResponse.body, {
       items: [
-        { id: lure.id, name: lure.name, type: lure.type },
-        { id: bait.id, name: bait.name, type: bait.type },
+        { id: lure.id, name: lure.name, type: lure.type, image: null },
+        { id: bait.id, name: bait.name, type: bait.type, image: null },
       ],
     });
     assertPublicProjection(baitResponse.body);

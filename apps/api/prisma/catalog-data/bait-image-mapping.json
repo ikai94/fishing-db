@@ -1,0 +1,1252 @@
+{
+  "schemaVersion": 1,
+  "mode": "EXPLICIT_BAIT_IMAGE_MAPPING",
+  "counts": {
+    "baits": 248,
+    "sourceFiles": 247,
+    "unusedSourceFiles": 3
+  },
+  "entries": [
+    {
+      "baitName": "Боил",
+      "baitType": "BAIT",
+      "sourceFile": "boil.png"
+    },
+    {
+      "baitName": "Большой живец",
+      "baitType": "BAIT",
+      "sourceFile": "bzhivec.png"
+    },
+    {
+      "baitName": "Выползок",
+      "baitType": "BAIT",
+      "sourceFile": "bigworm.png"
+    },
+    {
+      "baitName": "Геркулес",
+      "baitType": "BAIT",
+      "sourceFile": "gerkules.png"
+    },
+    {
+      "baitName": "Головастик",
+      "baitType": "BAIT",
+      "sourceFile": "tedpole.png"
+    },
+    {
+      "baitName": "Горошек",
+      "baitType": "BAIT",
+      "sourceFile": "goroh.png"
+    },
+    {
+      "baitName": "Гусеница Бражника",
+      "baitType": "BAIT",
+      "sourceFile": "brazhnik.png"
+    },
+    {
+      "baitName": "Живец",
+      "baitType": "BAIT",
+      "sourceFile": "zhivec.png"
+    },
+    {
+      "baitName": "Живец (перехват)",
+      "baitType": "BAIT",
+      "sourceFile": "zhivec.png"
+    },
+    {
+      "baitName": "Жук",
+      "baitType": "BAIT",
+      "sourceFile": "bug.png"
+    },
+    {
+      "baitName": "Зелень",
+      "baitType": "BAIT",
+      "sourceFile": "green.png"
+    },
+    {
+      "baitName": "Икра",
+      "baitType": "BAIT",
+      "sourceFile": "ikra.png"
+    },
+    {
+      "baitName": "Капуста",
+      "baitType": "BAIT",
+      "sourceFile": "kapusta.png"
+    },
+    {
+      "baitName": "Картофель",
+      "baitType": "BAIT",
+      "sourceFile": "kartofan.png"
+    },
+    {
+      "baitName": "Крабовое мясо",
+      "baitType": "BAIT",
+      "sourceFile": "crab.png"
+    },
+    {
+      "baitName": "Креветка",
+      "baitType": "BAIT",
+      "sourceFile": "chilim.png"
+    },
+    {
+      "baitName": "Кузнечик",
+      "baitType": "BAIT",
+      "sourceFile": "kuznec.png"
+    },
+    {
+      "baitName": "Кукуруза",
+      "baitType": "BAIT",
+      "sourceFile": "corn.png"
+    },
+    {
+      "baitName": "Кусочки мяса",
+      "baitType": "BAIT",
+      "sourceFile": "meat.png"
+    },
+    {
+      "baitName": "Кусочки рыбы",
+      "baitType": "BAIT",
+      "sourceFile": "fish.png"
+    },
+    {
+      "baitName": "Кусочки топи",
+      "baitType": "BAIT",
+      "sourceFile": "topy.png"
+    },
+    {
+      "baitName": "Личинка короеда",
+      "baitType": "BAIT",
+      "sourceFile": "koroed.png"
+    },
+    {
+      "baitName": "Лягушка",
+      "baitType": "BAIT",
+      "sourceFile": "frog.png"
+    },
+    {
+      "baitName": "Макароны",
+      "baitType": "BAIT",
+      "sourceFile": "makarony.png"
+    },
+    {
+      "baitName": "Макуха",
+      "baitType": "BAIT",
+      "sourceFile": "makuha.png"
+    },
+    {
+      "baitName": "Манка",
+      "baitType": "BAIT",
+      "sourceFile": "manka.png"
+    },
+    {
+      "baitName": "Мидия",
+      "baitType": "BAIT",
+      "sourceFile": "mussel.png"
+    },
+    {
+      "baitName": "Минога",
+      "baitType": "BAIT",
+      "sourceFile": "lamprey.png"
+    },
+    {
+      "baitName": "Моллюск",
+      "baitType": "BAIT",
+      "sourceFile": "mollusk.png"
+    },
+    {
+      "baitName": "Морской гребешок",
+      "baitType": "BAIT",
+      "sourceFile": "scallop.png"
+    },
+    {
+      "baitName": "Морской червь",
+      "baitType": "BAIT",
+      "sourceFile": "seaworm.png"
+    },
+    {
+      "baitName": "Мотыль",
+      "baitType": "BAIT",
+      "sourceFile": "motyl.png"
+    },
+    {
+      "baitName": "Муха",
+      "baitType": "BAIT",
+      "sourceFile": "fly.png"
+    },
+    {
+      "baitName": "Мясо ампулярии",
+      "baitType": "BAIT",
+      "sourceFile": "ampul.png"
+    },
+    {
+      "baitName": "Мясо глаукуса",
+      "baitType": "BAIT",
+      "sourceFile": "glaukus.png"
+    },
+    {
+      "baitName": "Мясо глубинного краба",
+      "baitType": "BAIT",
+      "sourceFile": "deepcrab.png"
+    },
+    {
+      "baitName": "Мясо голубой линкии",
+      "baitType": "BAIT",
+      "sourceFile": "bluelink.png"
+    },
+    {
+      "baitName": "Мясо кальмара",
+      "baitType": "BAIT",
+      "sourceFile": "squid.png"
+    },
+    {
+      "baitName": "Мясо каракатицы",
+      "baitType": "BAIT",
+      "sourceFile": "cuttle.png"
+    },
+    {
+      "baitName": "Мясо лобстера",
+      "baitType": "BAIT",
+      "sourceFile": "lobster.png"
+    },
+    {
+      "baitName": "Мясо лямбиса",
+      "baitType": "BAIT",
+      "sourceFile": "lambis.png"
+    },
+    {
+      "baitName": "Мясо осьминога",
+      "baitType": "BAIT",
+      "sourceFile": "octopus.png"
+    },
+    {
+      "baitName": "Мясо прудовика",
+      "baitType": "BAIT",
+      "sourceFile": "prudovik.png"
+    },
+    {
+      "baitName": "Мясо ракушки",
+      "baitType": "BAIT",
+      "sourceFile": "shell.png"
+    },
+    {
+      "baitName": "Мясо рапаны",
+      "baitType": "BAIT",
+      "sourceFile": "rapan.png"
+    },
+    {
+      "baitName": "Мясо тасманского краба",
+      "baitType": "BAIT",
+      "sourceFile": "tasmcrab.png"
+    },
+    {
+      "baitName": "Мясо тасманского рака",
+      "baitType": "BAIT",
+      "sourceFile": "tasmanian_crawfish.png"
+    },
+    {
+      "baitName": "Мясо шашеня",
+      "baitType": "BAIT",
+      "sourceFile": "shashen.png"
+    },
+    {
+      "baitName": "Опарыш",
+      "baitType": "BAIT",
+      "sourceFile": "oparysh.png"
+    },
+    {
+      "baitName": "Перловка",
+      "baitType": "BAIT",
+      "sourceFile": "perlovka.png"
+    },
+    {
+      "baitName": "Пиранья",
+      "baitType": "BAIT",
+      "sourceFile": "piranha.png"
+    },
+    {
+      "baitName": "Пиявка",
+      "baitType": "BAIT",
+      "sourceFile": "leech.png"
+    },
+    {
+      "baitName": "Поденка",
+      "baitType": "BAIT",
+      "sourceFile": "podenka.png"
+    },
+    {
+      "baitName": "Помидоры",
+      "baitType": "BAIT",
+      "sourceFile": "pomidory.png"
+    },
+    {
+      "baitName": "Раковая шейка",
+      "baitType": "BAIT",
+      "sourceFile": "cancer.png"
+    },
+    {
+      "baitName": "Ручейник",
+      "baitType": "BAIT",
+      "sourceFile": "rucheinik.png"
+    },
+    {
+      "baitName": "Сырный кубик",
+      "baitType": "BAIT",
+      "sourceFile": "cheeze.png"
+    },
+    {
+      "baitName": "Тасманская носатка",
+      "baitType": "BAIT",
+      "sourceFile": "nosatka.png"
+    },
+    {
+      "baitName": "Тасманская скорпионница",
+      "baitType": "BAIT",
+      "sourceFile": "scorp.png"
+    },
+    {
+      "baitName": "Тесто",
+      "baitType": "BAIT",
+      "sourceFile": "testo.png"
+    },
+    {
+      "baitName": "Улитка",
+      "baitType": "BAIT",
+      "sourceFile": "snail.png"
+    },
+    {
+      "baitName": "Устрица",
+      "baitType": "BAIT",
+      "sourceFile": "oyster.png"
+    },
+    {
+      "baitName": "Хирономида",
+      "baitType": "BAIT",
+      "sourceFile": "hironomida.png"
+    },
+    {
+      "baitName": "Хлеб",
+      "baitType": "BAIT",
+      "sourceFile": "hleb.png"
+    },
+    {
+      "baitName": "Цикада зеленая",
+      "baitType": "BAIT",
+      "sourceFile": "cicada_green.png"
+    },
+    {
+      "baitName": "Цикада розовая",
+      "baitType": "BAIT",
+      "sourceFile": "cicada_rose.png"
+    },
+    {
+      "baitName": "Червь",
+      "baitType": "BAIT",
+      "sourceFile": "worm.png"
+    },
+    {
+      "baitName": "Эвкалиптовый усач",
+      "baitType": "BAIT",
+      "sourceFile": "eucalyptus.png"
+    },
+    {
+      "baitName": "Propeller-01",
+      "baitType": "LURE",
+      "sourceFile": "Propeller-01.png"
+    },
+    {
+      "baitName": "Propeller-02",
+      "baitType": "LURE",
+      "sourceFile": "Propeller-02.png"
+    },
+    {
+      "baitName": "Propeller-03",
+      "baitType": "LURE",
+      "sourceFile": "Propeller-03.png"
+    },
+    {
+      "baitName": "Propeller-04",
+      "baitType": "LURE",
+      "sourceFile": "Propeller-04.png"
+    },
+    {
+      "baitName": "Propeller-05",
+      "baitType": "LURE",
+      "sourceFile": "Propeller-05.png"
+    },
+    {
+      "baitName": "Propeller-06",
+      "baitType": "LURE",
+      "sourceFile": "Propeller-06.png"
+    },
+    {
+      "baitName": "Propeller-07",
+      "baitType": "LURE",
+      "sourceFile": "Propeller-07.png"
+    },
+    {
+      "baitName": "Propeller-08",
+      "baitType": "LURE",
+      "sourceFile": "Propeller-08.png"
+    },
+    {
+      "baitName": "Propeller-09",
+      "baitType": "LURE",
+      "sourceFile": "Propeller-09.png"
+    },
+    {
+      "baitName": "Propeller-10",
+      "baitType": "LURE",
+      "sourceFile": "Propeller-10.png"
+    },
+    {
+      "baitName": "Propeller-11",
+      "baitType": "LURE",
+      "sourceFile": "Propeller-11.png"
+    },
+    {
+      "baitName": "Propeller-12",
+      "baitType": "LURE",
+      "sourceFile": "Propeller-12.png"
+    },
+    {
+      "baitName": "Propeller-13",
+      "baitType": "LURE",
+      "sourceFile": "Propeller-13.png"
+    },
+    {
+      "baitName": "Propeller-14",
+      "baitType": "LURE",
+      "sourceFile": "Propeller-14.png"
+    },
+    {
+      "baitName": "Circl-5000",
+      "baitType": "LURE",
+      "sourceFile": "Circl-5000.png"
+    },
+    {
+      "baitName": "Circl-5055",
+      "baitType": "LURE",
+      "sourceFile": "Circl-5055.png"
+    },
+    {
+      "baitName": "Circl-5100",
+      "baitType": "LURE",
+      "sourceFile": "Circl-5100.png"
+    },
+    {
+      "baitName": "Circl-5103",
+      "baitType": "LURE",
+      "sourceFile": "Circl-5103.png"
+    },
+    {
+      "baitName": "Circl-5105",
+      "baitType": "LURE",
+      "sourceFile": "Circl-5105.png"
+    },
+    {
+      "baitName": "Circl-5106",
+      "baitType": "LURE",
+      "sourceFile": "Circl-5106.png"
+    },
+    {
+      "baitName": "Circl-5107",
+      "baitType": "LURE",
+      "sourceFile": "Circl-5107.png"
+    },
+    {
+      "baitName": "Circl-5108",
+      "baitType": "LURE",
+      "sourceFile": "Circl-5108.png"
+    },
+    {
+      "baitName": "Circl-5109",
+      "baitType": "LURE",
+      "sourceFile": "Circl-5109.png"
+    },
+    {
+      "baitName": "Circl-5110",
+      "baitType": "LURE",
+      "sourceFile": "Circl-5110.png"
+    },
+    {
+      "baitName": "Circl-5111",
+      "baitType": "LURE",
+      "sourceFile": "Circl-5111.png"
+    },
+    {
+      "baitName": "Circl-5112",
+      "baitType": "LURE",
+      "sourceFile": "Circl-5112.png"
+    },
+    {
+      "baitName": "Circl-5113",
+      "baitType": "LURE",
+      "sourceFile": "Circl-5113.png"
+    },
+    {
+      "baitName": "Circl-5114",
+      "baitType": "LURE",
+      "sourceFile": "Circl-5114.png"
+    },
+    {
+      "baitName": "Circl-5115",
+      "baitType": "LURE",
+      "sourceFile": "Circl-5115.png"
+    },
+    {
+      "baitName": "Circl-5116",
+      "baitType": "LURE",
+      "sourceFile": "Circl-5116.png"
+    },
+    {
+      "baitName": "Tvis-100",
+      "baitType": "LURE",
+      "sourceFile": "Tvis-100.png"
+    },
+    {
+      "baitName": "Tvis-101",
+      "baitType": "LURE",
+      "sourceFile": "Tvis-101.png"
+    },
+    {
+      "baitName": "Tvis-102",
+      "baitType": "LURE",
+      "sourceFile": "Tvis-102.png"
+    },
+    {
+      "baitName": "Tvis-103",
+      "baitType": "LURE",
+      "sourceFile": "Tvis-103.png"
+    },
+    {
+      "baitName": "Tvis-104",
+      "baitType": "LURE",
+      "sourceFile": "Tvis-104.png"
+    },
+    {
+      "baitName": "Tvis-105",
+      "baitType": "LURE",
+      "sourceFile": "Tvis-105.png"
+    },
+    {
+      "baitName": "Tvis-106",
+      "baitType": "LURE",
+      "sourceFile": "Tvis-106.png"
+    },
+    {
+      "baitName": "Tvis-107",
+      "baitType": "LURE",
+      "sourceFile": "Tvis-107.png"
+    },
+    {
+      "baitName": "Tvis-108",
+      "baitType": "LURE",
+      "sourceFile": "Tvis-108.png"
+    },
+    {
+      "baitName": "Tvis-119",
+      "baitType": "LURE",
+      "sourceFile": "Tvis-119.png"
+    },
+    {
+      "baitName": "Vib-6000",
+      "baitType": "LURE",
+      "sourceFile": "Vib-6000.png"
+    },
+    {
+      "baitName": "Vib-6002",
+      "baitType": "LURE",
+      "sourceFile": "Vib-6002.png"
+    },
+    {
+      "baitName": "Vib-6003",
+      "baitType": "LURE",
+      "sourceFile": "Vib-6003.png"
+    },
+    {
+      "baitName": "Vib-6004",
+      "baitType": "LURE",
+      "sourceFile": "Vib-6004.png"
+    },
+    {
+      "baitName": "Vib-6005",
+      "baitType": "LURE",
+      "sourceFile": "Vib-6005.png"
+    },
+    {
+      "baitName": "Vib-6006",
+      "baitType": "LURE",
+      "sourceFile": "Vib-6006.png"
+    },
+    {
+      "baitName": "Vib-6007",
+      "baitType": "LURE",
+      "sourceFile": "Vib-6007.png"
+    },
+    {
+      "baitName": "Vib-6008",
+      "baitType": "LURE",
+      "sourceFile": "Vib-6008.png"
+    },
+    {
+      "baitName": "Vib-6009",
+      "baitType": "LURE",
+      "sourceFile": "Vib-6009.png"
+    },
+    {
+      "baitName": "Vib-6010",
+      "baitType": "LURE",
+      "sourceFile": "Vib-6010.png"
+    },
+    {
+      "baitName": "Vib-6011",
+      "baitType": "LURE",
+      "sourceFile": "Vib-6011.png"
+    },
+    {
+      "baitName": "Vib-6012",
+      "baitType": "LURE",
+      "sourceFile": "Vib-6012.png"
+    },
+    {
+      "baitName": "Vib-6013",
+      "baitType": "LURE",
+      "sourceFile": "Vib-6013.png"
+    },
+    {
+      "baitName": "Vib-6014",
+      "baitType": "LURE",
+      "sourceFile": "Vib-6014.png"
+    },
+    {
+      "baitName": "Vib-6015",
+      "baitType": "LURE",
+      "sourceFile": "Vib-6015.png"
+    },
+    {
+      "baitName": "Vib-6016",
+      "baitType": "LURE",
+      "sourceFile": "Vib-6016.png"
+    },
+    {
+      "baitName": "Vob-3000",
+      "baitType": "LURE",
+      "sourceFile": "Vob-3000.png"
+    },
+    {
+      "baitName": "Vob-3001",
+      "baitType": "LURE",
+      "sourceFile": "Vob-3001.png"
+    },
+    {
+      "baitName": "Vob-3002",
+      "baitType": "LURE",
+      "sourceFile": "Vob-3002.png"
+    },
+    {
+      "baitName": "Vob-3003",
+      "baitType": "LURE",
+      "sourceFile": "Vob-3003.png"
+    },
+    {
+      "baitName": "Vob-3004",
+      "baitType": "LURE",
+      "sourceFile": "Vob-3004.png"
+    },
+    {
+      "baitName": "Vob-3005",
+      "baitType": "LURE",
+      "sourceFile": "Vob-3005.png"
+    },
+    {
+      "baitName": "Vob-3006",
+      "baitType": "LURE",
+      "sourceFile": "Vob-3006.png"
+    },
+    {
+      "baitName": "Vob-3007",
+      "baitType": "LURE",
+      "sourceFile": "Vob-3007.png"
+    },
+    {
+      "baitName": "Vob-3008",
+      "baitType": "LURE",
+      "sourceFile": "Vob-3008.png"
+    },
+    {
+      "baitName": "Vob-3009",
+      "baitType": "LURE",
+      "sourceFile": "Vob-3009.png"
+    },
+    {
+      "baitName": "Vob-3010",
+      "baitType": "LURE",
+      "sourceFile": "Vob-3010.png"
+    },
+    {
+      "baitName": "Vob-3011",
+      "baitType": "LURE",
+      "sourceFile": "Vob-3011.png"
+    },
+    {
+      "baitName": "Vob-3012",
+      "baitType": "LURE",
+      "sourceFile": "Vob-3012.png"
+    },
+    {
+      "baitName": "Vob-3013",
+      "baitType": "LURE",
+      "sourceFile": "Vob-3013.png"
+    },
+    {
+      "baitName": "Vob-3014",
+      "baitType": "LURE",
+      "sourceFile": "Vob-3014.png"
+    },
+    {
+      "baitName": "Vob-3015",
+      "baitType": "LURE",
+      "sourceFile": "Vob-3015.png"
+    },
+    {
+      "baitName": "Circl-baklan",
+      "baitType": "LURE",
+      "sourceFile": "Circl-baklan.png"
+    },
+    {
+      "baitName": "Circl-chaika",
+      "baitType": "LURE",
+      "sourceFile": "Circl-chaika.png"
+    },
+    {
+      "baitName": "Circl-kaira",
+      "baitType": "LURE",
+      "sourceFile": "Circl-kaira.png"
+    },
+    {
+      "baitName": "Circl-moryanka",
+      "baitType": "LURE",
+      "sourceFile": "Circl-moryanka.png"
+    },
+    {
+      "baitName": "Circl-orlan",
+      "baitType": "LURE",
+      "sourceFile": "Circl-orlan.png"
+    },
+    {
+      "baitName": "Circl-pomornik",
+      "baitType": "LURE",
+      "sourceFile": "Circl-pomornik.png"
+    },
+    {
+      "baitName": "Circl-sapsan",
+      "baitType": "LURE",
+      "sourceFile": "Circl-sapsan.png"
+    },
+    {
+      "baitName": "Circl-tupik",
+      "baitType": "LURE",
+      "sourceFile": "Circl-tupik.png"
+    },
+    {
+      "baitName": "Hand made Plug 1",
+      "baitType": "LURE",
+      "sourceFile": "hm-plug-1.png"
+    },
+    {
+      "baitName": "Hand made Plug 2",
+      "baitType": "LURE",
+      "sourceFile": "hm-plug-2.png"
+    },
+    {
+      "baitName": "Hand made Plug 3",
+      "baitType": "LURE",
+      "sourceFile": "hm-plug-3.png"
+    },
+    {
+      "baitName": "Hand made Plug 4",
+      "baitType": "LURE",
+      "sourceFile": "hm-plug-4.png"
+    },
+    {
+      "baitName": "Hand made Plug 5",
+      "baitType": "LURE",
+      "sourceFile": "hm-plug-5.png"
+    },
+    {
+      "baitName": "Hand made Plug 6",
+      "baitType": "LURE",
+      "sourceFile": "hm-plug-6.png"
+    },
+    {
+      "baitName": "Foam-Black",
+      "baitType": "LURE",
+      "sourceFile": "Foam-Black.png"
+    },
+    {
+      "baitName": "Foam-Blue",
+      "baitType": "LURE",
+      "sourceFile": "Foam-Blue.png"
+    },
+    {
+      "baitName": "Foam-Brown",
+      "baitType": "LURE",
+      "sourceFile": "Foam-Brown.png"
+    },
+    {
+      "baitName": "Foam-Green",
+      "baitType": "LURE",
+      "sourceFile": "Foam-Green.png"
+    },
+    {
+      "baitName": "Foam-Pink",
+      "baitType": "LURE",
+      "sourceFile": "Foam-Pink.png"
+    },
+    {
+      "baitName": "Foam-Red",
+      "baitType": "LURE",
+      "sourceFile": "Foam-Red.png"
+    },
+    {
+      "baitName": "Foam-White",
+      "baitType": "LURE",
+      "sourceFile": "Foam-White.png"
+    },
+    {
+      "baitName": "Foam-Yellow",
+      "baitType": "LURE",
+      "sourceFile": "Foam-Yellow.png"
+    },
+    {
+      "baitName": "Deep-100",
+      "baitType": "LURE",
+      "sourceFile": "Deep-100.png"
+    },
+    {
+      "baitName": "Deep-101",
+      "baitType": "LURE",
+      "sourceFile": "Deep-101.png"
+    },
+    {
+      "baitName": "Deep-102",
+      "baitType": "LURE",
+      "sourceFile": "Deep-102.png"
+    },
+    {
+      "baitName": "Deep-103",
+      "baitType": "LURE",
+      "sourceFile": "Deep-103.png"
+    },
+    {
+      "baitName": "Deep-104",
+      "baitType": "LURE",
+      "sourceFile": "Deep-104.png"
+    },
+    {
+      "baitName": "Deep-105",
+      "baitType": "LURE",
+      "sourceFile": "Deep-105.png"
+    },
+    {
+      "baitName": "Deep-106",
+      "baitType": "LURE",
+      "sourceFile": "Deep-106.png"
+    },
+    {
+      "baitName": "Deep-107",
+      "baitType": "LURE",
+      "sourceFile": "Deep-107.png"
+    },
+    {
+      "baitName": "Deep-108",
+      "baitType": "LURE",
+      "sourceFile": "Deep-108.png"
+    },
+    {
+      "baitName": "Deep-109",
+      "baitType": "LURE",
+      "sourceFile": "Deep-109.png"
+    },
+    {
+      "baitName": "Deep-110",
+      "baitType": "LURE",
+      "sourceFile": "Deep-110.png"
+    },
+    {
+      "baitName": "Deep-111",
+      "baitType": "LURE",
+      "sourceFile": "Deep-111.png"
+    },
+    {
+      "baitName": "Deep-112",
+      "baitType": "LURE",
+      "sourceFile": "Deep-112.png"
+    },
+    {
+      "baitName": "Deep-113",
+      "baitType": "LURE",
+      "sourceFile": "Deep-113.png"
+    },
+    {
+      "baitName": "Deep-114",
+      "baitType": "LURE",
+      "sourceFile": "Deep-114.png"
+    },
+    {
+      "baitName": "Deep-115",
+      "baitType": "LURE",
+      "sourceFile": "Deep-115.png"
+    },
+    {
+      "baitName": "Pilk-100",
+      "baitType": "LURE",
+      "sourceFile": "Pilk-100.png"
+    },
+    {
+      "baitName": "Pilk-101",
+      "baitType": "LURE",
+      "sourceFile": "Pilk-101.png"
+    },
+    {
+      "baitName": "Pilk-102",
+      "baitType": "LURE",
+      "sourceFile": "Pilk-102.png"
+    },
+    {
+      "baitName": "Pilk-103",
+      "baitType": "LURE",
+      "sourceFile": "Pilk-103.png"
+    },
+    {
+      "baitName": "Pilk-104",
+      "baitType": "LURE",
+      "sourceFile": "Pilk-104.png"
+    },
+    {
+      "baitName": "Pilk-105",
+      "baitType": "LURE",
+      "sourceFile": "Pilk-105.png"
+    },
+    {
+      "baitName": "Pilk-106",
+      "baitType": "LURE",
+      "sourceFile": "Pilk-106.png"
+    },
+    {
+      "baitName": "Pilk-107",
+      "baitType": "LURE",
+      "sourceFile": "Pilk-107.png"
+    },
+    {
+      "baitName": "Pilk-108",
+      "baitType": "LURE",
+      "sourceFile": "Pilk-108.png"
+    },
+    {
+      "baitName": "Pilk-109",
+      "baitType": "LURE",
+      "sourceFile": "Pilk-109.png"
+    },
+    {
+      "baitName": "Pilk-110",
+      "baitType": "LURE",
+      "sourceFile": "Pilk-110.png"
+    },
+    {
+      "baitName": "Pilk-111",
+      "baitType": "LURE",
+      "sourceFile": "Pilk-111.png"
+    },
+    {
+      "baitName": "Pilk-112",
+      "baitType": "LURE",
+      "sourceFile": "Pilk-112.png"
+    },
+    {
+      "baitName": "Pilk-113",
+      "baitType": "LURE",
+      "sourceFile": "Pilk-113.png"
+    },
+    {
+      "baitName": "Pilk-114",
+      "baitType": "LURE",
+      "sourceFile": "Pilk-114.png"
+    },
+    {
+      "baitName": "Pilk-115",
+      "baitType": "LURE",
+      "sourceFile": "Pilk-115.png"
+    },
+    {
+      "baitName": "Pilk-116",
+      "baitType": "LURE",
+      "sourceFile": "Pilk-116.png"
+    },
+    {
+      "baitName": "Pilk-117",
+      "baitType": "LURE",
+      "sourceFile": "Pilk-117.png"
+    },
+    {
+      "baitName": "Pilk-118",
+      "baitType": "LURE",
+      "sourceFile": "Pilk-118.png"
+    },
+    {
+      "baitName": "Vib-bluecancer",
+      "baitType": "LURE",
+      "sourceFile": "Vib-bluecancer.png"
+    },
+    {
+      "baitName": "Vib-crab",
+      "baitType": "LURE",
+      "sourceFile": "Vib-crab.png"
+    },
+    {
+      "baitName": "Vib-mussel",
+      "baitType": "LURE",
+      "sourceFile": "Vib-mussel.png"
+    },
+    {
+      "baitName": "Vib-oyster",
+      "baitType": "LURE",
+      "sourceFile": "Vib-oyster.png"
+    },
+    {
+      "baitName": "Vib-pearl",
+      "baitType": "LURE",
+      "sourceFile": "Vib-pearl.png"
+    },
+    {
+      "baitName": "Vib-rapan",
+      "baitType": "LURE",
+      "sourceFile": "Vib-rapan.png"
+    },
+    {
+      "baitName": "X-Tail-01",
+      "baitType": "LURE",
+      "sourceFile": "X-Tail-01.png"
+    },
+    {
+      "baitName": "X-Tail-02",
+      "baitType": "LURE",
+      "sourceFile": "X-Tail-02.png"
+    },
+    {
+      "baitName": "X-Tail-03",
+      "baitType": "LURE",
+      "sourceFile": "X-Tail-03.png"
+    },
+    {
+      "baitName": "X-Tail-04",
+      "baitType": "LURE",
+      "sourceFile": "X-Tail-04.png"
+    },
+    {
+      "baitName": "X-Tail-05",
+      "baitType": "LURE",
+      "sourceFile": "X-Tail-05.png"
+    },
+    {
+      "baitName": "X-Tail-06",
+      "baitType": "LURE",
+      "sourceFile": "X-Tail-06.png"
+    },
+    {
+      "baitName": "X-Tail-07",
+      "baitType": "LURE",
+      "sourceFile": "X-Tail-07.png"
+    },
+    {
+      "baitName": "X-Tail-08",
+      "baitType": "LURE",
+      "sourceFile": "X-Tail-08.png"
+    },
+    {
+      "baitName": "X-Tail-09",
+      "baitType": "LURE",
+      "sourceFile": "X-Tail-09.png"
+    },
+    {
+      "baitName": "X-Tail-10",
+      "baitType": "LURE",
+      "sourceFile": "X-Tail-10.png"
+    },
+    {
+      "baitName": "X-Tail-11",
+      "baitType": "LURE",
+      "sourceFile": "X-Tail-11.png"
+    },
+    {
+      "baitName": "X-Tail-12",
+      "baitType": "LURE",
+      "sourceFile": "X-Tail-12.png"
+    },
+    {
+      "baitName": "X-Tail-13",
+      "baitType": "LURE",
+      "sourceFile": "X-Tail-13.png"
+    },
+    {
+      "baitName": "X-Tail-14",
+      "baitType": "LURE",
+      "sourceFile": "X-Tail-14.png"
+    },
+    {
+      "baitName": "X-Tail-15",
+      "baitType": "LURE",
+      "sourceFile": "X-Tail-15.png"
+    },
+    {
+      "baitName": "X-Tail-16",
+      "baitType": "LURE",
+      "sourceFile": "X-Tail-16.png"
+    },
+    {
+      "baitName": "X-Tail-17",
+      "baitType": "LURE",
+      "sourceFile": "X-Tail-17.png"
+    },
+    {
+      "baitName": "X-Tail-18",
+      "baitType": "LURE",
+      "sourceFile": "X-Tail-18.png"
+    },
+    {
+      "baitName": "Creatures-01",
+      "baitType": "LURE",
+      "sourceFile": "Creatures-01.png"
+    },
+    {
+      "baitName": "Creatures-02",
+      "baitType": "LURE",
+      "sourceFile": "Creatures-02.png"
+    },
+    {
+      "baitName": "Creatures-03",
+      "baitType": "LURE",
+      "sourceFile": "Creatures-03.png"
+    },
+    {
+      "baitName": "Creatures-04",
+      "baitType": "LURE",
+      "sourceFile": "Creatures-04.png"
+    },
+    {
+      "baitName": "Creatures-05",
+      "baitType": "LURE",
+      "sourceFile": "Creatures-05.png"
+    },
+    {
+      "baitName": "Creatures-06",
+      "baitType": "LURE",
+      "sourceFile": "Creatures-06.png"
+    },
+    {
+      "baitName": "Creatures-07",
+      "baitType": "LURE",
+      "sourceFile": "Creatures-07.png"
+    },
+    {
+      "baitName": "Creatures-08",
+      "baitType": "LURE",
+      "sourceFile": "Creatures-08.png"
+    },
+    {
+      "baitName": "Creatures-09",
+      "baitType": "LURE",
+      "sourceFile": "Creatures-09.png"
+    },
+    {
+      "baitName": "Creatures-10",
+      "baitType": "LURE",
+      "sourceFile": "Creatures-10.png"
+    },
+    {
+      "baitName": "Creatures-11",
+      "baitType": "LURE",
+      "sourceFile": "Creatures-11.png"
+    },
+    {
+      "baitName": "Creatures-12",
+      "baitType": "LURE",
+      "sourceFile": "Creatures-12.png"
+    },
+    {
+      "baitName": "Creatures-13",
+      "baitType": "LURE",
+      "sourceFile": "Creatures-13.png"
+    },
+    {
+      "baitName": "Creatures-14",
+      "baitType": "LURE",
+      "sourceFile": "Creatures-14.png"
+    },
+    {
+      "baitName": "Creatures-15",
+      "baitType": "LURE",
+      "sourceFile": "Creatures-15.png"
+    },
+    {
+      "baitName": "Creatures-16",
+      "baitType": "LURE",
+      "sourceFile": "Creatures-16.png"
+    },
+    {
+      "baitName": "Creatures-17",
+      "baitType": "LURE",
+      "sourceFile": "Creatures-17.png"
+    },
+    {
+      "baitName": "PopperPlug-1",
+      "baitType": "LURE",
+      "sourceFile": "PopperPlug-1.png"
+    },
+    {
+      "baitName": "PopperPlug-2",
+      "baitType": "LURE",
+      "sourceFile": "PopperPlug-2.png"
+    },
+    {
+      "baitName": "PopperPlug-3",
+      "baitType": "LURE",
+      "sourceFile": "PopperPlug-3.png"
+    },
+    {
+      "baitName": "PopperPlug-4",
+      "baitType": "LURE",
+      "sourceFile": "PopperPlug-4.png"
+    },
+    {
+      "baitName": "PopperPlug-5",
+      "baitType": "LURE",
+      "sourceFile": "PopperPlug-5.png"
+    },
+    {
+      "baitName": "Waterplane-1",
+      "baitType": "LURE",
+      "sourceFile": "Waterplane-1.png"
+    },
+    {
+      "baitName": "Waterplane-2",
+      "baitType": "LURE",
+      "sourceFile": "Waterplane-2.png"
+    },
+    {
+      "baitName": "Waterplane-3",
+      "baitType": "LURE",
+      "sourceFile": "Waterplane-3.png"
+    },
+    {
+      "baitName": "Waterplane-4",
+      "baitType": "LURE",
+      "sourceFile": "Waterplane-4.png"
+    },
+    {
+      "baitName": "Waterplane-5",
+      "baitType": "LURE",
+      "sourceFile": "Waterplane-5.png"
+    }
+  ],
+  "unusedSourceFiles": ["krill.png", "mouse.png", "none.png"]
+}

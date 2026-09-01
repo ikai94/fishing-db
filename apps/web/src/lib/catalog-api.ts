@@ -29,6 +29,10 @@ export type PublicFishImage = {
   url: string;
 };
 
+export type PublicBaitImage = {
+  url: string;
+};
+
 export type PublicFishSummary = PublicCatalogItem & {
   image: PublicFishImage | null;
 };
@@ -44,6 +48,7 @@ export type PublicFishDetail = PublicFishSummary & {
 
 export type PublicBait = PublicCatalogItem & {
   type: BaitType;
+  image: PublicBaitImage | null;
 };
 
 export type PublicScreenAnchor = PublicCatalogItem;
@@ -79,6 +84,19 @@ function readFishImage(value: unknown): PublicFishImage | null {
     throw new Error('Сервер вернул некорректный ответ каталога');
   }
 
+  return { url: new URL(value.url, apiBaseUrl).href };
+}
+
+function readBaitImage(value: unknown): PublicBaitImage | null {
+  if (value === null) return null;
+  if (
+    !isRecord(value) ||
+    Object.keys(value).length !== 1 ||
+    typeof value.url !== 'string' ||
+    !/^\/api\/v1\/bait-images\/[a-f0-9]{64}\.png$/u.test(value.url)
+  ) {
+    throw new Error('Сервер вернул некорректный ответ каталога');
+  }
   return { url: new URL(value.url, apiBaseUrl).href };
 }
 
@@ -215,11 +233,11 @@ function readFishResponse(payload: unknown): PublicFishDetail {
 function readBait(value: unknown): PublicBait {
   const item = readCatalogItem(value);
 
-  if (!isRecord(value) || (value.type !== 'BAIT' && value.type !== 'LURE')) {
+  if (!isRecord(value) || (value.type !== 'BAIT' && value.type !== 'LURE') || !('image' in value)) {
     throw new Error('Сервер вернул некорректный ответ каталога');
   }
 
-  return { ...item, type: value.type };
+  return { ...item, type: value.type, image: readBaitImage(value.image) };
 }
 
 export async function listFishingBases(signal?: AbortSignal): Promise<PublicFishingBaseSummary[]> {

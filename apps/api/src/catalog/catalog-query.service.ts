@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { CatalogStatus } from './catalog.constants.js';
 import { catalogErrors } from './catalog-errors.js';
+import { BaitImageDelivery } from './bait-image-delivery.js';
 import { FishImageDelivery } from './fish-image-delivery.js';
 
 const PUBLIC_NAMED_ITEM_SELECT = {
@@ -34,6 +35,7 @@ export class CatalogQueryService {
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(FishImageDelivery) private readonly fishImageDelivery: FishImageDelivery,
+    @Inject(BaitImageDelivery) private readonly baitImageDelivery: BaitImageDelivery,
   ) {}
 
   async getPublicSummary() {
@@ -195,11 +197,22 @@ export class CatalogQueryService {
       orderBy: [{ nameNormalized: 'asc' }, { id: 'asc' }],
       select: {
         ...PUBLIC_NAMED_ITEM_SELECT,
+        nameNormalized: true,
         type: true,
       },
     });
 
-    return { items };
+    return {
+      items: items.map((item) => ({
+        id: item.id,
+        name: item.name,
+        type: item.type,
+        image: this.baitImageDelivery.resolvePublicImage({
+          baitId: item.id,
+          nameNormalized: item.nameNormalized,
+        }),
+      })),
+    };
   }
 
   async listPublicScreenAnchors() {

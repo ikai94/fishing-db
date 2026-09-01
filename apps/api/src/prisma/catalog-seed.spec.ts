@@ -375,13 +375,13 @@ void describe('catalog seed', () => {
       validated.bases.reduce((total, base) => total + base.fishNormalized.length, 0),
       3_230,
     );
-    assert.equal(validated.baits.length, 249);
+    assert.equal(validated.baits.length, 248);
     assert.equal(validated.baits.filter((bait) => bait.type === 'BAIT').length, 68);
-    assert.equal(validated.baits.filter((bait) => bait.type === 'LURE').length, 181);
+    assert.equal(validated.baits.filter((bait) => bait.type === 'LURE').length, 180);
     assert.equal(validated.screenAnchors.length, 8);
     assert.equal(new Set(validated.bases.map((base) => base.nameNormalized)).size, 77);
     assert.equal(new Set(validated.fish.map((fish) => fish.nameNormalized)).size, 1_255);
-    assert.equal(new Set(validated.baits.map((bait) => bait.nameNormalized)).size, 249);
+    assert.equal(new Set(validated.baits.map((bait) => bait.nameNormalized)).size, 248);
 
     const globalFish = new Set(validated.fish.map((fish) => fish.nameNormalized));
 
@@ -531,7 +531,7 @@ void describe('catalog seed', () => {
       fishingBases: { created: 77, reused: 0 },
       locations: { created: 853, reused: 0 },
       fish: { created: 1_255, reused: 0 },
-      baits: { created: 249, reused: 0 },
+      baits: { created: 248, reused: 0 },
       screenAnchors: { created: 8, reused: 0 },
       fishingBaseFish: { created: 3_230, reused: 0 },
       conflicts: 0,
@@ -541,7 +541,7 @@ void describe('catalog seed', () => {
       fishingBases: { created: 0, reused: 77 },
       locations: { created: 0, reused: 853 },
       fish: { created: 0, reused: 1_255 },
-      baits: { created: 0, reused: 249 },
+      baits: { created: 0, reused: 248 },
       screenAnchors: { created: 0, reused: 8 },
       fishingBaseFish: { created: 0, reused: 3_230 },
       conflicts: 0,
@@ -552,7 +552,7 @@ void describe('catalog seed', () => {
     assert.equal(database.state.fish.length, 1_256);
     assert.equal(database.state.memberships.length, 3_231);
     assert.equal(database.state.screenAnchors.length, 9);
-    assert.equal(database.state.baits.length, 250);
+    assert.equal(database.state.baits.length, 249);
     assert.deepEqual(
       database.state.fishingBases.find((item) => item.id === 'tutorial-base'),
       initial.fishingBases[0],
@@ -638,7 +638,7 @@ void describe('catalog seed', () => {
       fishingBases: { created: 76, reused: 1 },
       locations: { created: 844, reused: 9 },
       fish: { created: 1_222, reused: 33 },
-      baits: { created: 249, reused: 0 },
+      baits: { created: 248, reused: 0 },
       screenAnchors: { created: 0, reused: 8 },
       fishingBaseFish: { created: 3_197, reused: 33 },
       conflicts: 0,

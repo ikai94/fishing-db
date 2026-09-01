@@ -27,6 +27,7 @@
     "db:audit:fish-images": "tsx src/prisma/generate-fish-image-metadata.ts",
     "db:audit:fish-images:check": "tsx src/prisma/generate-fish-image-metadata.ts --check",
     "db:build:fish-image-release": "tsx src/prisma/build-fish-image-release.ts",
+    "db:build:bait-image-release": "tsx src/prisma/build-bait-image-release.ts",
     "db:materialize:fish-images": "tsx src/prisma/materialize-fish-image-metadata.ts",
     "db:materialize:base-fish-weights": "tsx src/prisma/materialize-base-fish-weights.ts",
     "db:reconcile:fish-catalog:dry-run": "tsx src/prisma/dry-run-fish-catalog-reconciliation.ts",

@@ -1,9 +1,11 @@
 const DEFAULT_API_PORT = 3001;
 const NODE_ENVIRONMENTS = ['development', 'test', 'production'] as const;
 const FISH_IMAGE_DELIVERY_MODES = ['disabled', 'local'] as const;
+const BAIT_IMAGE_DELIVERY_MODES = ['disabled', 'local'] as const;
 
 export type NodeEnvironment = (typeof NODE_ENVIRONMENTS)[number];
 export type FishImageDeliveryMode = (typeof FISH_IMAGE_DELIVERY_MODES)[number];
+export type BaitImageDeliveryMode = (typeof BAIT_IMAGE_DELIVERY_MODES)[number];
 
 function requiredString(config: Record<string, unknown>, key: string): string {
   const value = config[key];
@@ -73,6 +75,14 @@ function validateFishImageDeliveryMode(value: unknown): FishImageDeliveryMode {
   return mode as FishImageDeliveryMode;
 }
 
+function validateBaitImageDeliveryMode(value: unknown): BaitImageDeliveryMode {
+  const mode = value === undefined ? 'disabled' : typeof value === 'string' ? value.trim() : '';
+  if (!BAIT_IMAGE_DELIVERY_MODES.includes(mode as BaitImageDeliveryMode)) {
+    throw new Error('BAIT_IMAGE_DELIVERY_MODE must be one of: disabled, local');
+  }
+  return mode as BaitImageDeliveryMode;
+}
+
 export function validateEnvironment(config: Record<string, unknown>): Record<string, unknown> {
   const databaseUrl = validateDatabaseUrl(requiredString(config, 'DATABASE_URL'));
   const webOrigin = validateWebOrigin(requiredString(config, 'WEB_ORIGIN'));
@@ -82,12 +92,21 @@ export function validateEnvironment(config: Record<string, unknown>): Record<str
     fishImageDeliveryMode === 'local'
       ? requiredString(config, 'FISH_IMAGE_STORAGE_ROOT')
       : undefined;
+  const baitImageDeliveryMode = validateBaitImageDeliveryMode(config.BAIT_IMAGE_DELIVERY_MODE);
+  const baitImageStorageRoot =
+    baitImageDeliveryMode === 'local'
+      ? requiredString(config, 'BAIT_IMAGE_STORAGE_ROOT')
+      : undefined;
 
   return {
     ...config,
     NODE_ENV: nodeEnvironment,
     PORT: parsePort(config.PORT),
     DATABASE_URL: databaseUrl,
+    BAIT_IMAGE_DELIVERY_MODE: baitImageDeliveryMode,
+    ...(baitImageStorageRoot === undefined
+      ? {}
+      : { BAIT_IMAGE_STORAGE_ROOT: baitImageStorageRoot }),
     FISH_IMAGE_DELIVERY_MODE: fishImageDeliveryMode,
     ...(fishImageStorageRoot === undefined
       ? {}

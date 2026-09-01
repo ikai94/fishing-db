@@ -38,6 +38,7 @@
     "db:audit:fish-images": "pnpm --filter @fishing-db/api run db:audit:fish-images",
     "db:audit:fish-images:check": "pnpm --filter @fishing-db/api run db:audit:fish-images:check",
     "db:build:fish-image-release": "pnpm --filter @fishing-db/api run db:build:fish-image-release",
+    "db:build:bait-image-release": "pnpm --filter @fishing-db/api run db:build:bait-image-release",
     "db:materialize:fish-images": "pnpm --filter @fishing-db/api run db:materialize:fish-images",
     "db:materialize:base-fish-weights": "pnpm --filter @fishing-db/api run db:materialize:base-fish-weights",
     "db:reconcile:fish-catalog:dry-run": "pnpm --filter @fishing-db/api run db:reconcile:fish-catalog:dry-run",

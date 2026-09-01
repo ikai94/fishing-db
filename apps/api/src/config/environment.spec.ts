@@ -38,3 +38,34 @@ void describe('Fish image environment', () => {
     );
   });
 });
+
+void describe('Bait image environment', () => {
+  void it('defaults delivery to disabled without requiring storage', () => {
+    const result = validateEnvironment(base);
+
+    assert.equal(result.BAIT_IMAGE_DELIVERY_MODE, 'disabled');
+    assert.equal('BAIT_IMAGE_STORAGE_ROOT' in result, false);
+  });
+
+  void it('accepts local delivery only with a non-empty storage root', () => {
+    const result = validateEnvironment({
+      ...base,
+      BAIT_IMAGE_DELIVERY_MODE: 'local',
+      BAIT_IMAGE_STORAGE_ROOT: ' .local/bait-images ',
+    });
+
+    assert.equal(result.BAIT_IMAGE_DELIVERY_MODE, 'local');
+    assert.equal(result.BAIT_IMAGE_STORAGE_ROOT, '.local/bait-images');
+    assert.throws(
+      () => validateEnvironment({ ...base, BAIT_IMAGE_DELIVERY_MODE: 'local' }),
+      /BAIT_IMAGE_STORAGE_ROOT must be a non-empty string/u,
+    );
+  });
+
+  void it('rejects unknown delivery modes', () => {
+    assert.throws(
+      () => validateEnvironment({ ...base, BAIT_IMAGE_DELIVERY_MODE: 'remote' }),
+      /BAIT_IMAGE_DELIVERY_MODE must be one of/u,
+    );
+  });
+});

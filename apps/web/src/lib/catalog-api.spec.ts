@@ -9,11 +9,13 @@ vi.mock('./api-client', () => ({
   apiRequest: mocks.apiRequest,
 }));
 
-import { getCatalogSummary, getFish, listFish, listFishingBases } from './catalog-api';
+import { getCatalogSummary, getFish, listBaits, listFish, listFishingBases } from './catalog-api';
 
 const IMAGE_HASH = 'a'.repeat(64);
 const IMAGE_PATH = `/api/v1/fish-images/101-${IMAGE_HASH}.png`;
 const IMAGE_URL = `http://localhost:3001${IMAGE_PATH}`;
+const BAIT_IMAGE_PATH = `/api/v1/bait-images/${IMAGE_HASH}.png`;
+const BAIT_IMAGE_URL = `http://localhost:3001${BAIT_IMAGE_PATH}`;
 
 describe('public catalog API', () => {
   beforeEach(() => mocks.apiRequest.mockReset());
@@ -164,5 +166,36 @@ describe('public catalog API', () => {
     mocks.apiRequest.mockResolvedValue({ items: [{ id: 'fish-1', name: 'Сом', image }] });
 
     await expect(listFish()).rejects.toThrow('Сервер вернул некорректный ответ каталога');
+  });
+
+  test('decodes nullable application-owned Bait images in the public list', async () => {
+    mocks.apiRequest.mockResolvedValue({
+      items: [
+        { id: 'bait-1', name: 'Живец', type: 'BAIT', image: { url: BAIT_IMAGE_PATH } },
+        { id: 'bait-2', name: 'Блесна', type: 'LURE', image: null },
+      ],
+    });
+
+    await expect(listBaits()).resolves.toEqual([
+      { id: 'bait-1', name: 'Живец', type: 'BAIT', image: { url: BAIT_IMAGE_URL } },
+      { id: 'bait-2', name: 'Блесна', type: 'LURE', image: null },
+    ]);
+  });
+
+  test.each([
+    undefined,
+    '',
+    { url: '' },
+    { url: 'https://rus-fishsoft.ru/baits/zhivec.png' },
+    { url: '//rus-fishsoft.ru/baits/zhivec.png' },
+    { url: `/api/v1/bait-images/${IMAGE_HASH.toUpperCase()}.png` },
+    { url: `${BAIT_IMAGE_PATH}?download=1` },
+    { url: BAIT_IMAGE_PATH, sourceFile: 'zhivec.png' },
+  ])('rejects malformed or non-application Bait image delivery: %o', async (image) => {
+    mocks.apiRequest.mockResolvedValue({
+      items: [{ id: 'bait-1', name: 'Живец', type: 'BAIT', image }],
+    });
+
+    await expect(listBaits()).rejects.toThrow('Сервер вернул некорректный ответ каталога');
   });
 });

@@ -14,11 +14,11 @@ The canonical files in this directory are deterministic, offline inputs for
 - Canonical Base↔Fish target SHA-256:
   `086f34ad8e6a4c283483c02ad80fe4e203c3d1bff8a37f9324809c035c8e48fc`
 - Bait input SHA-256:
-  `cbdf553bea27c9cf40aff6e4d6faeac3e30c4b8722db089ebfddff697329d033`
+  `cb58f0e1ce9a2a2bc4baebcdaf1208e7cfe15de9beda730e931a5eff5d7af008`
 
 The canonical snapshot contains 77 FishingBase records, 853 Locations, 1,255
 global Fish identities, 3,230 FishingBaseFish relationships, 68 BAIT entries,
-181 LURE entries, and 249 Bait entries in total. The eight ScreenAnchor values
+180 LURE entries, and 248 Bait entries in total. The eight ScreenAnchor values
 remain defined in the TypeScript seed loader.
 
 ## Transformation policy
@@ -49,6 +49,17 @@ reviewed change. Bait names and types must come from an explicit authoritative
 input and must never be inferred from naming patterns.
 
 Neither the seed nor normal application startup contacts the source website.
+
+## Bait images
+
+`bait-image-mapping.json` is the reviewed, explicit mapping from every canonical Bait identity to
+one local PNG filename. Runtime delivery never derives a filename from a Bait name. The manifest
+also records the reviewed unused files `krill.png`, `mouse.png`, and `none.png`.
+
+Build the deterministic offline release from `apps/api/.local/baits` with
+`pnpm db:build:bait-image-release`. The command validates every PNG, requires the source directory
+to match the manifest exactly, preserves source bytes and aspect ratios, and writes a
+content-addressed immutable release under `apps/api/.local/bait-images/releases`.
 
 ## Fish catalog reconciliation audit
 

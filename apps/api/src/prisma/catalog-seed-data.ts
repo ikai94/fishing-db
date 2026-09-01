@@ -78,10 +78,10 @@ export const AUTHORITATIVE_CATALOG_COUNTS = {
   locations: 853,
   fish: 1_255,
   fishingBaseFish: 3_230,
-  baits: 249,
+  baits: 248,
   baitTypes: {
     BAIT: 68,
-    LURE: 181,
+    LURE: 180,
   },
   screenAnchors: 8,
 } as const satisfies CatalogSeedSnapshotCounts;

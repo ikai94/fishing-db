@@ -2,15 +2,18 @@ import assert from 'node:assert/strict';
 import { NotFoundException } from '@nestjs/common';
 import { describe, it } from 'node:test';
 import type { PrismaService } from '../prisma/prisma.service.js';
+import type { BaitImageDelivery } from './bait-image-delivery.js';
 import { CatalogQueryService } from './catalog-query.service.js';
+import { DisabledBaitImageDelivery } from './disabled-bait-image-delivery.service.js';
 import { DisabledFishImageDelivery } from './disabled-fish-image-delivery.service.js';
 import type { FishImageDelivery } from './fish-image-delivery.js';
 
 function catalogQueryService(
   prisma: PrismaService,
   fishImageDelivery: FishImageDelivery = new DisabledFishImageDelivery(),
+  baitImageDelivery: BaitImageDelivery = new DisabledBaitImageDelivery(),
 ): CatalogQueryService {
-  return new CatalogQueryService(prisma, fishImageDelivery);
+  return new CatalogQueryService(prisma, fishImageDelivery, baitImageDelivery);
 }
 
 function asObject(value: unknown): Record<string, unknown> {
@@ -269,6 +272,50 @@ void describe('CatalogQueryService', () => {
       fish: { id: 'fish-id', name: 'Сом', image: null, bases: [] },
     });
     await assert.rejects(() => service.getPublicFish('hidden-fish-id'), hasCode('FISH_NOT_FOUND'));
+  });
+
+  void it('projects public Bait images from normalized identities without leaking mapping data', async () => {
+    let query: unknown;
+    const deliverySources: unknown[] = [];
+    const prisma = {
+      bait: {
+        findMany: (input: unknown) => {
+          query = input;
+          return Promise.resolve([
+            {
+              id: 'bait-id',
+              name: 'Живец',
+              nameNormalized: 'живец',
+              type: 'BAIT',
+            },
+          ]);
+        },
+      },
+    } as unknown as PrismaService;
+    const baitDelivery = {
+      resolvePublicImage: (source: unknown) => {
+        deliverySources.push(source);
+        return { url: '/api/v1/bait-images/hash.png' };
+      },
+    } as BaitImageDelivery;
+    const service = catalogQueryService(prisma, new DisabledFishImageDelivery(), baitDelivery);
+
+    const result = await service.listPublicBaits();
+    const select = asObject(asObject(query).select);
+
+    assert.deepEqual(Object.keys(select).sort(), ['id', 'name', 'nameNormalized', 'type']);
+    assert.deepEqual(deliverySources, [{ baitId: 'bait-id', nameNormalized: 'живец' }]);
+    assert.deepEqual(result, {
+      items: [
+        {
+          id: 'bait-id',
+          name: 'Живец',
+          type: 'BAIT',
+          image: { url: '/api/v1/bait-images/hash.png' },
+        },
+      ],
+    });
+    assert.equal('nameNormalized' in result.items[0], false);
   });
 
   void it('requires an active parent and does not project fish from a public location', async () => {
