@@ -7,7 +7,6 @@ const mocks = vi.hoisted(() => ({
   listCatchReports: vi.fn(),
   listFishingConditionStatistics: vi.fn(),
   listHoleStatistics: vi.fn(),
-  listWeightStatistics: vi.fn(),
   routerReplace: vi.fn(),
   search: '',
 }));
@@ -31,22 +30,6 @@ vi.mock('@/lib/fishing-condition-statistics-api', () => ({
 
 vi.mock('@/lib/hole-statistics-api', () => ({
   listHoleStatistics: mocks.listHoleStatistics,
-}));
-
-vi.mock('@/lib/weight-statistics-api', () => ({
-  listWeightStatistics: mocks.listWeightStatistics,
-}));
-
-vi.mock('./weight-statistics-table', () => ({
-  WeightStatisticsTable: ({ counts }: { counts: { mutant: number } }) => (
-    <table aria-label="Статистика классификации веса">
-      <tbody>
-        <tr>
-          <td>Мутантов: {counts.mutant}</td>
-        </tr>
-      </tbody>
-    </table>
-  ),
 }));
 
 vi.mock('./bait-statistics-table', () => ({
@@ -228,14 +211,6 @@ function fishingConditionStatisticsRequestAt(index: number) {
   };
 }
 
-function weightStatisticsRequestAt(index: number) {
-  return mocks.listWeightStatistics.mock.calls[index]?.[0] as {
-    fishId: string;
-    baseIds: string[];
-    signal: AbortSignal;
-  };
-}
-
 function baitStatistic({ id, name }: { id: string; name: string }): TestBaitStatistic {
   return {
     bait: { id, name, isActive: true },
@@ -274,14 +249,6 @@ describe('FishExplorer', () => {
     mocks.listFishingConditionStatistics.mockResolvedValue([]);
     mocks.listHoleStatistics.mockReset();
     mocks.listHoleStatistics.mockResolvedValue([]);
-    mocks.listWeightStatistics.mockReset();
-    mocks.listWeightStatistics.mockResolvedValue({
-      'suspicious-low': 0,
-      ordinary: 0,
-      mutant: 0,
-      'suspicious-high': 0,
-      unclassified: 0,
-    });
     mocks.routerReplace.mockReset();
     mocks.search = '';
   });
@@ -315,7 +282,6 @@ describe('FishExplorer', () => {
     await waitFor(() => expect(mocks.listCatchReports).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(mocks.listFishingConditionStatistics).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(mocks.listHoleStatistics).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(mocks.listWeightStatistics).toHaveBeenCalledTimes(1));
     expect(mocks.listBaitStatistics).not.toHaveBeenCalled();
     expect(requestAt(0)).toMatchObject({
       fishId: 'fish-1',
@@ -330,15 +296,6 @@ describe('FishExplorer', () => {
       fishId: 'fish-1',
       baseIds: ['base-a', 'base-b'],
     });
-    expect(weightStatisticsRequestAt(0)).toMatchObject({
-      fishId: 'fish-1',
-      baseIds: ['base-a', 'base-b'],
-    });
-    expect(
-      sectionNamed('Классификация веса').compareDocumentPosition(
-        sectionNamed('Условия ловли в уловах'),
-      ),
-    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(
       sectionNamed('Условия ловли в уловах').compareDocumentPosition(
         sectionNamed('На что ловится'),
@@ -350,48 +307,6 @@ describe('FishExplorer', () => {
     expect(sectionNamed('Общие ямы и точки').compareDocumentPosition(sectionNamed('Уловы'))).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
     );
-  });
-
-  test('cancels stale weight statistics when the shared Base scope changes', async () => {
-    const user = userEvent.setup();
-    const stale = deferred<{
-      'suspicious-low': number;
-      ordinary: number;
-      mutant: number;
-      'suspicious-high': number;
-      unclassified: number;
-    }>();
-    mocks.listWeightStatistics.mockReturnValueOnce(stale.promise).mockResolvedValueOnce({
-      'suspicious-low': 0,
-      ordinary: 1,
-      mutant: 2,
-      'suspicious-high': 0,
-      unclassified: 0,
-    });
-
-    render(<FishExplorer fish={fish} />);
-    await waitFor(() => expect(mocks.listWeightStatistics).toHaveBeenCalledTimes(1));
-    const staleSignal = weightStatisticsRequestAt(0).signal;
-
-    await user.click(screen.getByRole('checkbox', { name: 'Учитывать базу «Ахтуба»' }));
-    await waitFor(() => expect(mocks.listWeightStatistics).toHaveBeenCalledTimes(2));
-    expect(staleSignal.aborted).toBe(true);
-    expect(weightStatisticsRequestAt(1)).toMatchObject({
-      fishId: 'fish-1',
-      baseIds: ['base-b'],
-    });
-    expect(await screen.findByText('Мутантов: 2')).toBeVisible();
-
-    await act(async () =>
-      stale.resolve({
-        'suspicious-low': 0,
-        ordinary: 99,
-        mutant: 99,
-        'suspicious-high': 0,
-        unclassified: 0,
-      }),
-    );
-    expect(screen.getByText('Мутантов: 2')).toBeVisible();
   });
 
   test('supports keyboard toggling, clear-all without a request, and select-all restoration', async () => {
@@ -433,7 +348,6 @@ describe('FishExplorer', () => {
     expect(
       screen.getByText('Выберите хотя бы одну базу, чтобы увидеть статистику условий ловли.'),
     ).toBeVisible();
-    expect(screen.getByText('Выберите хотя бы одну базу, чтобы увидеть статистику.')).toBeVisible();
     expect(screen.getByText('Выбрано 0 из 2')).toBeVisible();
     await waitFor(() => expect(mocks.listCatchReports).toHaveBeenCalledTimes(2));
     expect(mocks.listBaitStatistics).toHaveBeenCalledTimes(1);

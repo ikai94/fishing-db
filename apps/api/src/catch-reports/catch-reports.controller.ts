@@ -34,7 +34,6 @@ import { FishingConditionStatisticsService } from './fishing-condition-statistic
 import { FishCatchAggregatesService } from './fish-catch-aggregates.service.js';
 import { HoleStatisticsService } from './hole-statistics.service.js';
 import { CatchReportParserService } from './parser/catch-report-parser.service.js';
-import { WeightStatisticsService } from './weight-statistics.service.js';
 
 @Controller('catch-reports')
 export class CatchReportsController {
@@ -46,7 +45,6 @@ export class CatchReportsController {
     @Inject(FishingConditionStatisticsService)
     private readonly fishingConditionStatistics: FishingConditionStatisticsService,
     @Inject(HoleStatisticsService) private readonly holeStatistics: HoleStatisticsService,
-    @Inject(WeightStatisticsService) private readonly weightStatistics: WeightStatisticsService,
     @Inject(CatchReportParserService) private readonly parser: CatchReportParserService,
   ) {}
 
@@ -88,14 +86,6 @@ export class CatchReportsController {
     query: HoleStatisticsQueryDto,
   ) {
     return this.holeStatistics.list(query);
-  }
-
-  @Get('statistics/weights')
-  getWeightStatistics(
-    @Query(createApplicationValidationPipe(HoleStatisticsQueryDto))
-    query: HoleStatisticsQueryDto,
-  ) {
-    return this.weightStatistics.get(query);
   }
 
   @Get('locations/:locationId/observations')

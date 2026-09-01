@@ -27,7 +27,9 @@ describe('Base Fish weight presentation', () => {
   test('keeps anomaly labels out of dense rows while retaining explicit detail labels', () => {
     expect(anomalyWeightLabel('ordinary')).toBeNull();
     expect(anomalyWeightLabel('unclassified')).toBeNull();
+    expect(anomalyWeightLabel('suspicious-low')).toBe('Подозрительно низкий');
     expect(anomalyWeightLabel('mutant')).toBe('Мутант');
+    expect(anomalyWeightLabel('suspicious-high')).toBe('Подозрительно высокий');
     expect(weightClassificationLabel('unclassified')).toBe('Без классификации');
   });
 });

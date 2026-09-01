@@ -193,8 +193,7 @@
 }
 
 .baitStatisticsTable,
-.conditionStatisticsTable,
-.weightStatisticsTable {
+.conditionStatisticsTable {
   width: 100%;
   min-width: 760px;
   border-collapse: collapse;
@@ -206,34 +205,6 @@
 
 .baitStatisticsTable {
   min-width: 420px;
-}
-
-.weightStatisticsTable {
-  width: 100%;
-  min-width: 360px;
-  border-collapse: collapse;
-  font-size: 0.8125rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.weightStatisticsTable th,
-.weightStatisticsTable td {
-  padding: 5px 7px;
-  border-bottom: 1px solid #dce4df;
-  text-align: left;
-}
-
-.weightStatisticsTable thead th {
-  color: #43544a;
-  background: #edf2ef;
-  font-size: 0.75rem;
-  letter-spacing: 0.025em;
-}
-
-.weightStatisticsTable th:last-child,
-.weightStatisticsTable td:last-child {
-  width: 14ch;
-  text-align: right;
 }
 
 .baitStatisticsTable th,

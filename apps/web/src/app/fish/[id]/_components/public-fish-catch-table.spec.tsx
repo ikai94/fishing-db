@@ -2,6 +2,7 @@ import { render, screen, within } from '@testing-library/react';
 import { describe, expect, test } from 'vitest';
 import type { FishCatchAggregate } from '@/lib/fish-catch-aggregates-api';
 import {
+  formatObservedAndMaximumWeight,
   formatPublicFishCatchDate,
   formatPublicFishCatchWeight,
   PublicFishCatchTable,
@@ -33,6 +34,14 @@ describe('public Fish catch formatters', () => {
     expect(formatPublicFishCatchWeight(grams)).toBe(expected);
   });
 
+  test.each([
+    [11_296, 16_000, '11.296 кг / 16 кг'],
+    [11_296, null, '11.296 кг / —'],
+    [16_500, 16_000, '16.5 кг / 16 кг'],
+  ])('formats observed %i grams against BaseFish maximum %s', (observed, maximum, expected) => {
+    expect(formatObservedAndMaximumWeight(observed, maximum)).toBe(expected);
+  });
+
   test('keeps the shared compact Moscow date formatter for statistics tables', () => {
     expect(formatPublicFishCatchDate('2026-08-12T22:30:00.000Z')).toBe('13.08.26');
     expect(formatPublicFishCatchDate('not-a-date')).toBe('not-a-date');
@@ -40,7 +49,7 @@ describe('public Fish catch formatters', () => {
 });
 
 describe('PublicFishCatchTable', () => {
-  test('renders one compact row per aggregate identity with observed-maximum wording', () => {
+  test('renders one compact row per aggregate identity with observed/BaseFish maximum wording', () => {
     render(
       <PublicFishCatchTable
         rows={[
@@ -66,13 +75,13 @@ describe('PublicFishCatchTable', () => {
       within(table)
         .getAllByRole('columnheader')
         .map((header) => header.textContent),
-    ).toEqual(['№', 'База · Локация', 'На что', 'Интенсивность', 'Наблюдаемый максимум веса']);
+    ).toEqual(['№', 'База · Локация', 'На что', 'Интенсивность', 'Наблюдаемый / максимальный вес']);
     const rows = within(table).getAllByRole('row');
     expect(rows).toHaveLength(3);
     expect(rows[1]).toHaveTextContent(
-      '1Ахтуба7. Судачий откосМотыльСейчас неактивна18участников: 71.25 кг',
+      '1Ахтуба7. Судачий откосМотыльСейчас неактивна18участников: 71.25 кг / 2 кг',
     );
-    expect(rows[2]).toHaveTextContent('2Ахтуба7. Судачий откосОпарыш3участников: 21.25 кг');
+    expect(rows[2]).toHaveTextContent('2Ахтуба7. Судачий откосОпарыш3участников: 21.25 кг / 2 кг');
     expect(screen.getByTitle('18 отчётов об уловах')).toHaveTextContent('18');
     expect(screen.getByTitle('7 разных участников')).toHaveTextContent('участников: 7');
   });
@@ -88,7 +97,7 @@ describe('PublicFishCatchTable', () => {
     expect(within(table).queryByRole('time')).not.toBeInTheDocument();
   });
 
-  test('shows only anomaly classifications beside the observed maximum', () => {
+  test('shows only anomaly classifications and an unknown BaseFish maximum fallback', () => {
     const { rerender } = render(
       <PublicFishCatchTable
         rows={[
@@ -102,7 +111,25 @@ describe('PublicFishCatchTable', () => {
         ]}
       />,
     );
+    expect(screen.getByText('1.25 кг / 2 кг')).toBeInTheDocument();
     expect(screen.getByText('Мутант')).toBeInTheDocument();
+
+    rerender(
+      <PublicFishCatchTable
+        rows={[
+          {
+            ...aggregate,
+            maxObservedWeightAssessment: {
+              classification: 'unclassified',
+              minWeightGrams: null,
+              maxWeightGrams: null,
+            },
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByText('1.25 кг / —')).toBeInTheDocument();
+    expect(screen.queryByText('Без классификации')).not.toBeInTheDocument();
 
     rerender(<PublicFishCatchTable rows={[aggregate]} />);
     expect(screen.queryByText('Обычный')).not.toBeInTheDocument();

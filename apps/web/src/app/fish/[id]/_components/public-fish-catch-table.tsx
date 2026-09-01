@@ -24,7 +24,7 @@ export function PublicFishCatchTable({ rows }: PublicFishCatchTableProps) {
             <th scope="col">База · Локация</th>
             <th scope="col">На что</th>
             <th scope="col">Интенсивность</th>
-            <th scope="col">Наблюдаемый максимум веса</th>
+            <th scope="col">Наблюдаемый / максимальный вес</th>
           </tr>
         </thead>
         <tbody>
@@ -58,7 +58,10 @@ export function PublicFishCatchTable({ rows }: PublicFishCatchTableProps) {
                 </span>
               </td>
               <td className={styles.weightCell}>
-                {formatPublicFishCatchWeight(row.maxObservedWeightGrams)}
+                {formatObservedAndMaximumWeight(
+                  row.maxObservedWeightGrams,
+                  row.maxObservedWeightAssessment.maxWeightGrams,
+                )}
                 {anomalyWeightLabel(row.maxObservedWeightAssessment.classification) ? (
                   <span className={styles.secondaryText}>
                     {anomalyWeightLabel(row.maxObservedWeightAssessment.classification)}
@@ -75,6 +78,14 @@ export function PublicFishCatchTable({ rows }: PublicFishCatchTableProps) {
 
 export function formatPublicFishCatchWeight(weightGrams: number): string {
   return formatCompactWeight(weightGrams);
+}
+
+export function formatObservedAndMaximumWeight(
+  maxObservedWeightGrams: number,
+  maxWeightGrams: number | null,
+): string {
+  const maximum = maxWeightGrams === null ? '—' : formatPublicFishCatchWeight(maxWeightGrams);
+  return `${formatPublicFishCatchWeight(maxObservedWeightGrams)} / ${maximum}`;
 }
 
 export function formatPublicFishCatchDate(value: string): string {

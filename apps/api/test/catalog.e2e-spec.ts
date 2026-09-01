@@ -1066,16 +1066,6 @@ void describe('Catalog API (PostgreSQL e2e)', { concurrency: false }, () => {
       minWeightGrams: 150,
       maxWeightGrams: 200,
     });
-    const weightStatistics = asObject(
-      (
-        await api()
-          .get('/api/v1/catch-reports/statistics/weights')
-          .query({ fishId: fish.id, baseIds: base.id })
-          .expect(200)
-      ).body as unknown,
-    );
-    assert.equal(asObject(weightStatistics.counts)['suspicious-low'], 1);
-
     const cleared = await unsafe(api().patch(membershipPath), admin.cookie)
       .send({ minWeightGrams: null })
       .expect(200);
