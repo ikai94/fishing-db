@@ -1,5 +1,6 @@
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -12,6 +13,12 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('@/lib/catalog-api', () => ({
   getFish: mocks.getFish,
+}));
+
+vi.mock('@/components/application-shell/application-shell', () => ({
+  ApplicationShell: ({ children }: { children: ReactNode }) => (
+    <main data-testid="application-shell">{children}</main>
+  ),
 }));
 
 vi.mock('./_components/fish-explorer', () => ({
@@ -71,12 +78,19 @@ describe('FishDetailPage', () => {
       await pending.promise;
     });
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'Сом' })).toBeVisible();
+    const heading = await screen.findByRole('heading', { level: 1, name: 'Сом' });
+    expect(heading).toBeVisible();
+    expect(heading.closest('header')?.querySelector('svg')).toBeNull();
+    expect(screen.queryByText('Рыба')).not.toBeInTheDocument();
     expect(screen.getByText('Активных баз обитания: 2')).toBeVisible();
     expect(screen.getByText('Нет изображения')).toBeVisible();
     expect(screen.getByTestId('fish-explorer')).toHaveAttribute('data-base-ids', 'base-a,base-b');
-    expect(screen.getByRole('link', { name: '← Все рыбы' })).toHaveAttribute('href', '/fish');
-    expect(screen.getByRole('link', { name: 'Базы' })).toHaveAttribute('href', '/bases');
+    expect(screen.getByTestId('application-shell')).toBeVisible();
+    expect(screen.getAllByRole('main')).toHaveLength(1);
+    expect(screen.getByRole('navigation', { name: 'Навигация по разделу' })).toHaveTextContent(
+      'Рыбы/Сом',
+    );
+    expect(screen.getByRole('link', { name: 'Рыбы' })).toHaveAttribute('href', '/fish');
   });
 
   test('shows a recoverable error and retries the Fish request', async () => {

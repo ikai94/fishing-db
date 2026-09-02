@@ -6,6 +6,7 @@ import { useCallback } from 'react';
 import styles from '../../public-catalog.module.css';
 import { FishExplorer } from './_components/fish-explorer';
 import { FishImage } from '../_components/fish-image';
+import { ApplicationShell } from '@/components/application-shell/application-shell';
 import { getFish } from '@/lib/catalog-api';
 import { useApiResource } from '@/lib/use-api-resource';
 
@@ -18,20 +19,22 @@ export default function FishDetailPage() {
   );
 
   return (
-    <main className={styles.page}>
-      <div className={styles.container}>
-        <nav className={styles.topNav} aria-label="Навигация по каталогу">
-          <Link className={styles.backLink} href="/fish">
-            ← Все рыбы
+    <ApplicationShell>
+      <div className={styles.page}>
+        <nav className={styles.sectionNavigation} aria-label="Навигация по разделу">
+          <Link className={styles.sectionLink} href="/fish">
+            Рыбы
           </Link>
-          <div className={styles.navGroup}>
-            <Link className={styles.navLink} href="/bases">
-              Базы
-            </Link>
-            <Link className={styles.navLink} href="/">
-              На главную
-            </Link>
-          </div>
+          {state.kind === 'ready' ? (
+            <>
+              <span className={styles.navigationSeparator} aria-hidden="true">
+                /
+              </span>
+              <span className={styles.navigationCurrent} aria-current="page">
+                {state.data.name}
+              </span>
+            </>
+          ) : null}
         </nav>
 
         {state.kind === 'loading' ? (
@@ -63,7 +66,6 @@ export default function FishDetailPage() {
           <>
             <header className={`${styles.header} ${styles.fishDetailHeader}`}>
               <div>
-                <p className={styles.eyebrow}>Рыба</p>
                 <h1 className={styles.title}>{state.data.name}</h1>
                 <p className={styles.metadata}>
                   Активных баз обитания: {state.data.bases.length.toLocaleString('ru-RU')}
@@ -75,6 +77,6 @@ export default function FishDetailPage() {
           </>
         ) : null}
       </div>
-    </main>
+    </ApplicationShell>
   );
 }
