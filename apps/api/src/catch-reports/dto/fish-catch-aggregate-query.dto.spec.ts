@@ -9,7 +9,7 @@ const BASE_ID = '60000000-0000-4000-8000-000000000001';
 const OTHER_BASE_ID = '60000000-0000-4000-8000-000000000002';
 
 void describe('FishCatchAggregateQueryDto', () => {
-  void it('requires Fish/Base scope and preserves inherited pagination', async () => {
+  void it('accepts selected Bases and preserves inherited pagination', async () => {
     const dto = plainToInstance(FishCatchAggregateQueryDto, {
       fishId: FISH_ID,
       baseIds: `${BASE_ID.toUpperCase()},${OTHER_BASE_ID},${BASE_ID}`,
@@ -23,7 +23,14 @@ void describe('FishCatchAggregateQueryDto', () => {
     assert.equal(dto.cursor, 'opaque');
   });
 
-  void it('rejects missing, empty, repeated-query, malformed, and oversized scopes', async () => {
+  void it('uses an omitted Base scope for all Bases', async () => {
+    const dto = plainToInstance(FishCatchAggregateQueryDto, { fishId: FISH_ID });
+
+    assert.deepEqual(await validate(dto), []);
+    assert.deepEqual(dto.baseIds, []);
+  });
+
+  void it('rejects missing Fish, empty-token, repeated-query, malformed, and oversized scopes', async () => {
     const tooManyIds = Array.from(
       { length: 101 },
       (_, index) => `60000000-0000-4000-8000-${index.toString().padStart(12, '0')}`,

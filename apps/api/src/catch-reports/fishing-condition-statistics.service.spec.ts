@@ -122,6 +122,22 @@ void describe('FishingConditionStatisticsService', () => {
     assert.equal(result.items[0]?.spinningSpeed, null);
   });
 
+  void it('omits the Base predicate for an empty all-Bases scope', async () => {
+    let capturedQuery: unknown;
+    const prisma = {
+      $queryRaw: (query: unknown) => {
+        capturedQuery = query;
+        return Promise.resolve([]);
+      },
+    } as unknown as PrismaService;
+
+    await new FishingConditionStatisticsService(prisma).list({ fishId: FISH_ID, baseIds: [] });
+    const sqlQuery = capturedQuery as { text: string; values: unknown[] };
+
+    assert.deepEqual(sqlQuery.values, [FISH_ID]);
+    assert.equal(sqlQuery.text.includes('source_location."fishingBaseId" IN'), false);
+  });
+
   void it('rejects PostgreSQL counts outside the JavaScript safe integer range', async () => {
     for (const field of ['uniqueUsersCount', 'reportsCount'] as const) {
       const prisma = {

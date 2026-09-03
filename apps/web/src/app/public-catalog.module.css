@@ -118,6 +118,24 @@
   gap: 10px 16px;
 }
 
+.fishExplorerLayout {
+  display: grid;
+  grid-template-areas: 'content filter';
+  grid-template-columns: minmax(0, 1fr) minmax(230px, 280px);
+  align-items: start;
+  gap: 20px;
+}
+
+.fishExplorerContent {
+  grid-area: content;
+  min-width: 0;
+}
+
+.fishExplorerSidebar {
+  grid-area: filter;
+  min-width: 0;
+}
+
 .eyebrow {
   margin: 0 0 4px;
   color: #426951;
@@ -249,8 +267,7 @@
 }
 
 .holeTableRegion,
-.conditionTableRegion,
-.baitTableRegion {
+.conditionTableRegion {
   max-width: 100%;
   overflow-x: auto;
   border: 1px solid var(--app-border);
@@ -258,7 +275,6 @@
   background: var(--app-surface);
 }
 
-.baitStatisticsTable,
 .conditionStatisticsTable {
   width: 100%;
   min-width: 760px;
@@ -269,12 +285,6 @@
   line-height: 1.38;
 }
 
-.baitStatisticsTable {
-  min-width: 420px;
-}
-
-.baitStatisticsTable th,
-.baitStatisticsTable td,
 .conditionStatisticsTable th,
 .conditionStatisticsTable td {
   padding: 5px 7px;
@@ -285,14 +295,11 @@
   vertical-align: top;
 }
 
-.baitStatisticsTable th:last-child,
-.baitStatisticsTable td:last-child,
 .conditionStatisticsTable th:last-child,
 .conditionStatisticsTable td:last-child {
   border-right: 0;
 }
 
-.baitStatisticsTable thead th,
 .conditionStatisticsTable thead th {
   color: #34515f;
   background: rgb(220 238 248 / 62%);
@@ -302,34 +309,36 @@
   text-transform: uppercase;
 }
 
-.baitStatisticsTable tbody tr:last-child th,
-.baitStatisticsTable tbody tr:last-child td,
 .conditionStatisticsTable tbody tr:last-child th,
 .conditionStatisticsTable tbody tr:last-child td {
   border-bottom: 0;
 }
 
-.baitStatisticsTable thead th:nth-child(1) {
-  width: 4ch;
+.baitStatisticsList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 14px;
+  margin: 0;
+  padding: 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  list-style: none;
 }
 
-.baitStatisticsTable thead th:nth-child(2) {
-  width: auto;
-}
-
-.baitStatisticsTable thead th:nth-child(3) {
-  width: 9ch;
-  text-align: right;
-}
-
-.baitStatisticsRow:hover {
-  background: rgb(220 238 248 / 34%);
-}
-
-.baitStatisticsCountCell {
-  text-align: right !important;
+.baitStatisticsItem {
   white-space: nowrap;
+}
+
+.baitStatisticsItem:not(:last-child)::after {
+  content: ',';
+}
+
+.baitStatisticsCount {
   font-variant-numeric: tabular-nums;
+}
+
+.inactiveBait {
+  color: var(--app-text-muted);
 }
 
 .conditionStatisticsTable {
@@ -372,7 +381,7 @@
 
 .holeTable {
   width: 100%;
-  min-width: 850px;
+  min-width: 720px;
   border-collapse: collapse;
   table-layout: fixed;
   font-size: 0.8125rem;
@@ -414,7 +423,7 @@
 }
 
 .holeTable thead th:nth-child(2) {
-  width: 28%;
+  width: 38%;
 }
 
 .holeTable thead th:nth-child(3) {
@@ -429,10 +438,6 @@
 .holeTable thead th:nth-child(6) {
   width: 9ch;
   text-align: right;
-}
-
-.holeTable thead th:nth-child(7) {
-  width: 13ch;
 }
 
 .holeRow:hover {
@@ -469,7 +474,7 @@
 
 .catchTable {
   width: 100%;
-  min-width: 720px;
+  min-width: 1180px;
   border-collapse: collapse;
   table-layout: fixed;
   font-size: 0.8125rem;
@@ -510,21 +515,45 @@
 }
 
 .catchTable th:nth-child(2) {
-  width: 32%;
+  width: 28ch;
 }
 
 .catchTable th:nth-child(3) {
-  width: 24%;
+  width: 21ch;
 }
 
 .catchTable th:nth-child(4) {
-  width: 14ch;
-  text-align: right;
+  width: 20ch;
 }
 
 .catchTable th:nth-child(5) {
+  width: 18ch;
+}
+
+.catchTable th:nth-child(6) {
+  width: 25ch;
+}
+
+.catchTable th:nth-child(7) {
+  width: 18ch;
+  text-align: right;
+}
+
+.catchTable th:nth-child(8) {
   width: 19ch;
   text-align: right;
+}
+
+.aggregateSingleLineCell,
+.spinningCombinationsCell {
+  overflow: hidden;
+  overflow-wrap: normal !important;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spinningCombinationsCell {
+  font-variant-numeric: tabular-nums;
 }
 
 .observedFishTable {
@@ -830,7 +859,7 @@
 .membershipFieldset {
   min-width: 0;
   margin: 0;
-  padding: 8px 10px 10px;
+  padding: 6px 8px 8px;
   border: 1px solid var(--app-border);
   border-radius: var(--app-radius-md);
   background: rgb(248 251 252 / 72%);
@@ -839,19 +868,27 @@
 .membershipFieldset > legend {
   padding: 0 5px;
   color: var(--app-text);
-  font-size: 1.08rem;
+  font-size: 0.9rem;
   font-weight: 700;
 }
 
 .membershipToolbar {
-  justify-content: space-between;
-  margin: 3px 0 7px;
+  gap: 4px 6px;
+  justify-content: flex-start;
+  margin: 1px 0 5px;
+  font-size: 0.75rem;
+}
+
+.membershipToolbar .secondaryButton {
+  min-height: 26px;
+  padding: 2px 6px;
+  font-size: 0.72rem;
 }
 
 .membershipGrid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1px 20px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -859,10 +896,12 @@
 
 .membershipItem {
   display: grid;
-  grid-template-columns: 26px minmax(0, 1fr);
+  grid-template-columns: 22px minmax(0, 1fr) auto;
   align-items: center;
-  min-height: 32px;
+  min-height: 27px;
   border-bottom: 1px solid rgb(204 215 220 / 68%);
+  font-size: 0.78rem;
+  line-height: 1.25;
 }
 
 .membershipItem:hover,
@@ -870,29 +909,32 @@
   background: rgb(220 238 248 / 42%);
 }
 
-.membershipContent {
+.membershipItem .entityLink {
   min-width: 0;
-  padding: 5px 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .membershipWeight {
-  display: block;
+  padding-left: 6px;
   color: var(--app-text-muted);
-  font-size: 0.76rem;
+  font-size: 0.72rem;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .checkboxControl {
   display: inline-grid;
-  width: 26px;
-  min-height: 32px;
+  width: 22px;
+  min-height: 27px;
   place-items: center;
   cursor: pointer;
 }
 
 .checkbox {
-  width: 17px;
-  height: 17px;
+  width: 15px;
+  height: 15px;
   margin: 0;
   accent-color: var(--app-accent-strong);
 }
@@ -951,9 +993,36 @@
   border-top: 1px solid var(--app-border);
 }
 
+.fishExplorerContent > .resultsRegion:first-child {
+  margin-top: 0;
+}
+
+.conditionDisclosureSummary {
+  cursor: pointer;
+}
+
+.conditionDisclosureSummary::marker {
+  color: var(--app-accent-strong);
+}
+
+.conditionDisclosureContent {
+  margin-top: 7px;
+}
+
 .loadMore {
   display: block;
   margin: 12px auto 0;
+}
+
+.paginationSentinel {
+  height: 1px;
+}
+
+.paginationStatus {
+  margin: 5px 0 0;
+  color: var(--app-text-muted);
+  font-size: 0.75rem;
+  text-align: center;
 }
 
 .visuallyHidden {
@@ -974,7 +1043,6 @@
 .tableRegion:focus-visible,
 .holeTableRegion:focus-visible,
 .conditionTableRegion:focus-visible,
-.baitTableRegion:focus-visible,
 .catchTableRegion:focus-visible,
 .observedFishSelectorSummary:focus-visible,
 .searchInput:focus-visible,
@@ -989,7 +1057,6 @@
 .entityLink:focus-visible,
 .holeTableRegion:focus-visible,
 .conditionTableRegion:focus-visible,
-.baitTableRegion:focus-visible,
 .catchTableRegion:focus-visible,
 .checkbox:focus-visible,
 .secondaryButton:focus-visible,
@@ -1008,6 +1075,13 @@
     justify-self: start;
   }
 
+  .fishExplorerLayout {
+    grid-template-areas:
+      'filter'
+      'content';
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .baseReferenceGrid {
     grid-template-columns: 1fr;
     gap: 20px;
@@ -1015,10 +1089,6 @@
 
   .baseReferenceGrid .section + .section {
     margin-top: 0;
-  }
-
-  .membershipGrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -1043,10 +1113,6 @@
 
   .navGroup {
     justify-content: flex-start;
-  }
-
-  .membershipGrid {
-    grid-template-columns: 1fr;
   }
 
   .observedFishSelector {

@@ -128,10 +128,16 @@ describe('fishing condition statistics request', () => {
     );
   });
 
-  test('rejects zero and more than 100 unique Bases without sending a request', async () => {
-    await expect(listFishingConditionStatistics({ fishId: 'fish-1', baseIds: [] })).rejects.toThrow(
-      'хотя бы одну рыболовную базу',
+  test('omits the Base filter for all Bases and rejects more than 100 unique Bases', async () => {
+    await expect(
+      listFishingConditionStatistics({ fishId: 'fish-1', baseIds: [] }),
+    ).resolves.toEqual([baitFishing]);
+    expect(mocks.apiRequest).toHaveBeenCalledWith(
+      '/catch-reports/statistics/conditions?fishId=fish-1',
+      { signal: undefined },
     );
+
+    mocks.apiRequest.mockClear();
     await expect(
       listFishingConditionStatistics({
         fishId: 'fish-1',

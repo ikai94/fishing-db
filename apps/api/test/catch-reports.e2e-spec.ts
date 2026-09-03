@@ -87,6 +87,7 @@ interface StatisticsReportOverrides {
   fishingNote?: 'MIDWATER' | 'FROM_BOTTOM' | 'SURFACE' | null;
   spinningSize?: 'SMALL' | 'MEDIUM' | 'LARGE' | null;
   spinningSpeed?: 'SLOW' | 'MEDIUM' | 'FAST' | null;
+  userNoteRaw?: string | null;
   weightGrams?: number;
   createdAt?: Date;
 }
@@ -111,10 +112,26 @@ interface FishCatchAggregateItem {
   fishingBase: { id: string; name: string };
   location: { id: string; number: number; name: string };
   bait: { id: string; name: string; isActive: boolean };
+  spinningCombinations: Array<{
+    spinningSpeed: 'SLOW' | 'MEDIUM' | 'FAST' | null;
+    spinningSize: 'SMALL' | 'MEDIUM' | 'LARGE' | null;
+  }>;
+  holeSpotSummary: FishCatchHoleSpotSummary;
+  userNoteRawSummary: FishCatchTextSummary;
   intensity: number;
   contributorCount: number;
   maxObservedWeightGrams: number;
   maxObservedWeightAssessment: WeightAssessment;
+}
+
+interface FishCatchTextSummary {
+  distinctCount: number;
+  value: string | null;
+}
+
+interface FishCatchHoleSpotSummary {
+  distinctCount: number;
+  value: { holeDepthCm: number | null; spotPositionRaw: string | null } | null;
 }
 
 interface WeightAssessment {
@@ -355,10 +372,13 @@ function readFishCatchAggregatePage(body: unknown): {
       'contributorCount',
       'fish',
       'fishingBase',
+      'holeSpotSummary',
       'intensity',
       'location',
       'maxObservedWeightAssessment',
       'maxObservedWeightGrams',
+      'spinningCombinations',
+      'userNoteRawSummary',
     ]);
     const fish = asObject(item.fish);
     const fishingBase = asObject(item.fishingBase);
@@ -369,6 +389,23 @@ function readFishCatchAggregatePage(body: unknown): {
     assert.deepEqual(Object.keys(location).sort(), ['id', 'name', 'number']);
     assert.deepEqual(Object.keys(bait).sort(), ['id', 'isActive', 'name']);
     assert.equal(typeof bait.isActive, 'boolean');
+    const spinningCombinations = asArray(item.spinningCombinations).map((value) => {
+      const combination = asObject(value);
+      assert.deepEqual(Object.keys(combination).sort(), ['spinningSize', 'spinningSpeed']);
+      assert.ok(
+        combination.spinningSpeed === null ||
+          ['SLOW', 'MEDIUM', 'FAST'].includes(asString(combination.spinningSpeed, 'spinningSpeed')),
+      );
+      assert.ok(
+        combination.spinningSize === null ||
+          ['SMALL', 'MEDIUM', 'LARGE'].includes(asString(combination.spinningSize, 'spinningSize')),
+      );
+      assert.ok(combination.spinningSpeed !== null || combination.spinningSize !== null);
+      return {
+        spinningSpeed: combination.spinningSpeed as 'SLOW' | 'MEDIUM' | 'FAST' | null,
+        spinningSize: combination.spinningSize as 'SMALL' | 'MEDIUM' | 'LARGE' | null,
+      };
+    });
 
     const result: FishCatchAggregateItem = {
       fish: { id: asString(fish.id, 'fish.id'), name: asString(fish.name, 'fish.name') },
@@ -386,6 +423,9 @@ function readFishCatchAggregatePage(body: unknown): {
         name: asString(bait.name, 'bait.name'),
         isActive: bait.isActive as boolean,
       },
+      spinningCombinations,
+      holeSpotSummary: readFishCatchHoleSpotSummary(item.holeSpotSummary),
+      userNoteRawSummary: readFishCatchTextSummary(item.userNoteRawSummary),
       intensity: asNumber(item.intensity, 'intensity'),
       contributorCount: asNumber(item.contributorCount, 'contributorCount'),
       maxObservedWeightGrams: asNumber(item.maxObservedWeightGrams, 'maxObservedWeightGrams'),
@@ -393,6 +433,8 @@ function readFishCatchAggregatePage(body: unknown): {
     };
 
     assert.ok(result.intensity >= result.contributorCount);
+    assert.ok(result.intensity >= result.holeSpotSummary.distinctCount);
+    assert.ok(result.intensity >= result.userNoteRawSummary.distinctCount);
     const serialized = JSON.stringify(result);
     for (const forbiddenField of [
       'reportId',
@@ -403,11 +445,7 @@ function readFishCatchAggregatePage(body: unknown): {
       'importKey',
       'rawSourceText',
       'fishingMethod',
-      'holeDepthCm',
-      'spotPositionRaw',
       'fishingNote',
-      'spinningSize',
-      'spinningSpeed',
       'userNoteRaw',
       'createdAt',
       'updatedAt',
@@ -419,6 +457,40 @@ function readFishCatchAggregatePage(body: unknown): {
   });
 
   return { items, nextCursor: payload.nextCursor };
+}
+
+function readFishCatchTextSummary(value: unknown): FishCatchTextSummary {
+  const summary = asObject(value);
+  assert.deepEqual(Object.keys(summary).sort(), ['distinctCount', 'value']);
+  const distinctCount = asNumber(summary.distinctCount, 'distinctCount');
+  assert.ok(Number.isSafeInteger(distinctCount) && distinctCount >= 0);
+  assert.ok(summary.value === null || typeof summary.value === 'string');
+  assert.equal(distinctCount === 1, typeof summary.value === 'string' && summary.value.length > 0);
+  return { distinctCount, value: summary.value };
+}
+
+function readFishCatchHoleSpotSummary(value: unknown): FishCatchHoleSpotSummary {
+  const summary = asObject(value);
+  assert.deepEqual(Object.keys(summary).sort(), ['distinctCount', 'value']);
+  const distinctCount = asNumber(summary.distinctCount, 'distinctCount');
+  assert.ok(Number.isSafeInteger(distinctCount) && distinctCount >= 0);
+  if (distinctCount !== 1) {
+    assert.equal(summary.value, null);
+    return { distinctCount, value: null };
+  }
+
+  const pair = asObject(summary.value);
+  assert.deepEqual(Object.keys(pair).sort(), ['holeDepthCm', 'spotPositionRaw']);
+  assert.ok(pair.holeDepthCm === null || typeof pair.holeDepthCm === 'number');
+  assert.ok(pair.spotPositionRaw === null || typeof pair.spotPositionRaw === 'string');
+  const holeDepthCm = pair.holeDepthCm;
+  const spotPositionRaw = pair.spotPositionRaw;
+  if (holeDepthCm !== null) {
+    assert.ok(Number.isSafeInteger(holeDepthCm) && holeDepthCm >= 1);
+  }
+  if (spotPositionRaw !== null) assert.ok(spotPositionRaw.length > 0);
+  assert.ok(holeDepthCm !== null || spotPositionRaw !== null);
+  return { distinctCount, value: { holeDepthCm, spotPositionRaw } };
 }
 
 function readWeightAssessment(value: unknown): WeightAssessment {
@@ -773,7 +845,10 @@ async function createStatisticsReport(
       fishingNote: overrides.fishingNote ?? null,
       spinningSize: overrides.spinningSize ?? null,
       spinningSpeed: overrides.spinningSpeed ?? null,
-      userNoteRaw: 'Личная заметка не для статистики',
+      userNoteRaw:
+        overrides.userNoteRaw === undefined
+          ? 'Личная заметка не для статистики'
+          : overrides.userNoteRaw,
       rawSourceText: 'Исходная строка не для статистики',
       createdAt,
       updatedAt: createdAt,
@@ -2584,6 +2659,7 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
       weightGrams: 100,
       holeDepthCm: 600,
       spotPositionRaw: 'первая точка',
+      userNoteRaw: 'первый комментарий',
     });
     await createStatisticsReport(firstActor, firstCatalog, {
       weightGrams: 900,
@@ -2593,25 +2669,42 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
       fishingNote: 'MIDWATER',
       spinningSize: 'SMALL',
       spinningSpeed: 'FAST',
+      userNoteRaw: 'первый комментарий',
     });
     await createStatisticsReport(secondActor, firstCatalog, {
       weightGrams: 400,
       fishingNote: 'FROM_BOTTOM',
+      userNoteRaw: 'второй комментарий',
     });
     for (const baitId of [lowerBait.id, tiedBait.id]) {
-      await createStatisticsReport(firstActor, firstCatalog, { baitId, weightGrams: 250 });
-      await createStatisticsReport(firstActor, firstCatalog, { baitId, weightGrams: 300 });
+      const holeSpotOverrides =
+        baitId === tiedBait.id ? { holeDepthCm: 603, spotPositionRaw: null } : {};
+      await createStatisticsReport(firstActor, firstCatalog, {
+        baitId,
+        weightGrams: 250,
+        ...holeSpotOverrides,
+      });
+      await createStatisticsReport(firstActor, firstCatalog, {
+        baitId,
+        weightGrams: 300,
+        ...holeSpotOverrides,
+      });
     }
     for (let index = 0; index < 4; index += 1) {
       await createStatisticsReport(firstActor, firstCatalog, {
         locationId: secondLocation.id,
         weightGrams: 500 + index,
+        holeDepthCm: null,
+        spotPositionRaw: null,
+        userNoteRaw: null,
       });
     }
     await createStatisticsReport(firstActor, secondCatalog, {
       fishId: firstCatalog.fish.id,
       baitId: lowerBait.id,
       weightGrams: 700,
+      holeDepthCm: null,
+      spotPositionRaw: 'справа',
     });
 
     await prisma.user.update({ where: { id: firstActor.userId }, data: { isBanned: true } });
@@ -2650,16 +2743,84 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
         item.intensity,
         item.contributorCount,
         item.maxObservedWeightGrams,
+        item.spinningCombinations,
+        item.holeSpotSummary,
+        item.userNoteRawSummary,
       ]),
       [
-        [firstCatalog.base.id, 1, firstCatalog.bait.id, 3, 2, 900],
-        [firstCatalog.base.id, 1, lowerBait.id, 2, 1, 300],
-        [firstCatalog.base.id, 1, tiedBait.id, 2, 1, 300],
-        [firstCatalog.base.id, 2, firstCatalog.bait.id, 4, 1, 503],
-        [secondCatalog.base.id, 1, lowerBait.id, 1, 1, 700],
+        [
+          firstCatalog.base.id,
+          1,
+          firstCatalog.bait.id,
+          3,
+          2,
+          900,
+          [{ spinningSpeed: 'FAST', spinningSize: 'SMALL' }],
+          { distinctCount: 3, value: null },
+          { distinctCount: 2, value: null },
+        ],
+        [
+          firstCatalog.base.id,
+          1,
+          lowerBait.id,
+          2,
+          1,
+          300,
+          [],
+          {
+            distinctCount: 1,
+            value: { holeDepthCm: 600, spotPositionRaw: 'точка' },
+          },
+          { distinctCount: 1, value: 'Личная заметка не для статистики' },
+        ],
+        [
+          firstCatalog.base.id,
+          1,
+          tiedBait.id,
+          2,
+          1,
+          300,
+          [],
+          {
+            distinctCount: 1,
+            value: { holeDepthCm: 603, spotPositionRaw: null },
+          },
+          { distinctCount: 1, value: 'Личная заметка не для статистики' },
+        ],
+        [
+          firstCatalog.base.id,
+          2,
+          firstCatalog.bait.id,
+          4,
+          1,
+          503,
+          [],
+          { distinctCount: 0, value: null },
+          { distinctCount: 0, value: null },
+        ],
+        [
+          secondCatalog.base.id,
+          1,
+          lowerBait.id,
+          1,
+          1,
+          700,
+          [],
+          {
+            distinctCount: 1,
+            value: { holeDepthCm: null, spotPositionRaw: 'справа' },
+          },
+          { distinctCount: 1, value: 'Личная заметка не для статистики' },
+        ],
       ],
     );
     assert.equal(await prisma.catchReport.count(), 12);
+
+    const allBasesPage = readFishCatchAggregatePage(
+      (await api().get(endpoint).query({ fishId: firstCatalog.fish.id, limit: 100 }).expect(200))
+        .body as unknown,
+    );
+    assert.deepEqual(allBasesPage, fullPage);
 
     const pagedItems: FishCatchAggregateItem[] = [];
     let cursor: string | null = null;
@@ -2684,7 +2845,7 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
     assert.equal(readErrorCode(invalidCursor.body as unknown), 'VALIDATION_ERROR');
   });
 
-  void test('Fish catch aggregate scope validation is required and anonymous', async () => {
+  void test('Fish catch aggregate requires Fish and accepts an all-Base scope anonymously', async () => {
     const endpoint = '/api/v1/catch-reports/statistics/fish-catches';
     const unknown = readFishCatchAggregatePage(
       (await api().get(endpoint).query({ fishId: randomUUID(), baseIds: randomUUID() }).expect(200))
@@ -2692,11 +2853,15 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
     );
     assert.deepEqual(unknown, { items: [], nextCursor: null });
 
+    const allBases = readFishCatchAggregatePage(
+      (await api().get(endpoint).query({ fishId: randomUUID() }).expect(200)).body as unknown,
+    );
+    assert.deepEqual(allBases, { items: [], nextCursor: null });
+
     const fishId = randomUUID();
     const baseId = randomUUID();
     for (const url of [
       endpoint,
-      `${endpoint}?fishId=${fishId}`,
       `${endpoint}?baseIds=${baseId}`,
       `${endpoint}?fishId=invalid&baseIds=${baseId}`,
       `${endpoint}?fishId=${fishId}&baseIds=${baseId}&baseIds=${randomUUID()}`,
@@ -2706,7 +2871,7 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
     }
   });
 
-  void test('Bait statistics is isolated to exactly one Base and collapses methods by Bait', async () => {
+  void test('Bait statistics respects selected/all Bases and collapses methods by Bait', async () => {
     const firstCatalog = await createCatalog({ baitType: 'BAIT' });
     const secondCatalog = await createCatalog();
     const secondaryBait = await createBait('LURE');
@@ -2734,7 +2899,7 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
       (
         await api()
           .get(endpoint)
-          .query({ fishId: firstCatalog.fish.id, baseId: firstCatalog.base.id })
+          .query({ fishId: firstCatalog.fish.id, baseIds: firstCatalog.base.id })
           .expect(200)
       ).body as unknown,
     );
@@ -2750,7 +2915,7 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
       (
         await api()
           .get(endpoint)
-          .query({ fishId: firstCatalog.fish.id, baseId: secondCatalog.base.id })
+          .query({ fishId: firstCatalog.fish.id, baseIds: secondCatalog.base.id })
           .expect(200)
       ).body as unknown,
     );
@@ -2759,18 +2924,29 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
       [[firstCatalog.bait.id, 4]],
     );
 
+    const allBaseItems = readBaitStatistics(
+      (await api().get(endpoint).query({ fishId: firstCatalog.fish.id }).expect(200))
+        .body as unknown,
+    );
+    assert.deepEqual(
+      allBaseItems.map((item) => [item.bait.id, item.reportsCount]),
+      [
+        [firstCatalog.bait.id, 7],
+        [secondaryBait.id, 2],
+      ],
+    );
+
     const unknown = readBaitStatistics(
-      (await api().get(endpoint).query({ fishId: randomUUID(), baseId: randomUUID() }).expect(200))
+      (await api().get(endpoint).query({ fishId: randomUUID(), baseIds: randomUUID() }).expect(200))
         .body as unknown,
     );
     assert.deepEqual(unknown, []);
     for (const url of [
       endpoint,
-      `${endpoint}?fishId=${firstCatalog.fish.id}`,
-      `${endpoint}?baseId=${firstCatalog.base.id}`,
-      `${endpoint}?fishId=invalid&baseId=${firstCatalog.base.id}`,
-      `${endpoint}?fishId=${firstCatalog.fish.id}&baseId=${firstCatalog.base.id}&baseId=${secondCatalog.base.id}`,
-      `${endpoint}?fishId=${firstCatalog.fish.id}&baseIds=${firstCatalog.base.id}`,
+      `${endpoint}?baseIds=${firstCatalog.base.id}`,
+      `${endpoint}?fishId=invalid&baseIds=${firstCatalog.base.id}`,
+      `${endpoint}?fishId=${firstCatalog.fish.id}&baseIds=${firstCatalog.base.id}&baseIds=${secondCatalog.base.id}`,
+      `${endpoint}?fishId=${firstCatalog.fish.id}&baseId=${firstCatalog.base.id}`,
     ]) {
       const invalid = await api().get(url).expect(400);
       assert.equal(readErrorCode(invalid.body as unknown), 'VALIDATION_ERROR');
@@ -2784,7 +2960,7 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
     const editedReport = await createReport(editor, catalog);
     const removedReport = await createReport(remover, catalog);
     const endpoint = '/api/v1/catch-reports/statistics/baits';
-    const query = { fishId: catalog.fish.id, baseId: catalog.base.id };
+    const query = { fishId: catalog.fish.id, baseIds: catalog.base.id };
 
     const initial = readBaitStatistics(
       (await api().get(endpoint).query(query).expect(200)).body as unknown,
@@ -2823,19 +2999,22 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
     );
   });
 
-  void test('Fishing Conditions statistics reuses the required anonymous Fish/Base scope validation', async () => {
+  void test('Fishing Conditions statistics accepts all Bases and validates explicit scopes', async () => {
     const endpoint = '/api/v1/catch-reports/statistics/conditions';
     const unknown = readFishingConditionStatistics(
       (await api().get(endpoint).query({ fishId: randomUUID(), baseIds: randomUUID() }).expect(200))
         .body as unknown,
     );
     assert.deepEqual(unknown, []);
+    const allBases = readFishingConditionStatistics(
+      (await api().get(endpoint).query({ fishId: randomUUID() }).expect(200)).body as unknown,
+    );
+    assert.deepEqual(allBases, []);
 
     const baseId = randomUUID();
     const fishId = randomUUID();
     for (const url of [
       endpoint,
-      `${endpoint}?fishId=${fishId}`,
       `${endpoint}?baseIds=${baseId}`,
       `${endpoint}?fishId=not-a-uuid&baseIds=${baseId}`,
       `${endpoint}?fishId=${fishId}&baseIds=`,
@@ -3136,7 +3315,7 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
       (
         await api()
           .get('/api/v1/catch-reports/statistics/baits')
-          .query({ fishId: catalog.fish.id, baseId: catalog.base.id })
+          .query({ fishId: catalog.fish.id, baseIds: catalog.base.id })
           .expect(200)
       ).body as unknown,
     );
@@ -3227,20 +3406,23 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
     assert.equal(await prisma.catchReport.count(), 5);
   });
 
-  void test('validates the required anonymous common-hole statistics scope', async () => {
+  void test('accepts all Bases and validates explicit common-hole statistics scopes', async () => {
     const endpoint = '/api/v1/catch-reports/statistics/holes';
     const unknown = readHoleStatistics(
       (await api().get(endpoint).query({ fishId: randomUUID(), baseIds: randomUUID() }).expect(200))
         .body as unknown,
     );
     assert.deepEqual(unknown, []);
+    const allBases = readHoleStatistics(
+      (await api().get(endpoint).query({ fishId: randomUUID() }).expect(200)).body as unknown,
+    );
+    assert.deepEqual(allBases, []);
 
     const baseId = randomUUID();
     const fishId = randomUUID();
     const tooManyBaseIds = Array.from({ length: 101 }, () => randomUUID()).join(',');
     const invalidUrls = [
       endpoint,
-      `${endpoint}?fishId=${fishId}`,
       `${endpoint}?baseIds=${baseId}`,
       `${endpoint}?fishId=not-a-uuid&baseIds=${baseId}`,
       `${endpoint}?fishId=${fishId}&baseIds=`,

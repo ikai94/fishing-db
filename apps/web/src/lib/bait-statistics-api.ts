@@ -11,10 +11,11 @@ export type BaitStatistic = {
 
 export type ListBaitStatisticsOptions = {
   fishId: string;
-  baseId: string;
+  baseIds: readonly string[];
   signal?: AbortSignal;
 };
 
+const MAX_BASE_IDS = 100;
 const RESPONSE_KEYS = ['items'] as const;
 const ITEM_KEYS = ['bait', 'reportsCount'] as const;
 const BAIT_KEYS = ['id', 'name', 'isActive'] as const;
@@ -88,14 +89,16 @@ export function decodeBaitStatisticsResponse(payload: unknown): BaitStatistic[] 
 
 export async function listBaitStatistics({
   fishId,
-  baseId,
+  baseIds,
   signal,
 }: ListBaitStatisticsOptions): Promise<BaitStatistic[]> {
-  if (baseId.length === 0) {
-    throw new Error('Для статистики укажите одну рыболовную базу');
+  const canonicalBaseIds = [...new Set(baseIds)].sort();
+  if (canonicalBaseIds.length > MAX_BASE_IDS) {
+    throw new Error(`Для статистики можно выбрать не более ${MAX_BASE_IDS} рыболовных баз`);
   }
 
-  const query = new URLSearchParams({ fishId, baseId });
+  const query = new URLSearchParams({ fishId });
+  if (canonicalBaseIds.length > 0) query.set('baseIds', canonicalBaseIds.join(','));
   const payload = await apiRequest<unknown>(`/catch-reports/statistics/baits?${query}`, { signal });
   return decodeBaitStatisticsResponse(payload);
 }

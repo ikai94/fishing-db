@@ -6,9 +6,10 @@ import { BaitStatisticsService } from './bait-statistics.service.js';
 
 const FISH_ID = '40000000-0000-4000-8000-000000000001';
 const BASE_ID = '60000000-0000-4000-8000-000000000001';
+const OTHER_BASE_ID = '60000000-0000-4000-8000-000000000002';
 const BAIT_ID = '50000000-0000-4000-8000-000000000001';
 
-const QUERY: BaitStatisticsQueryDto = { fishId: FISH_ID, baseId: BASE_ID };
+const QUERY: BaitStatisticsQueryDto = { fishId: FISH_ID, baseIds: [BASE_ID, OTHER_BASE_ID] };
 
 function databaseRow(overrides: Record<string, unknown> = {}) {
   return {
@@ -21,7 +22,7 @@ function databaseRow(overrides: Record<string, unknown> = {}) {
 }
 
 void describe('BaitStatisticsService', () => {
-  void it('groups a Fish and exactly one Base only by Bait in one parameterized query', async () => {
+  void it('groups a Fish and selected Bases only by Bait in one parameterized query', async () => {
     let capturedQuery: unknown;
     const prisma = {
       $queryRaw: (query: unknown) => {
@@ -33,10 +34,10 @@ void describe('BaitStatisticsService', () => {
     const result = await new BaitStatisticsService(prisma).list(QUERY);
     const sqlQuery = capturedQuery as { text: string; values: unknown[] };
 
-    assert.deepEqual(sqlQuery.values, [FISH_ID, BASE_ID]);
+    assert.deepEqual(sqlQuery.values, [FISH_ID, BASE_ID, OTHER_BASE_ID]);
     assert.equal(sqlQuery.text.includes(FISH_ID), false);
     assert.equal(sqlQuery.text.includes(BASE_ID), false);
-    assert.match(sqlQuery.text, /source_location\."fishingBaseId" = \$2::uuid/);
+    assert.match(sqlQuery.text, /source_location\."fishingBaseId" IN \(\$2::uuid,\$3::uuid\)/);
     assert.match(sqlQuery.text, /GROUP BY report\."baitId"/);
     assert.equal(sqlQuery.text.includes('report."fishingMethod"'), false);
     assert.equal(sqlQuery.text.includes('report."contributorKey"'), false);
@@ -57,6 +58,22 @@ void describe('BaitStatisticsService', () => {
         },
       ],
     });
+  });
+
+  void it('omits the Base predicate for an empty all-Bases scope', async () => {
+    let capturedQuery: unknown;
+    const prisma = {
+      $queryRaw: (query: unknown) => {
+        capturedQuery = query;
+        return Promise.resolve([]);
+      },
+    } as unknown as PrismaService;
+
+    await new BaitStatisticsService(prisma).list({ fishId: FISH_ID, baseIds: [] });
+    const sqlQuery = capturedQuery as { text: string; values: unknown[] };
+
+    assert.deepEqual(sqlQuery.values, [FISH_ID]);
+    assert.equal(sqlQuery.text.includes('source_location."fishingBaseId" IN'), false);
   });
 
   void it('rejects PostgreSQL counts outside the JavaScript safe integer range', async () => {

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import styles from '../../../public-catalog.module.css';
 import { getApiErrorMessage } from '@/lib/api-client';
 import { type BaitStatistic, listBaitStatistics } from '@/lib/bait-statistics-api';
@@ -15,7 +15,7 @@ import {
   listFishingConditionStatistics,
 } from '@/lib/fishing-condition-statistics-api';
 import { type HoleStatistic, listHoleStatistics } from '@/lib/hole-statistics-api';
-import { BaitStatisticsTable } from './bait-statistics-table';
+import { BaitStatisticsList } from './bait-statistics-list';
 import { CommonHoleTable } from './common-hole-table';
 import { FishingConditionStatisticsTable } from './fishing-condition-statistics-table';
 import { PublicFishCatchTable } from './public-fish-catch-table';
@@ -127,55 +127,59 @@ function FishExplorerState({
   }
 
   return (
-    <>
-      <BaseMembershipSelector
-        bases={fish.bases}
-        selectedBaseIds={selectedSet}
-        onToggle={toggleBase}
-        onSelectAll={() => updateSelection(availableBaseIds)}
-        onClearAll={() => updateSelection([])}
-      />
+    <div className={styles.fishExplorerLayout}>
+      <aside className={styles.fishExplorerSidebar} aria-label="Фильтр по базам">
+        <BaseMembershipSelector
+          bases={fish.bases}
+          selectedBaseIds={selectedSet}
+          onToggle={toggleBase}
+          onSelectAll={() => updateSelection(availableBaseIds)}
+          onClearAll={() => updateSelection([])}
+        />
+      </aside>
 
-      <FishConditionStatistics
-        key={`fishing-condition-statistics:${scopeKey}`}
-        fishId={fish.id}
-        selectedBaseIds={canonicalSelectedBaseIds}
-        scopeKey={scopeKey}
-        loadingMessage={
-          hasChangedScope
-            ? 'Обновляем статистику условий ловли…'
-            : 'Загружаем статистику условий ловли…'
-        }
-      />
+      <div className={styles.fishExplorerContent}>
+        <FishConditionStatistics
+          key={`fishing-condition-statistics:${scopeKey}`}
+          fishId={fish.id}
+          selectedBaseIds={canonicalSelectedBaseIds}
+          scopeKey={scopeKey}
+          loadingMessage={
+            hasChangedScope
+              ? 'Обновляем статистику условий ловли…'
+              : 'Загружаем статистику условий ловли…'
+          }
+        />
 
-      <FishBaitStatistics
-        key={`bait-statistics:${scopeKey}`}
-        fishId={fish.id}
-        selectedBaseIds={canonicalSelectedBaseIds}
-        scopeKey={scopeKey}
-        loadingMessage={
-          hasChangedScope
-            ? 'Обновляем статистику наживок и приманок…'
-            : 'Загружаем статистику наживок и приманок…'
-        }
-      />
+        <FishBaitStatistics
+          key={`bait-statistics:${scopeKey}`}
+          fishId={fish.id}
+          selectedBaseIds={canonicalSelectedBaseIds}
+          scopeKey={scopeKey}
+          loadingMessage={
+            hasChangedScope
+              ? 'Обновляем статистику наживок и приманок…'
+              : 'Загружаем статистику наживок и приманок…'
+          }
+        />
 
-      <FishHoleStatistics
-        key={`statistics:${scopeKey}`}
-        fishId={fish.id}
-        selectedBaseIds={canonicalSelectedBaseIds}
-        scopeKey={scopeKey}
-        loadingMessage={hasChangedScope ? 'Обновляем статистику…' : 'Загружаем статистику…'}
-      />
+        <FishHoleStatistics
+          key={`statistics:${scopeKey}`}
+          fishId={fish.id}
+          selectedBaseIds={canonicalSelectedBaseIds}
+          scopeKey={scopeKey}
+          loadingMessage={hasChangedScope ? 'Обновляем статистику…' : 'Загружаем статистику…'}
+        />
 
-      <FishReportFeed
-        key={`reports:${scopeKey}`}
-        fishId={fish.id}
-        selectedBaseIds={canonicalSelectedBaseIds}
-        scopeKey={scopeKey}
-        loadingMessage={hasChangedScope ? 'Обновляем уловы…' : 'Загружаем уловы…'}
-      />
-    </>
+        <FishReportFeed
+          key={`reports:${scopeKey}`}
+          fishId={fish.id}
+          selectedBaseIds={canonicalSelectedBaseIds}
+          scopeKey={scopeKey}
+          loadingMessage={hasChangedScope ? 'Обновляем уловы…' : 'Загружаем уловы…'}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -218,7 +222,7 @@ function BaseMembershipSelector({
           </button>
         </div>
         <p className={styles.metadata} aria-live="polite">
-          Выбрано {selectedCount} из {bases.length}
+          {selectedCount === 0 ? 'Все базы' : `Выбрано ${selectedCount} из ${bases.length}`}
         </p>
       </div>
 
@@ -240,14 +244,10 @@ function BaseMembershipSelector({
                   />
                   <span className={styles.visuallyHidden}>Учитывать базу «{base.name}»</span>
                 </label>
-                <div className={styles.membershipContent}>
-                  <Link className={styles.entityLink} href={`/bases/${base.id}`}>
-                    {base.name}
-                  </Link>
-                  <span className={styles.membershipWeight}>
-                    Вес: {formatBaseFishWeightBounds(base)}
-                  </span>
-                </div>
+                <Link className={styles.entityLink} href={`/bases/${base.id}`}>
+                  {base.name}
+                </Link>
+                <span className={styles.membershipWeight}>{formatBaseFishWeightBounds(base)}</span>
               </li>
             );
           })}
@@ -271,17 +271,16 @@ export function FishConditionStatistics({
   const revisionRef = useRef(0);
   const requestRef = useRef<ActiveRequest | null>(null);
   const [attempt, setAttempt] = useState(0);
-  const [state, setState] = useState<FishingConditionStatisticsState>(() =>
-    selectedBaseIds.length === 0 ? { kind: 'idle', scopeKey } : { kind: 'loading', scopeKey },
-  );
+  const [state, setState] = useState<FishingConditionStatisticsState>(() => ({
+    kind: 'loading',
+    scopeKey,
+  }));
 
   useEffect(() => {
     const revision = revisionRef.current + 1;
     revisionRef.current = revision;
     requestRef.current?.controller.abort();
     requestRef.current = null;
-
-    if (selectedBaseIds.length === 0) return;
 
     const controller = new AbortController();
     const request = { controller, revision, scopeKey };
@@ -335,8 +334,7 @@ export function FishConditionStatistics({
   }
 
   const currentState = state.scopeKey === scopeKey ? state : null;
-  const isLoading =
-    selectedBaseIds.length > 0 && (currentState === null || currentState.kind === 'loading');
+  const isLoading = currentState === null || currentState.kind === 'loading';
 
   return (
     <section
@@ -344,40 +342,39 @@ export function FishConditionStatistics({
       aria-labelledby="fish-fishing-condition-statistics-heading"
       aria-busy={isLoading}
     >
-      <div className={styles.sectionHeader}>
-        <h2 className={styles.sectionTitle} id="fish-fishing-condition-statistics-heading">
-          Условия ловли в уловах
-        </h2>
-      </div>
+      <details className={styles.conditionDisclosure}>
+        <summary className={styles.conditionDisclosureSummary}>
+          <span className={styles.sectionTitle} id="fish-fishing-condition-statistics-heading">
+            Условия ловли в уловах
+          </span>
+        </summary>
+        <div className={styles.conditionDisclosureContent}>
+          {isLoading ? (
+            <p className={styles.statusMessage} role="status">
+              {loadingMessage}
+            </p>
+          ) : null}
 
-      {selectedBaseIds.length === 0 ? (
-        <p className={styles.statusMessage}>
-          Выберите хотя бы одну базу, чтобы увидеть статистику условий ловли.
-        </p>
-      ) : null}
+          {currentState?.kind === 'error' ? (
+            <div className={`${styles.statusMessage} ${styles.errorMessage}`} role="alert">
+              <p>{currentState.message}</p>
+              <button className={styles.secondaryButton} type="button" onClick={retry}>
+                Повторить загрузку статистики условий ловли
+              </button>
+            </div>
+          ) : null}
 
-      {isLoading ? (
-        <p className={styles.statusMessage} role="status">
-          {loadingMessage}
-        </p>
-      ) : null}
+          {currentState?.kind === 'ready' && currentState.items.length === 0 ? (
+            <p className={styles.statusMessage}>
+              Для выбранного охвата данных об условиях ловли пока нет.
+            </p>
+          ) : null}
 
-      {currentState?.kind === 'error' ? (
-        <div className={`${styles.statusMessage} ${styles.errorMessage}`} role="alert">
-          <p>{currentState.message}</p>
-          <button className={styles.secondaryButton} type="button" onClick={retry}>
-            Повторить загрузку статистики условий ловли
-          </button>
+          {currentState?.kind === 'ready' && currentState.items.length > 0 ? (
+            <FishingConditionStatisticsTable items={currentState.items} />
+          ) : null}
         </div>
-      ) : null}
-
-      {currentState?.kind === 'ready' && currentState.items.length === 0 ? (
-        <p className={styles.statusMessage}>Для выбранных баз данных об условиях ловли пока нет.</p>
-      ) : null}
-
-      {currentState?.kind === 'ready' && currentState.items.length > 0 ? (
-        <FishingConditionStatisticsTable items={currentState.items} />
-      ) : null}
+      </details>
     </section>
   );
 }
@@ -396,17 +393,16 @@ export function FishBaitStatistics({
   const revisionRef = useRef(0);
   const requestRef = useRef<ActiveRequest | null>(null);
   const [attempt, setAttempt] = useState(0);
-  const [state, setState] = useState<BaitStatisticsState>(() =>
-    selectedBaseIds.length !== 1 ? { kind: 'idle', scopeKey } : { kind: 'loading', scopeKey },
-  );
+  const [state, setState] = useState<BaitStatisticsState>(() => ({
+    kind: 'loading',
+    scopeKey,
+  }));
 
   useEffect(() => {
     const revision = revisionRef.current + 1;
     revisionRef.current = revision;
     requestRef.current?.controller.abort();
     requestRef.current = null;
-
-    if (selectedBaseIds.length !== 1) return;
 
     const controller = new AbortController();
     const request = { controller, revision, scopeKey };
@@ -416,7 +412,7 @@ export function FishBaitStatistics({
       try {
         const items = await listBaitStatistics({
           fishId,
-          baseId: selectedBaseIds[0]!,
+          baseIds: [...selectedBaseIds],
           signal: controller.signal,
         });
         if (!isCurrentRequest(requestRef.current, request, scopeKey, revisionRef.current)) return;
@@ -460,8 +456,7 @@ export function FishBaitStatistics({
   }
 
   const currentState = state.scopeKey === scopeKey ? state : null;
-  const isLoading =
-    selectedBaseIds.length === 1 && (currentState === null || currentState.kind === 'loading');
+  const isLoading = currentState === null || currentState.kind === 'loading';
 
   return (
     <section
@@ -474,16 +469,6 @@ export function FishBaitStatistics({
           На что ловится
         </h2>
       </div>
-
-      {selectedBaseIds.length === 0 ? (
-        <p className={styles.statusMessage}>Выберите одну базу, чтобы увидеть статистику.</p>
-      ) : null}
-
-      {selectedBaseIds.length > 1 ? (
-        <p className={styles.statusMessage}>
-          Оставьте выбранной одну базу: статистика разных баз не объединяется.
-        </p>
-      ) : null}
 
       {isLoading ? (
         <p className={styles.statusMessage} role="status">
@@ -502,12 +487,12 @@ export function FishBaitStatistics({
 
       {currentState?.kind === 'ready' && currentState.items.length === 0 ? (
         <p className={styles.statusMessage}>
-          Для выбранной базы данных о наживках и приманках пока нет.
+          Для выбранного охвата данных о наживках и приманках пока нет.
         </p>
       ) : null}
 
       {currentState?.kind === 'ready' && currentState.items.length > 0 ? (
-        <BaitStatisticsTable items={currentState.items} />
+        <BaitStatisticsList items={currentState.items} />
       ) : null}
     </section>
   );
@@ -527,17 +512,16 @@ export function FishHoleStatistics({
   const revisionRef = useRef(0);
   const requestRef = useRef<ActiveRequest | null>(null);
   const [attempt, setAttempt] = useState(0);
-  const [state, setState] = useState<HoleStatisticsState>(() =>
-    selectedBaseIds.length === 0 ? { kind: 'idle', scopeKey } : { kind: 'loading', scopeKey },
-  );
+  const [state, setState] = useState<HoleStatisticsState>(() => ({
+    kind: 'loading',
+    scopeKey,
+  }));
 
   useEffect(() => {
     const revision = revisionRef.current + 1;
     revisionRef.current = revision;
     requestRef.current?.controller.abort();
     requestRef.current = null;
-
-    if (selectedBaseIds.length === 0) return;
 
     const controller = new AbortController();
     const request = { controller, revision, scopeKey };
@@ -591,8 +575,7 @@ export function FishHoleStatistics({
   }
 
   const currentState = state.scopeKey === scopeKey ? state : null;
-  const isLoading =
-    selectedBaseIds.length > 0 && (currentState === null || currentState.kind === 'loading');
+  const isLoading = currentState === null || currentState.kind === 'loading';
 
   return (
     <section
@@ -600,40 +583,37 @@ export function FishHoleStatistics({
       aria-labelledby="fish-hole-statistics-heading"
       aria-busy={isLoading}
     >
-      <div className={styles.sectionHeader}>
-        <h2 className={styles.sectionTitle} id="fish-hole-statistics-heading">
-          Общие ямы и точки
-        </h2>
-      </div>
+      <details className={styles.conditionDisclosure}>
+        <summary className={styles.conditionDisclosureSummary}>
+          <span className={styles.sectionTitle} id="fish-hole-statistics-heading">
+            Общие ямы и точки
+          </span>
+        </summary>
+        <div className={styles.conditionDisclosureContent}>
+          {isLoading ? (
+            <p className={styles.statusMessage} role="status">
+              {loadingMessage}
+            </p>
+          ) : null}
 
-      {selectedBaseIds.length === 0 ? (
-        <p className={styles.statusMessage}>
-          Выберите хотя бы одну базу, чтобы увидеть статистику.
-        </p>
-      ) : null}
+          {currentState?.kind === 'error' ? (
+            <div className={`${styles.statusMessage} ${styles.errorMessage}`} role="alert">
+              <p>{currentState.message}</p>
+              <button className={styles.secondaryButton} type="button" onClick={retry}>
+                Повторить загрузку статистики
+              </button>
+            </div>
+          ) : null}
 
-      {isLoading ? (
-        <p className={styles.statusMessage} role="status">
-          {loadingMessage}
-        </p>
-      ) : null}
+          {currentState?.kind === 'ready' && currentState.items.length === 0 ? (
+            <p className={styles.statusMessage}>Для выбранных баз пока недостаточно данных.</p>
+          ) : null}
 
-      {currentState?.kind === 'error' ? (
-        <div className={`${styles.statusMessage} ${styles.errorMessage}`} role="alert">
-          <p>{currentState.message}</p>
-          <button className={styles.secondaryButton} type="button" onClick={retry}>
-            Повторить загрузку статистики
-          </button>
+          {currentState?.kind === 'ready' && currentState.items.length > 0 ? (
+            <CommonHoleTable items={currentState.items} />
+          ) : null}
         </div>
-      ) : null}
-
-      {currentState?.kind === 'ready' && currentState.items.length === 0 ? (
-        <p className={styles.statusMessage}>Для выбранных баз пока недостаточно данных.</p>
-      ) : null}
-
-      {currentState?.kind === 'ready' && currentState.items.length > 0 ? (
-        <CommonHoleTable items={currentState.items} />
-      ) : null}
+      </details>
     </section>
   );
 }
@@ -652,10 +632,9 @@ export function FishReportFeed({
   const revisionRef = useRef(0);
   const initialRequestRef = useRef<ActiveRequest | null>(null);
   const loadMoreRequestRef = useRef<ActiveRequest | null>(null);
+  const paginationSentinelRef = useRef<HTMLDivElement | null>(null);
   const [attempt, setAttempt] = useState(0);
-  const [state, setState] = useState<FeedState>(() =>
-    selectedBaseIds.length === 0 ? { kind: 'idle', scopeKey } : { kind: 'loading', scopeKey },
-  );
+  const [state, setState] = useState<FeedState>(() => ({ kind: 'loading', scopeKey }));
   const [loadingMoreScope, setLoadingMoreScope] = useState<string | null>(null);
   const [paginationError, setPaginationError] = useState<{
     scopeKey: string;
@@ -670,10 +649,6 @@ export function FishReportFeed({
     loadMoreRequestRef.current?.controller.abort();
     initialRequestRef.current = null;
     loadMoreRequestRef.current = null;
-
-    if (selectedBaseIds.length === 0) {
-      return;
-    }
 
     const controller = new AbortController();
     const request = { controller, revision, scopeKey };
@@ -736,12 +711,12 @@ export function FishReportFeed({
     setAttempt((current) => current + 1);
   }
 
-  async function loadMore() {
+  const loadMore = useCallback(async () => {
     if (
       state.kind !== 'ready' ||
       state.scopeKey !== scopeKey ||
       state.nextCursor === null ||
-      isLoadingMore
+      loadMoreRequestRef.current !== null
     ) {
       return;
     }
@@ -749,7 +724,6 @@ export function FishReportFeed({
     const controller = new AbortController();
     const request = { controller, revision: revisionRef.current, scopeKey };
     const cursor = state.nextCursor;
-    loadMoreRequestRef.current?.controller.abort();
     loadMoreRequestRef.current = request;
     setLoadingMoreScope(scopeKey);
     setPaginationError(null);
@@ -790,13 +764,35 @@ export function FishReportFeed({
         setLoadingMoreScope((current) => (current === scopeKey ? null : current));
       }
     }
-  }
+  }, [fishId, scopeKey, selectedBaseIds, state]);
 
   const currentState = state.scopeKey === scopeKey ? state : null;
   const currentPaginationError =
     paginationError?.scopeKey === scopeKey ? paginationError.message : null;
-  const isRefreshing =
-    selectedBaseIds.length > 0 && (currentState === null || currentState.kind === 'loading');
+  const isRefreshing = currentState === null || currentState.kind === 'loading';
+
+  useEffect(() => {
+    if (
+      currentState?.kind !== 'ready' ||
+      currentState.nextCursor === null ||
+      isLoadingMore ||
+      currentPaginationError !== null ||
+      paginationSentinelRef.current === null ||
+      typeof IntersectionObserver === 'undefined'
+    ) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) void loadMore();
+      },
+      { rootMargin: '240px 0px' },
+    );
+    observer.observe(paginationSentinelRef.current);
+
+    return () => observer.disconnect();
+  }, [currentPaginationError, currentState, isLoadingMore, loadMore]);
 
   return (
     <section
@@ -810,11 +806,7 @@ export function FishReportFeed({
         </h2>
       </div>
 
-      {selectedBaseIds.length === 0 ? (
-        <p className={styles.statusMessage}>Выберите хотя бы одну базу, чтобы увидеть уловы.</p>
-      ) : null}
-
-      {selectedBaseIds.length > 0 && (currentState === null || currentState.kind === 'loading') ? (
+      {currentState === null || currentState.kind === 'loading' ? (
         <p className={styles.statusMessage} role="status">
           {loadingMessage}
         </p>
@@ -849,14 +841,17 @@ export function FishReportFeed({
             </div>
           ) : null}
           {currentState.nextCursor !== null ? (
-            <button
-              className={styles.loadMore}
-              type="button"
-              onClick={() => void loadMore()}
-              disabled={isLoadingMore}
-            >
-              {isLoadingMore ? 'Загружаем…' : 'Показать ещё'}
-            </button>
+            <div
+              ref={paginationSentinelRef}
+              className={styles.paginationSentinel}
+              data-fish-catch-pagination-sentinel=""
+              aria-hidden="true"
+            />
+          ) : null}
+          {isLoadingMore ? (
+            <p className={styles.paginationStatus} role="status">
+              Загружаем ещё…
+            </p>
           ) : null}
         </>
       ) : null}

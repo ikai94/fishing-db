@@ -2,7 +2,6 @@ import Link from 'next/link';
 import styles from '../../../public-catalog.module.css';
 import { formatCentimetersAsMeters } from '@/lib/catch-report-form';
 import type { HoleStatistic } from '@/lib/hole-statistics-api';
-import { formatPublicFishCatchDate } from './public-fish-catch-table';
 
 type CommonHoleTableProps = {
   items: readonly HoleStatistic[];
@@ -44,7 +43,6 @@ export function CommonHoleTable({ items }: CommonHoleTableProps) {
               <th scope="col" title="Количество отчётов об уловах">
                 Уловов
               </th>
-              <th scope="col">Последний отчёт</th>
             </tr>
           </thead>
           {confirmedItems.length > 0 ? (
@@ -61,7 +59,7 @@ export function CommonHoleTable({ items }: CommonHoleTableProps) {
           {singleUserItems.length > 0 ? (
             <tbody>
               <tr className={styles.holeDividerRow}>
-                <th colSpan={7} scope="rowgroup">
+                <th colSpan={6} scope="rowgroup">
                   Одиночные наблюдения
                 </th>
               </tr>
@@ -86,21 +84,18 @@ function CommonHoleRow({ item, number }: { item: HoleStatistic; number: number }
       <th className={styles.reportNumber} scope="row">
         {number}
       </th>
-      <td className={styles.placeCell}>
-        <span>
-          <ActiveEntityLabel
-            active={item.fishingBase.isActive}
-            href={`/bases/${item.fishingBase.id}`}
-            label={item.fishingBase.name}
-          />
-        </span>
-        <span className={styles.secondaryText}>
-          <ActiveEntityLabel
-            active={item.fishingBase.isActive && item.location.isActive}
-            href={`/locations/${item.location.id}`}
-            label={`${item.location.number}. ${item.location.name}`}
-          />
-        </span>
+      <td className={styles.aggregateSingleLineCell} title={formatCommonHolePlace(item)}>
+        <ActiveEntityLabel
+          active={item.fishingBase.isActive}
+          href={`/bases/${item.fishingBase.id}`}
+          label={item.fishingBase.name}
+        />
+        {', '}
+        <ActiveEntityLabel
+          active={item.fishingBase.isActive && item.location.isActive}
+          href={`/locations/${item.location.id}`}
+          label={`${item.location.number}. ${item.location.name}`}
+        />
       </td>
       <td className={styles.depthCell}>{formatCommonHoleDepth(item.holeDepthCm)} м</td>
       <td className={styles.positionCell}>
@@ -112,13 +107,14 @@ function CommonHoleRow({ item, number }: { item: HoleStatistic; number: number }
       <td className={styles.holeCountCell} title={`${item.reportsCount} отчётов об уловах`}>
         {item.reportsCount}
       </td>
-      <td className={styles.dateCell}>
-        <time dateTime={item.latestReportCreatedAt}>
-          {formatPublicFishCatchDate(item.latestReportCreatedAt)}
-        </time>
-      </td>
     </tr>
   );
+}
+
+export function formatCommonHolePlace(
+  item: Pick<HoleStatistic, 'fishingBase' | 'location'>,
+): string {
+  return `${item.fishingBase.name}, ${item.location.number}. ${item.location.name}`;
 }
 
 function ActiveEntityLabel({

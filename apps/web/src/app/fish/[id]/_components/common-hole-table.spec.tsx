@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import { describe, expect, test } from 'vitest';
 import type { HoleStatistic } from '@/lib/hole-statistics-api';
-import { CommonHoleTable, formatCommonHoleDepth } from './common-hole-table';
+import { CommonHoleTable, formatCommonHoleDepth, formatCommonHolePlace } from './common-hole-table';
 
 const confirmed: HoleStatistic = {
   fishingBase: { id: 'base-active', name: 'Амур', isActive: true },
@@ -34,7 +34,7 @@ const single: HoleStatistic = {
 };
 
 describe('CommonHoleTable', () => {
-  test('renders the exact dense columns, depth/date formats, counts, and missing position', () => {
+  test('renders the compact columns, one-line place, depth, counts, and missing position', () => {
     render(<CommonHoleTable items={[confirmed, single]} />);
 
     const table = screen.getByRole('table', {
@@ -48,16 +48,17 @@ describe('CommonHoleTable', () => {
       within(table)
         .getAllByRole('columnheader')
         .map((header) => header.textContent),
-    ).toEqual(['№', 'База · Локация', 'Яма', 'Позиция', 'Рыбаков', 'Уловов', 'Последний отчёт']);
+    ).toEqual(['№', 'База · Локация', 'Яма', 'Позиция', 'Рыбаков', 'Уловов']);
+    expect(within(table).getByTitle('Амур, 12. Судачий откос')).toHaveTextContent(
+      'Амур, 12. Судачий откос',
+    );
     expect(within(table).getByText('6.00 м')).toBeVisible();
     expect(within(table).getByText('7.63 м')).toBeVisible();
     expect(within(table).getByText('позиция не указана')).toBeVisible();
     expect(within(table).getByTitle('7 разных рыбаков')).toHaveTextContent('7');
     expect(within(table).getByTitle('18 отчётов об уловах')).toHaveTextContent('18');
-    expect(within(table).getByText('13.08.26').closest('time')).toHaveAttribute(
-      'datetime',
-      confirmed.latestReportCreatedAt,
-    );
+    expect(within(table).queryByText('Последний отчёт')).not.toBeInTheDocument();
+    expect(within(table).queryByRole('time')).not.toBeInTheDocument();
     expect(table.querySelector('article')).toBeNull();
   });
 
@@ -102,7 +103,9 @@ describe('CommonHoleTable', () => {
       '/bases/base-current',
     );
     expect(screen.queryByRole('link', { name: '8. Закрытая локация' })).not.toBeInTheDocument();
-    expect(screen.getByText('8. Закрытая локация')).toBeVisible();
+    expect(screen.getByTitle('Текущая база, 8. Закрытая локация')).toHaveTextContent(
+      'Текущая база, 8. Закрытая локация',
+    );
     expect(screen.queryByRole('link', { name: 'Старая Волга' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: '4. Исторический плёс' })).not.toBeInTheDocument();
   });
@@ -113,7 +116,7 @@ describe('CommonHoleTable', () => {
     expect(screen.getByText('Подтверждённых несколькими рыбаками точек пока нет.')).toBeVisible();
     expect(screen.getByText('Ниже показаны одиночные наблюдения.')).toBeVisible();
     expect(screen.getByText('Одиночные наблюдения')).toBeVisible();
-    expect(screen.getByText('Старая Волга')).toBeVisible();
+    expect(screen.getByTitle('Старая Волга, 4. Исторический плёс')).toBeVisible();
   });
 });
 
@@ -128,4 +131,13 @@ describe('formatCommonHoleDepth', () => {
       expect(formatCommonHoleDepth(value)).toBe(expected);
     },
   );
+});
+
+test('formats Base and Location as one compact line', () => {
+  expect(
+    formatCommonHolePlace({
+      fishingBase: { id: 'base', name: 'Восточный Крит', isActive: true },
+      location: { id: 'location', number: 3, name: 'Порт Ираклион', isActive: true },
+    }),
+  ).toBe('Восточный Крит, 3. Порт Ираклион');
 });

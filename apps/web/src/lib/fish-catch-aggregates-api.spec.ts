@@ -15,6 +15,17 @@ const aggregate = {
   fishingBase: { id: 'base-a', name: 'Ахтуба' },
   location: { id: 'location-a', number: 7, name: 'Судачий откос' },
   bait: { id: 'bait-a', name: 'Мотыль', isActive: false },
+  spinningCombinations: [
+    { spinningSpeed: 'MEDIUM', spinningSize: 'MEDIUM' },
+    { spinningSpeed: 'MEDIUM', spinningSize: 'LARGE' },
+    { spinningSpeed: 'MEDIUM', spinningSize: null },
+    { spinningSpeed: null, spinningSize: 'LARGE' },
+  ],
+  holeSpotSummary: {
+    distinctCount: 1,
+    value: { holeDepthCm: 603, spotPositionRaw: 'над леской' },
+  },
+  userNoteRawSummary: { distinctCount: 2, value: null },
   intensity: 18,
   contributorCount: 7,
   maxObservedWeightGrams: 12_450,
@@ -55,6 +66,61 @@ describe('Fish catch aggregate decoder', () => {
     { ...aggregate, intensity: 0 },
     { ...aggregate, contributorCount: 19 },
     { ...aggregate, maxObservedWeightGrams: 0 },
+    {
+      ...aggregate,
+      spinningCombinations: [{ spinningSpeed: null, spinningSize: null }],
+    },
+    {
+      ...aggregate,
+      spinningCombinations: [
+        { spinningSpeed: 'MEDIUM', spinningSize: 'LARGE' },
+        { spinningSpeed: 'MEDIUM', spinningSize: 'LARGE' },
+      ],
+    },
+    {
+      ...aggregate,
+      spinningCombinations: [{ spinningSpeed: 'INVALID', spinningSize: 'LARGE' }],
+    },
+    { ...aggregate, holeSpotSummary: { distinctCount: -1, value: null } },
+    { ...aggregate, holeSpotSummary: { distinctCount: 19, value: null } },
+    {
+      ...aggregate,
+      holeSpotSummary: {
+        distinctCount: 0,
+        value: { holeDepthCm: 603, spotPositionRaw: null },
+      },
+    },
+    { ...aggregate, holeSpotSummary: { distinctCount: 1, value: null } },
+    {
+      ...aggregate,
+      holeSpotSummary: {
+        distinctCount: 1,
+        value: { holeDepthCm: null, spotPositionRaw: null },
+      },
+    },
+    {
+      ...aggregate,
+      holeSpotSummary: {
+        distinctCount: 1,
+        value: { holeDepthCm: 0, spotPositionRaw: null },
+      },
+    },
+    {
+      ...aggregate,
+      holeSpotSummary: {
+        distinctCount: 1,
+        value: { holeDepthCm: null, spotPositionRaw: '' },
+      },
+    },
+    {
+      ...aggregate,
+      holeSpotSummary: {
+        distinctCount: 2,
+        value: { holeDepthCm: 603, spotPositionRaw: null },
+      },
+    },
+    { ...aggregate, userNoteRawSummary: { distinctCount: 1, value: '' } },
+    { ...aggregate, userNoteRawSummary: { distinctCount: 2, value: 'комментарий' } },
     { ...aggregate, location: { ...aggregate.location, number: 0 } },
     { ...aggregate, maxObservedWeightAssessment: null },
     {
@@ -102,8 +168,17 @@ describe('Fish catch aggregate request', () => {
     );
   });
 
-  test('rejects empty/oversized scope, invalid limits, and mismatched response scope', async () => {
-    await expect(listFishCatchAggregates({ fishId: 'fish-a', baseIds: [] })).rejects.toThrow();
+  test('supports all Bases while rejecting oversized scope, invalid limits, and mismatches', async () => {
+    await expect(listFishCatchAggregates({ fishId: 'fish-a', baseIds: [] })).resolves.toEqual({
+      items: [aggregate],
+      nextCursor: 'next',
+    });
+    expect(mocks.apiRequest).toHaveBeenCalledWith(
+      '/catch-reports/statistics/fish-catches?fishId=fish-a',
+      { signal: undefined },
+    );
+
+    mocks.apiRequest.mockClear();
     await expect(
       listFishCatchAggregates({
         fishId: 'fish-a',

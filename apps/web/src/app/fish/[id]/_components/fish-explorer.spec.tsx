@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 
@@ -32,18 +32,13 @@ vi.mock('@/lib/hole-statistics-api', () => ({
   listHoleStatistics: mocks.listHoleStatistics,
 }));
 
-vi.mock('./bait-statistics-table', () => ({
-  BaitStatisticsTable: ({ items }: { items: Array<{ bait: { id: string; name: string } }> }) => (
-    <table aria-label="Статистика наживок и приманок">
-      <tbody>
-        {items.map((item, index) => (
-          <tr key={item.bait.id}>
-            <th scope="row">{index + 1}</th>
-            <td>{item.bait.name}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+vi.mock('./bait-statistics-list', () => ({
+  BaitStatisticsList: ({ items }: { items: Array<{ bait: { id: string; name: string } }> }) => (
+    <ul aria-label="Статистика наживок и приманок">
+      {items.map((item) => (
+        <li key={item.bait.id}>{item.bait.name}</li>
+      ))}
+    </ul>
   ),
 }));
 
@@ -99,6 +94,30 @@ vi.mock('./public-fish-catch-table', () => ({
 
 import { FishExplorer } from './fish-explorer';
 
+class MockIntersectionObserver implements IntersectionObserver {
+  static instances: MockIntersectionObserver[] = [];
+
+  readonly root: Element | Document | null;
+  readonly rootMargin: string;
+  readonly thresholds: readonly number[];
+  readonly disconnect = vi.fn();
+  readonly observe = vi.fn();
+  readonly takeRecords = vi.fn((): IntersectionObserverEntry[] => []);
+  readonly unobserve = vi.fn();
+
+  constructor(
+    readonly callback: IntersectionObserverCallback,
+    options: IntersectionObserverInit = {},
+  ) {
+    this.root = options.root ?? null;
+    this.rootMargin = options.rootMargin ?? '0px';
+    this.thresholds = Array.isArray(options.threshold)
+      ? options.threshold
+      : [options.threshold ?? 0];
+    MockIntersectionObserver.instances.push(this);
+  }
+}
+
 type TestPage = {
   items: TestAggregate[];
   nextCursor: string | null;
@@ -110,6 +129,15 @@ type TestAggregate = {
   fishingBase: { id: string; name: string };
   location: { id: string; number: number; name: string };
   bait: { id: string; name: string; isActive: boolean };
+  spinningCombinations: Array<{
+    spinningSpeed: 'SLOW' | 'MEDIUM' | 'FAST' | null;
+    spinningSize: 'SMALL' | 'MEDIUM' | 'LARGE' | null;
+  }>;
+  holeSpotSummary: {
+    distinctCount: number;
+    value: { holeDepthCm: number | null; spotPositionRaw: string | null } | null;
+  };
+  userNoteRawSummary: { distinctCount: number; value: string | null };
   intensity: number;
   contributorCount: number;
   maxObservedWeightGrams: number;
@@ -166,6 +194,9 @@ function testAggregate(id: string): TestAggregate {
     fishingBase: { id: 'base-a', name: 'Ахтуба' },
     location: { id: 'location-a', number: 1, name: 'Локация' },
     bait: { id, name: id, isActive: true },
+    spinningCombinations: [],
+    holeSpotSummary: { distinctCount: 0, value: null },
+    userNoteRawSummary: { distinctCount: 0, value: null },
     intensity: 1,
     contributorCount: 1,
     maxObservedWeightGrams: 40,
@@ -198,7 +229,7 @@ function statisticsRequestAt(index: number) {
 function baitStatisticsRequestAt(index: number) {
   return mocks.listBaitStatistics.mock.calls[index]?.[0] as {
     fishId: string;
-    baseId: string;
+    baseIds: string[];
     signal: AbortSignal;
   };
 }
@@ -233,14 +264,31 @@ function fishingConditionStatistic(
 }
 
 function sectionNamed(name: string): HTMLElement {
-  const heading = screen.getByRole('heading', { name });
+  const heading = screen.getByText(name, { selector: 'h2, summary span' });
   const section = heading.closest('section');
   if (section === null) throw new Error(`Не найден раздел «${name}»`);
   return section;
 }
 
+function openConditions(): void {
+  const summary = screen.getByText('Условия ловли в уловах').closest('summary');
+  if (summary === null) throw new Error('Не найдено управление условиями ловли');
+  if (!summary.parentElement?.hasAttribute('open')) fireEvent.click(summary);
+}
+
+function approachCatchListEnd(): void {
+  const observer = MockIntersectionObserver.instances.at(-1);
+  if (observer === undefined) throw new Error('Не создан IntersectionObserver пагинации');
+
+  act(() => {
+    observer.callback([{ isIntersecting: true } as IntersectionObserverEntry], observer);
+  });
+}
+
 describe('FishExplorer', () => {
   beforeEach(() => {
+    MockIntersectionObserver.instances = [];
+    vi.stubGlobal('IntersectionObserver', MockIntersectionObserver);
     mocks.listBaitStatistics.mockReset();
     mocks.listBaitStatistics.mockResolvedValue([]);
     mocks.listCatchReports.mockReset();
@@ -267,6 +315,7 @@ describe('FishExplorer', () => {
     const akhtubaLink = screen.getByRole('link', { name: 'Ахтуба' });
 
     expect(group).toContainElement(volgaCheckbox);
+    expect(group.closest('aside')).toHaveAccessibleName('Фильтр по базам');
     expect(volgaCheckbox).toBeChecked();
     expect(akhtubaCheckbox).toBeChecked();
     expect(screen.getByText('Выбрано 2 из 2')).toHaveAttribute('aria-live', 'polite');
@@ -276,19 +325,23 @@ describe('FishExplorer', () => {
     expect(akhtubaLink).toHaveAttribute('href', '/bases/base-a');
     expect(volgaLink.closest('label')).toBeNull();
     expect(volgaCheckbox.closest('a')).toBeNull();
-    expect(screen.getByText('Вес: до 25 кг')).toBeVisible();
-    expect(screen.getByText('Вес: 100 г — 20 кг')).toBeVisible();
+    expect(screen.getByText('до 25 кг')).toBeVisible();
+    expect(screen.getByText('100 г — 20 кг')).toBeVisible();
 
     await waitFor(() => expect(mocks.listCatchReports).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(mocks.listFishingConditionStatistics).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(mocks.listHoleStatistics).toHaveBeenCalledTimes(1));
-    expect(mocks.listBaitStatistics).not.toHaveBeenCalled();
+    await waitFor(() => expect(mocks.listBaitStatistics).toHaveBeenCalledTimes(1));
     expect(requestAt(0)).toMatchObject({
       fishId: 'fish-1',
       baseIds: ['base-a', 'base-b'],
       limit: 20,
     });
     expect(statisticsRequestAt(0)).toMatchObject({
+      fishId: 'fish-1',
+      baseIds: ['base-a', 'base-b'],
+    });
+    expect(baitStatisticsRequestAt(0)).toMatchObject({
       fishId: 'fish-1',
       baseIds: ['base-a', 'base-b'],
     });
@@ -307,15 +360,19 @@ describe('FishExplorer', () => {
     expect(sectionNamed('Общие ямы и точки').compareDocumentPosition(sectionNamed('Уловы'))).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
     );
+    expect(screen.getByText('Условия ловли в уловах').closest('details')).not.toHaveAttribute(
+      'open',
+    );
+    expect(screen.getByText('Общие ямы и точки').closest('details')).not.toHaveAttribute('open');
   });
 
-  test('supports keyboard toggling, clear-all without a request, and select-all restoration', async () => {
+  test('supports keyboard toggling, all-Bases clear-all, and select-all restoration', async () => {
     const user = userEvent.setup();
     render(<FishExplorer fish={fish} />);
     await waitFor(() => expect(mocks.listCatchReports).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(mocks.listFishingConditionStatistics).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(mocks.listHoleStatistics).toHaveBeenCalledTimes(1));
-    expect(mocks.listBaitStatistics).not.toHaveBeenCalled();
+    await waitFor(() => expect(mocks.listBaitStatistics).toHaveBeenCalledTimes(1));
 
     const akhtubaCheckbox = screen.getByRole('checkbox', {
       name: 'Учитывать базу «Ахтуба»',
@@ -328,11 +385,11 @@ describe('FishExplorer', () => {
       scroll: false,
     });
     await waitFor(() => expect(mocks.listCatchReports).toHaveBeenCalledTimes(2));
-    await waitFor(() => expect(mocks.listBaitStatistics).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mocks.listBaitStatistics).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(mocks.listFishingConditionStatistics).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(mocks.listHoleStatistics).toHaveBeenCalledTimes(2));
     expect(requestAt(1)).toMatchObject({ fishId: 'fish-1', baseIds: ['base-b'], limit: 20 });
-    expect(baitStatisticsRequestAt(0)).toMatchObject({ fishId: 'fish-1', baseId: 'base-b' });
+    expect(baitStatisticsRequestAt(1)).toMatchObject({ fishId: 'fish-1', baseIds: ['base-b'] });
     expect(fishingConditionStatisticsRequestAt(1)).toMatchObject({
       fishId: 'fish-1',
       baseIds: ['base-b'],
@@ -343,38 +400,36 @@ describe('FishExplorer', () => {
     expect(mocks.routerReplace).toHaveBeenLastCalledWith('/fish/fish-1?scope=none', {
       scroll: false,
     });
-    expect(screen.getByText('Выберите хотя бы одну базу, чтобы увидеть уловы.')).toBeVisible();
-    expect(screen.getByText('Выберите одну базу, чтобы увидеть статистику.')).toBeVisible();
-    expect(
-      screen.getByText('Выберите хотя бы одну базу, чтобы увидеть статистику условий ловли.'),
-    ).toBeVisible();
-    expect(screen.getByText('Выбрано 0 из 2')).toBeVisible();
-    await waitFor(() => expect(mocks.listCatchReports).toHaveBeenCalledTimes(2));
-    expect(mocks.listBaitStatistics).toHaveBeenCalledTimes(1);
-    await waitFor(() => expect(mocks.listFishingConditionStatistics).toHaveBeenCalledTimes(2));
-    await waitFor(() => expect(mocks.listHoleStatistics).toHaveBeenCalledTimes(2));
+    expect(screen.getByText('Все базы')).toBeVisible();
+    await waitFor(() => expect(mocks.listCatchReports).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(mocks.listBaitStatistics).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(mocks.listFishingConditionStatistics).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(mocks.listHoleStatistics).toHaveBeenCalledTimes(3));
+    expect(requestAt(2)).toMatchObject({ fishId: 'fish-1', baseIds: [] });
+    expect(baitStatisticsRequestAt(2)).toMatchObject({ fishId: 'fish-1', baseIds: [] });
+    expect(fishingConditionStatisticsRequestAt(2)).toMatchObject({ fishId: 'fish-1', baseIds: [] });
+    expect(statisticsRequestAt(2)).toMatchObject({ fishId: 'fish-1', baseIds: [] });
 
     await user.click(screen.getByRole('button', { name: 'Выбрать все' }));
     expect(mocks.routerReplace).toHaveBeenLastCalledWith('/fish/fish-1', { scroll: false });
-    await waitFor(() => expect(mocks.listCatchReports).toHaveBeenCalledTimes(3));
-    expect(mocks.listBaitStatistics).toHaveBeenCalledTimes(1);
-    await waitFor(() => expect(mocks.listFishingConditionStatistics).toHaveBeenCalledTimes(3));
-    await waitFor(() => expect(mocks.listHoleStatistics).toHaveBeenCalledTimes(3));
-    expect(requestAt(2)).toMatchObject({
+    await waitFor(() => expect(mocks.listCatchReports).toHaveBeenCalledTimes(4));
+    await waitFor(() => expect(mocks.listBaitStatistics).toHaveBeenCalledTimes(4));
+    await waitFor(() => expect(mocks.listFishingConditionStatistics).toHaveBeenCalledTimes(4));
+    await waitFor(() => expect(mocks.listHoleStatistics).toHaveBeenCalledTimes(4));
+    expect(requestAt(3)).toMatchObject({
       fishId: 'fish-1',
       baseIds: ['base-a', 'base-b'],
       limit: 20,
     });
-    expect(statisticsRequestAt(2)).toMatchObject({
+    expect(statisticsRequestAt(3)).toMatchObject({
       fishId: 'fish-1',
       baseIds: ['base-a', 'base-b'],
     });
-    expect(
-      within(sectionNamed('На что ловится')).getByText(
-        'Оставьте выбранной одну базу: статистика разных баз не объединяется.',
-      ),
-    ).toBeVisible();
-    expect(fishingConditionStatisticsRequestAt(2)).toMatchObject({
+    expect(baitStatisticsRequestAt(3)).toMatchObject({
+      fishId: 'fish-1',
+      baseIds: ['base-a', 'base-b'],
+    });
+    expect(fishingConditionStatisticsRequestAt(3)).toMatchObject({
       fishId: 'fish-1',
       baseIds: ['base-a', 'base-b'],
     });
@@ -393,7 +448,7 @@ describe('FishExplorer', () => {
     await waitFor(() => expect(mocks.listFishingConditionStatistics).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(mocks.listHoleStatistics).toHaveBeenCalledTimes(1));
     expect(requestAt(0)).toMatchObject({ fishId: 'fish-1', baseIds: ['base-a'] });
-    expect(baitStatisticsRequestAt(0)).toMatchObject({ fishId: 'fish-1', baseId: 'base-a' });
+    expect(baitStatisticsRequestAt(0)).toMatchObject({ fishId: 'fish-1', baseIds: ['base-a'] });
     expect(fishingConditionStatisticsRequestAt(0)).toMatchObject({
       fishId: 'fish-1',
       baseIds: ['base-a'],
@@ -412,11 +467,11 @@ describe('FishExplorer', () => {
     await waitFor(() => expect(mocks.listCatchReports).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(mocks.listFishingConditionStatistics).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(mocks.listHoleStatistics).toHaveBeenCalledTimes(1));
-    expect(mocks.listBaitStatistics).not.toHaveBeenCalled();
+    await waitFor(() => expect(mocks.listBaitStatistics).toHaveBeenCalledTimes(1));
 
     await user.click(screen.getByRole('checkbox', { name: 'Учитывать базу «Ахтуба»' }));
     await waitFor(() => expect(mocks.listCatchReports).toHaveBeenCalledTimes(2));
-    await waitFor(() => expect(mocks.listBaitStatistics).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mocks.listBaitStatistics).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(mocks.listFishingConditionStatistics).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(mocks.listHoleStatistics).toHaveBeenCalledTimes(2));
     expect(mocks.routerReplace).toHaveBeenLastCalledWith('/fish/fish-1?baseIds=base-b', {
@@ -432,7 +487,7 @@ describe('FishExplorer', () => {
       await Promise.resolve();
     });
     expect(mocks.listCatchReports).toHaveBeenCalledTimes(2);
-    expect(mocks.listBaitStatistics).toHaveBeenCalledTimes(1);
+    expect(mocks.listBaitStatistics).toHaveBeenCalledTimes(2);
     expect(mocks.listFishingConditionStatistics).toHaveBeenCalledTimes(2);
     expect(mocks.listHoleStatistics).toHaveBeenCalledTimes(2);
   });
@@ -471,6 +526,7 @@ describe('FishExplorer', () => {
       .mockReturnValueOnce(first.promise)
       .mockReturnValueOnce(retry.promise);
     render(<FishExplorer fish={fish} />);
+    openConditions();
 
     const conditionsSection = sectionNamed('Условия ловли в уловах');
     expect(within(conditionsSection).getByRole('status')).toHaveTextContent(
@@ -501,7 +557,7 @@ describe('FishExplorer', () => {
     });
     expect(
       await within(conditionsSection).findByText(
-        'Для выбранных баз данных об условиях ловли пока нет.',
+        'Для выбранного охвата данных об условиях ловли пока нет.',
       ),
     ).toBeVisible();
     expect(conditionsSection).toHaveAttribute('aria-busy', 'false');
@@ -515,9 +571,11 @@ describe('FishExplorer', () => {
       .mockResolvedValueOnce([fishingConditionStatistic('MIDWATER')])
       .mockReturnValueOnce(replacement.promise);
     render(<FishExplorer fish={fish} />);
+    openConditions();
 
     expect(await screen.findByText('MIDWATER')).toBeVisible();
     await user.click(screen.getByRole('checkbox', { name: 'Учитывать базу «Ахтуба»' }));
+    openConditions();
 
     expect(screen.queryByText('MIDWATER')).not.toBeInTheDocument();
     expect(within(sectionNamed('Условия ловли в уловах')).getByRole('status')).toHaveTextContent(
@@ -543,6 +601,7 @@ describe('FishExplorer', () => {
 
     await user.click(screen.getByRole('checkbox', { name: 'Учитывать базу «Ахтуба»' }));
     await waitFor(() => expect(mocks.listFishingConditionStatistics).toHaveBeenCalledTimes(2));
+    openConditions();
     expect(fishingConditionStatisticsRequestAt(0).signal.aborted).toBe(true);
     expect(fishingConditionStatisticsRequestAt(1).signal.aborted).toBe(false);
 
@@ -574,6 +633,7 @@ describe('FishExplorer', () => {
 
     await user.click(screen.getByRole('checkbox', { name: 'Учитывать базу «Ахтуба»' }));
     await waitFor(() => expect(mocks.listFishingConditionStatistics).toHaveBeenCalledTimes(2));
+    openConditions();
 
     await act(async () => {
       first.reject(new Error('stale failure'));
@@ -591,7 +651,7 @@ describe('FishExplorer', () => {
     });
     expect(
       await within(conditionsSection).findByText(
-        'Для выбранных баз данных об условиях ловли пока нет.',
+        'Для выбранного охвата данных об условиях ловли пока нет.',
       ),
     ).toBeVisible();
   });
@@ -633,7 +693,7 @@ describe('FishExplorer', () => {
     });
     expect(
       await within(baitSection).findByText(
-        'Для выбранной базы данных о наживках и приманках пока нет.',
+        'Для выбранного охвата данных о наживках и приманках пока нет.',
       ),
     ).toBeVisible();
     expect(baitSection).toHaveAttribute('aria-busy', 'false');
@@ -727,7 +787,7 @@ describe('FishExplorer', () => {
     });
     expect(
       await within(baitSection).findByText(
-        'Для выбранной базы данных о наживках и приманках пока нет.',
+        'Для выбранного охвата данных о наживках и приманках пока нет.',
       ),
     ).toBeVisible();
   });
@@ -740,6 +800,7 @@ describe('FishExplorer', () => {
     render(<FishExplorer fish={fish} />);
 
     const statisticsSection = sectionNamed('Общие ямы и точки');
+    await user.click(within(statisticsSection).getByText('Общие ямы и точки'));
     expect(within(statisticsSection).getByRole('status')).toHaveTextContent(
       'Загружаем статистику…',
     );
@@ -780,9 +841,11 @@ describe('FishExplorer', () => {
       .mockResolvedValueOnce([{ spotPosition: 'старая точка' }])
       .mockReturnValueOnce(replacement.promise);
     render(<FishExplorer fish={fish} />);
+    await user.click(within(sectionNamed('Общие ямы и точки')).getByText('Общие ямы и точки'));
 
     expect(await screen.findByText('старая точка')).toBeVisible();
     await user.click(screen.getByRole('checkbox', { name: 'Учитывать базу «Ахтуба»' }));
+    await user.click(within(sectionNamed('Общие ямы и точки')).getByText('Общие ямы и точки'));
 
     expect(screen.queryByText('старая точка')).not.toBeInTheDocument();
     expect(within(sectionNamed('Общие ямы и точки')).getByRole('status')).toHaveTextContent(
@@ -802,9 +865,11 @@ describe('FishExplorer', () => {
     const second = deferred<Array<{ spotPosition: string | null }>>();
     mocks.listHoleStatistics.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
     render(<FishExplorer fish={fish} />);
+    await user.click(within(sectionNamed('Общие ямы и точки')).getByText('Общие ямы и точки'));
     await waitFor(() => expect(mocks.listHoleStatistics).toHaveBeenCalledTimes(1));
 
     await user.click(screen.getByRole('checkbox', { name: 'Учитывать базу «Ахтуба»' }));
+    await user.click(within(sectionNamed('Общие ямы и точки')).getByText('Общие ямы и точки'));
     await waitFor(() => expect(mocks.listHoleStatistics).toHaveBeenCalledTimes(2));
     expect(statisticsRequestAt(0).signal.aborted).toBe(true);
     expect(statisticsRequestAt(1).signal.aborted).toBe(false);
@@ -831,9 +896,11 @@ describe('FishExplorer', () => {
     const second = deferred<Array<{ spotPosition: string | null }>>();
     mocks.listHoleStatistics.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
     render(<FishExplorer fish={fish} />);
+    await user.click(within(sectionNamed('Общие ямы и точки')).getByText('Общие ямы и точки'));
     await waitFor(() => expect(mocks.listHoleStatistics).toHaveBeenCalledTimes(1));
 
     await user.click(screen.getByRole('checkbox', { name: 'Учитывать базу «Ахтуба»' }));
+    await user.click(within(sectionNamed('Общие ямы и точки')).getByText('Общие ямы и точки'));
     await waitFor(() => expect(mocks.listHoleStatistics).toHaveBeenCalledTimes(2));
 
     await act(async () => {
@@ -855,8 +922,7 @@ describe('FishExplorer', () => {
     ).toBeVisible();
   });
 
-  test('retains scope, continues visual numbering, and avoids report-card headings across pages', async () => {
-    const user = userEvent.setup();
+  test('automatically retains scope, cursor order, and visual numbering across pages', async () => {
     mocks.listCatchReports
       .mockResolvedValueOnce({ items: [testAggregate('report-1')], nextCursor: 'cursor-1' })
       .mockResolvedValueOnce({
@@ -866,7 +932,14 @@ describe('FishExplorer', () => {
     render(<FishExplorer fish={fish} />);
 
     expect(await screen.findByText('report-1')).toBeVisible();
-    await user.click(screen.getByRole('button', { name: 'Показать ещё' }));
+    await waitFor(() => expect(MockIntersectionObserver.instances).toHaveLength(1));
+    expect(MockIntersectionObserver.instances[0]?.rootMargin).toBe('240px 0px');
+    expect(MockIntersectionObserver.instances[0]?.observe).toHaveBeenCalledWith(
+      document.querySelector('[data-fish-catch-pagination-sentinel]'),
+    );
+    expect(screen.queryByRole('button', { name: 'Показать ещё' })).not.toBeInTheDocument();
+
+    approachCatchListEnd();
 
     expect(await screen.findByText('report-2')).toBeVisible();
     const catchTable = screen.getByRole('table', { name: 'Агрегированные уловы рыбы' });
@@ -882,6 +955,63 @@ describe('FishExplorer', () => {
       limit: 20,
     });
     expect(screen.queryByRole('button', { name: 'Показать ещё' })).not.toBeInTheDocument();
+    expect(document.querySelector('[data-fish-catch-pagination-sentinel]')).toBeNull();
+  });
+
+  test('guards concurrent intersections and shows a compact loading state', async () => {
+    const nextPage = deferred<TestPage>();
+    mocks.listCatchReports
+      .mockResolvedValueOnce({ items: [testAggregate('report-1')], nextCursor: 'cursor-1' })
+      .mockReturnValueOnce(nextPage.promise);
+    render(<FishExplorer fish={fish} />);
+
+    expect(await screen.findByText('report-1')).toBeVisible();
+    await waitFor(() => expect(MockIntersectionObserver.instances).toHaveLength(1));
+    approachCatchListEnd();
+    approachCatchListEnd();
+
+    await waitFor(() => expect(mocks.listCatchReports).toHaveBeenCalledTimes(2));
+    expect(within(sectionNamed('Уловы')).getByRole('status')).toHaveTextContent('Загружаем ещё…');
+    expect(sectionNamed('Уловы')).toHaveAttribute('aria-busy', 'true');
+
+    await act(async () => {
+      nextPage.resolve({ items: [testAggregate('report-2')], nextCursor: null });
+      await nextPage.promise;
+    });
+    expect(await screen.findByText('report-2')).toBeVisible();
+    expect(mocks.listCatchReports).toHaveBeenCalledTimes(2);
+    expect(within(sectionNamed('Уловы')).queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  test('stops observing after a load-more failure and offers a retry fallback', async () => {
+    const user = userEvent.setup();
+    const failedPage = deferred<TestPage>();
+    mocks.listCatchReports
+      .mockResolvedValueOnce({ items: [testAggregate('report-1')], nextCursor: 'cursor-1' })
+      .mockReturnValueOnce(failedPage.promise)
+      .mockResolvedValueOnce({ items: [testAggregate('report-2')], nextCursor: null });
+    render(<FishExplorer fish={fish} />);
+
+    expect(await screen.findByText('report-1')).toBeVisible();
+    await waitFor(() => expect(MockIntersectionObserver.instances).toHaveLength(1));
+    const observer = MockIntersectionObserver.instances[0]!;
+    approachCatchListEnd();
+
+    await act(async () => {
+      failedPage.reject(new Error('pagination failed'));
+      await failedPage.promise.catch(() => undefined);
+    });
+    expect(await within(sectionNamed('Уловы')).findByRole('alert')).toHaveTextContent(
+      'Не удалось загрузить следующую страницу. Попробуйте ещё раз.',
+    );
+    expect(observer.disconnect).toHaveBeenCalled();
+    expect(MockIntersectionObserver.instances).toHaveLength(1);
+
+    await user.click(screen.getByRole('button', { name: 'Повторить загрузку' }));
+    expect(await screen.findByText('report-2')).toBeVisible();
+    expect(requestAt(1)).toMatchObject({ cursor: 'cursor-1' });
+    expect(requestAt(2)).toMatchObject({ cursor: 'cursor-1' });
+    expect(within(sectionNamed('Уловы')).queryByRole('alert')).not.toBeInTheDocument();
   });
 
   test('uses the refresh message and ignores stale initial success/finally for a replacement scope', async () => {
@@ -950,7 +1080,8 @@ describe('FishExplorer', () => {
     render(<FishExplorer fish={fish} />);
 
     expect(await screen.findByText('old-first-page')).toBeVisible();
-    await user.click(screen.getByRole('button', { name: 'Показать ещё' }));
+    await waitFor(() => expect(MockIntersectionObserver.instances).toHaveLength(1));
+    approachCatchListEnd();
     await waitFor(() => expect(mocks.listCatchReports).toHaveBeenCalledTimes(2));
     await user.click(screen.getByRole('checkbox', { name: 'Учитывать базу «Ахтуба»' }));
     await waitFor(() => expect(mocks.listCatchReports).toHaveBeenCalledTimes(3));
@@ -1027,21 +1158,20 @@ describe('FishExplorer', () => {
     await pending.promise;
   });
 
-  test('does not request catches when the fish has no active Base memberships', () => {
+  test('requests all-Bases analytics when the fish has no active Base memberships', async () => {
     render(<FishExplorer fish={{ ...fish, bases: [] }} />);
 
     expect(screen.getByRole('group', { name: 'Базы обитания' })).toBeVisible();
     expect(screen.getByText('Активных баз обитания пока нет.')).toBeVisible();
-    expect(screen.getByText('Выберите хотя бы одну базу, чтобы увидеть уловы.')).toBeVisible();
-    expect(screen.getByText('Выберите одну базу, чтобы увидеть статистику.')).toBeVisible();
-    expect(
-      screen.getByText('Выберите хотя бы одну базу, чтобы увидеть статистику условий ловли.'),
-    ).toBeVisible();
-    expect(screen.getByText('Выберите хотя бы одну базу, чтобы увидеть статистику.')).toBeVisible();
+    expect(screen.getByText('Все базы')).toBeVisible();
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
-    expect(mocks.listCatchReports).not.toHaveBeenCalled();
-    expect(mocks.listBaitStatistics).not.toHaveBeenCalled();
-    expect(mocks.listFishingConditionStatistics).not.toHaveBeenCalled();
-    expect(mocks.listHoleStatistics).not.toHaveBeenCalled();
+    await waitFor(() => expect(mocks.listCatchReports).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mocks.listBaitStatistics).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mocks.listFishingConditionStatistics).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mocks.listHoleStatistics).toHaveBeenCalledTimes(1));
+    expect(requestAt(0)).toMatchObject({ baseIds: [] });
+    expect(baitStatisticsRequestAt(0)).toMatchObject({ baseIds: [] });
+    expect(fishingConditionStatisticsRequestAt(0)).toMatchObject({ baseIds: [] });
+    expect(statisticsRequestAt(0)).toMatchObject({ baseIds: [] });
   });
 });

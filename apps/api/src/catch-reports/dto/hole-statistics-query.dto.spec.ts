@@ -17,10 +17,17 @@ async function decode(value: Record<string, unknown>): Promise<{
 }
 
 void describe('HoleStatisticsQueryDto', () => {
-  void it('requires both Fish and a non-empty Base scope', async () => {
+  void it('requires Fish and uses an omitted Base scope for all Bases', async () => {
     const { errors } = await decode({});
 
-    assert.deepEqual(errors.map((error) => error.property).sort(), ['baseIds', 'fishId']);
+    assert.deepEqual(
+      errors.map((error) => error.property),
+      ['fishId'],
+    );
+
+    const allBases = await decode({ fishId: FISH_ID });
+    assert.deepEqual(allBases.errors, []);
+    assert.deepEqual(allBases.dto.baseIds, []);
   });
 
   void it('lowercases and deduplicates comma-separated UUID-v4 Base IDs', async () => {

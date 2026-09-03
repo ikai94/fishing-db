@@ -46,7 +46,12 @@ export function buildFishingConditionStatisticsQuery(
   fishId: string,
   baseIds: readonly string[],
 ): Prisma.Sql {
-  const baseIdParameters = Prisma.join(baseIds.map((baseId) => Prisma.sql`${baseId}::uuid`));
+  const baseScope =
+    baseIds.length === 0
+      ? Prisma.empty
+      : Prisma.sql`AND source_location."fishingBaseId" IN (${Prisma.join(
+          baseIds.map((baseId) => Prisma.sql`${baseId}::uuid`),
+        )})`;
 
   return Prisma.sql`
     SELECT
@@ -61,7 +66,7 @@ export function buildFishingConditionStatisticsQuery(
     INNER JOIN "Location" AS source_location
       ON source_location."id" = report."locationId"
     WHERE report."fishId" = ${fishId}::uuid
-      AND source_location."fishingBaseId" IN (${baseIdParameters})
+      ${baseScope}
     GROUP BY
       report."fishingMethod",
       report."fishingNote",

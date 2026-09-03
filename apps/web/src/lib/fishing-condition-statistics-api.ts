@@ -182,14 +182,12 @@ export async function listFishingConditionStatistics({
   signal,
 }: ListFishingConditionStatisticsOptions): Promise<FishingConditionStatistic[]> {
   const canonicalBaseIds = [...new Set(baseIds)].sort();
-  if (canonicalBaseIds.length === 0) {
-    throw new Error('Для статистики укажите хотя бы одну рыболовную базу');
-  }
   if (canonicalBaseIds.length > MAX_BASE_IDS) {
     throw new Error(`Для статистики можно выбрать не более ${MAX_BASE_IDS} рыболовных баз`);
   }
 
-  const query = new URLSearchParams({ fishId, baseIds: canonicalBaseIds.join(',') });
+  const query = new URLSearchParams({ fishId });
+  if (canonicalBaseIds.length > 0) query.set('baseIds', canonicalBaseIds.join(','));
   const payload = await apiRequest<unknown>(`/catch-reports/statistics/conditions?${query}`, {
     signal,
   });

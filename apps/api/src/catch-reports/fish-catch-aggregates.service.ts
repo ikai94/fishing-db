@@ -11,6 +11,27 @@ import {
 } from './fish-catch-aggregate-pagination.js';
 import { catchReportErrors } from './catch-reports.errors.js';
 
+type SpinningSize = 'SMALL' | 'MEDIUM' | 'LARGE';
+type SpinningSpeed = 'SLOW' | 'MEDIUM' | 'FAST';
+
+export interface FishCatchSpinningCombination {
+  spinningSpeed: SpinningSpeed | null;
+  spinningSize: SpinningSize | null;
+}
+
+export interface FishCatchTextSummary {
+  distinctCount: number;
+  value: string | null;
+}
+
+export interface FishCatchHoleSpotSummary {
+  distinctCount: number;
+  value: {
+    holeDepthCm: number | null;
+    spotPositionRaw: string | null;
+  } | null;
+}
+
 export interface FishCatchAggregateDatabaseRow {
   baseNameNormalized: string;
   baseId: string;
@@ -24,6 +45,12 @@ export interface FishCatchAggregateDatabaseRow {
   baitName: string;
   baitNameNormalized: string;
   baitIsActive: boolean;
+  spinningCombinations: unknown;
+  holeSpotDistinctCount: bigint;
+  holeSpotSingleDepthCm: number | null;
+  holeSpotSinglePositionRaw: string | null;
+  userNoteRawDistinctCount: bigint;
+  userNoteRawSingleValue: string | null;
   intensity: bigint;
   contributorCount: bigint;
   maxObservedWeightGrams: number;
@@ -31,11 +58,132 @@ export interface FishCatchAggregateDatabaseRow {
   maxWeightGrams: number | null;
 }
 
+const SPINNING_SPEED_ORDER: Record<SpinningSpeed, number> = {
+  SLOW: 0,
+  MEDIUM: 1,
+  FAST: 2,
+};
+const SPINNING_SIZE_ORDER: Record<SpinningSize, number> = {
+  SMALL: 0,
+  MEDIUM: 1,
+  LARGE: 2,
+};
+
+function isSpinningSpeed(value: unknown): value is SpinningSpeed {
+  return value === 'SLOW' || value === 'MEDIUM' || value === 'FAST';
+}
+
+function isSpinningSize(value: unknown): value is SpinningSize {
+  return value === 'SMALL' || value === 'MEDIUM' || value === 'LARGE';
+}
+
+function readSpinningCombinations(value: unknown): FishCatchSpinningCombination[] {
+  if (!Array.isArray(value)) {
+    throw new TypeError('spinningCombinations must be a JSON array');
+  }
+
+  const identities = new Set<string>();
+  const combinations = value.map((item) => {
+    if (typeof item !== 'object' || item === null || Array.isArray(item)) {
+      throw new TypeError('spinningCombinations contains a non-object item');
+    }
+
+    const record = item as Record<string, unknown>;
+    if (
+      Object.keys(record).length !== 2 ||
+      !Object.hasOwn(record, 'spinningSpeed') ||
+      !Object.hasOwn(record, 'spinningSize')
+    ) {
+      throw new TypeError('spinningCombinations contains an invalid object');
+    }
+
+    const spinningSpeed = record.spinningSpeed;
+    const spinningSize = record.spinningSize;
+    if (
+      (spinningSpeed !== null && !isSpinningSpeed(spinningSpeed)) ||
+      (spinningSize !== null && !isSpinningSize(spinningSize)) ||
+      (spinningSpeed === null && spinningSize === null)
+    ) {
+      throw new TypeError('spinningCombinations contains invalid observation values');
+    }
+
+    const identity = `${spinningSpeed ?? ''}\0${spinningSize ?? ''}`;
+    if (identities.has(identity)) {
+      throw new TypeError('spinningCombinations contains duplicate observations');
+    }
+    identities.add(identity);
+
+    return { spinningSpeed, spinningSize };
+  });
+
+  return combinations.sort(
+    (left, right) =>
+      (left.spinningSpeed === null ? 3 : SPINNING_SPEED_ORDER[left.spinningSpeed]) -
+        (right.spinningSpeed === null ? 3 : SPINNING_SPEED_ORDER[right.spinningSpeed]) ||
+      (left.spinningSize === null ? 3 : SPINNING_SIZE_ORDER[left.spinningSize]) -
+        (right.spinningSize === null ? 3 : SPINNING_SIZE_ORDER[right.spinningSize]),
+  );
+}
+
 function toSafeCount(value: bigint, field: 'intensity' | 'contributorCount'): number {
   if (value < 1n || value > BigInt(Number.MAX_SAFE_INTEGER)) {
     throw new RangeError(`${field} exceeds the JavaScript safe positive integer range`);
   }
   return Number(value);
+}
+
+function readTextSummary(
+  distinctCountValue: bigint,
+  value: string | null,
+  field: 'spotPositionRaw' | 'userNoteRaw',
+  intensity: number,
+): FishCatchTextSummary {
+  if (distinctCountValue < 0n || distinctCountValue > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new RangeError(`${field} distinctCount exceeds the JavaScript safe integer range`);
+  }
+
+  const distinctCount = Number(distinctCountValue);
+  if (distinctCount > intensity) {
+    throw new RangeError(`${field} distinctCount cannot exceed intensity`);
+  }
+  if (
+    (distinctCount === 1 && (typeof value !== 'string' || value.length === 0)) ||
+    (distinctCount !== 1 && value !== null)
+  ) {
+    throw new TypeError(`${field} summary is inconsistent`);
+  }
+
+  return { distinctCount, value };
+}
+
+function readHoleSpotSummary(
+  distinctCountValue: bigint,
+  holeDepthCm: number | null,
+  spotPositionRaw: string | null,
+  intensity: number,
+): FishCatchHoleSpotSummary {
+  if (distinctCountValue < 0n || distinctCountValue > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new RangeError('holeSpotSummary distinctCount exceeds the JavaScript safe integer range');
+  }
+
+  const distinctCount = Number(distinctCountValue);
+  if (distinctCount > intensity) {
+    throw new RangeError('holeSpotSummary distinctCount cannot exceed intensity');
+  }
+  if (
+    (holeDepthCm !== null && (!Number.isSafeInteger(holeDepthCm) || holeDepthCm < 1)) ||
+    (spotPositionRaw !== null &&
+      (typeof spotPositionRaw !== 'string' || spotPositionRaw.length === 0)) ||
+    (distinctCount === 1 && holeDepthCm === null && spotPositionRaw === null) ||
+    (distinctCount !== 1 && (holeDepthCm !== null || spotPositionRaw !== null))
+  ) {
+    throw new TypeError('holeSpotSummary is inconsistent');
+  }
+
+  return {
+    distinctCount,
+    value: distinctCount === 1 ? { holeDepthCm, spotPositionRaw } : null,
+  };
 }
 
 function cursorWhere(cursor: FishCatchAggregateCursor | undefined): Prisma.Sql {
@@ -93,7 +241,12 @@ export function buildFishCatchAggregatesQuery(
   limit: number,
   cursor?: FishCatchAggregateCursor,
 ): Prisma.Sql {
-  const baseIdParameters = Prisma.join(baseIds.map((baseId) => Prisma.sql`${baseId}::uuid`));
+  const baseScope =
+    baseIds.length === 0
+      ? Prisma.empty
+      : Prisma.sql`AND source_location."fishingBaseId" IN (${Prisma.join(
+          baseIds.map((baseId) => Prisma.sql`${baseId}::uuid`),
+        )})`;
 
   return Prisma.sql`
     WITH "aggregateRows" AS (
@@ -110,6 +263,52 @@ export function buildFishCatchAggregatesQuery(
         bait."name" AS "baitName",
         bait."nameNormalized" AS "baitNameNormalized",
         bait."isActive" AS "baitIsActive",
+        COALESCE(
+          jsonb_agg(
+            DISTINCT jsonb_build_object(
+              'spinningSpeed', report."spinningSpeed",
+              'spinningSize', report."spinningSize"
+            )
+          ) FILTER (
+            WHERE report."fishingMethod" = 'SPINNING'
+              AND (report."spinningSpeed" IS NOT NULL OR report."spinningSize" IS NOT NULL)
+          ),
+          '[]'::jsonb
+        ) AS "spinningCombinations",
+        COUNT(
+          DISTINCT jsonb_build_array(report."holeDepthCm", report."spotPositionRaw")
+        ) FILTER (
+          WHERE report."holeDepthCm" IS NOT NULL OR report."spotPositionRaw" IS NOT NULL
+        ) AS "holeSpotDistinctCount",
+        CASE
+          WHEN COUNT(
+            DISTINCT jsonb_build_array(report."holeDepthCm", report."spotPositionRaw")
+          ) FILTER (
+            WHERE report."holeDepthCm" IS NOT NULL OR report."spotPositionRaw" IS NOT NULL
+          ) = 1
+            THEN MIN(report."holeDepthCm") FILTER (
+              WHERE report."holeDepthCm" IS NOT NULL OR report."spotPositionRaw" IS NOT NULL
+            )
+          ELSE NULL
+        END AS "holeSpotSingleDepthCm",
+        CASE
+          WHEN COUNT(
+            DISTINCT jsonb_build_array(report."holeDepthCm", report."spotPositionRaw")
+          ) FILTER (
+            WHERE report."holeDepthCm" IS NOT NULL OR report."spotPositionRaw" IS NOT NULL
+          ) = 1
+            THEN MIN(report."spotPositionRaw" COLLATE "C") FILTER (
+              WHERE report."holeDepthCm" IS NOT NULL OR report."spotPositionRaw" IS NOT NULL
+            )
+          ELSE NULL
+        END AS "holeSpotSinglePositionRaw",
+        COUNT(DISTINCT report."userNoteRaw" COLLATE "C")
+          AS "userNoteRawDistinctCount",
+        CASE
+          WHEN COUNT(DISTINCT report."userNoteRaw" COLLATE "C") = 1
+            THEN MIN(report."userNoteRaw" COLLATE "C")
+          ELSE NULL
+        END AS "userNoteRawSingleValue",
         COUNT(*) AS "intensity",
         COUNT(DISTINCT report."contributorKey") AS "contributorCount",
         MAX(report."weightGrams") AS "maxObservedWeightGrams",
@@ -128,7 +327,7 @@ export function buildFishCatchAggregatesQuery(
         ON base_fish."fishingBaseId" = source_location."fishingBaseId"
         AND base_fish."fishId" = report."fishId"
       WHERE report."fishId" = ${fishId}::uuid
-        AND source_location."fishingBaseId" IN (${baseIdParameters})
+        ${baseScope}
       GROUP BY
         fish."id",
         fishing_base."id",
@@ -188,6 +387,19 @@ export class FishCatchAggregatesService {
         fishingBase: { id: row.baseId, name: row.baseName },
         location: { id: row.locationId, number: row.locationNumber, name: row.locationName },
         bait: { id: row.baitId, name: row.baitName, isActive: row.baitIsActive },
+        spinningCombinations: readSpinningCombinations(row.spinningCombinations),
+        holeSpotSummary: readHoleSpotSummary(
+          row.holeSpotDistinctCount,
+          row.holeSpotSingleDepthCm,
+          row.holeSpotSinglePositionRaw,
+          intensity,
+        ),
+        userNoteRawSummary: readTextSummary(
+          row.userNoteRawDistinctCount,
+          row.userNoteRawSingleValue,
+          'userNoteRaw',
+          intensity,
+        ),
         intensity,
         contributorCount,
         maxObservedWeightGrams: row.maxObservedWeightGrams,

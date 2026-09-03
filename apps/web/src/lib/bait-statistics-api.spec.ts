@@ -60,23 +60,38 @@ describe('bait statistics request', () => {
     mocks.apiRequest.mockResolvedValue({ items: [statistic] });
   });
 
-  test('serializes exactly one Fish/Base scope and forwards the abort signal', async () => {
+  test('serializes a canonical Fish/Base scope and forwards the abort signal', async () => {
     const controller = new AbortController();
 
     await expect(
-      listBaitStatistics({ fishId: 'fish id', baseId: 'base id', signal: controller.signal }),
+      listBaitStatistics({
+        fishId: 'fish id',
+        baseIds: ['base-b', 'base-a', 'base-b'],
+        signal: controller.signal,
+      }),
     ).resolves.toEqual([statistic]);
 
     expect(mocks.apiRequest).toHaveBeenCalledWith(
-      '/catch-reports/statistics/baits?fishId=fish+id&baseId=base+id',
+      '/catch-reports/statistics/baits?fishId=fish+id&baseIds=base-a%2Cbase-b',
       { signal: controller.signal },
     );
   });
 
-  test('rejects an empty Base without sending a request', async () => {
-    await expect(listBaitStatistics({ fishId: 'fish-1', baseId: '' })).rejects.toThrow(
-      'одну рыболовную базу',
-    );
+  test('omits the Base filter for all Bases and rejects more than 100 unique Bases', async () => {
+    await expect(listBaitStatistics({ fishId: 'fish-1', baseIds: [] })).resolves.toEqual([
+      statistic,
+    ]);
+    expect(mocks.apiRequest).toHaveBeenCalledWith('/catch-reports/statistics/baits?fishId=fish-1', {
+      signal: undefined,
+    });
+
+    mocks.apiRequest.mockClear();
+    await expect(
+      listBaitStatistics({
+        fishId: 'fish-1',
+        baseIds: Array.from({ length: 101 }, (_, index) => `base-${index}`),
+      }),
+    ).rejects.toThrow('не более 100');
     expect(mocks.apiRequest).not.toHaveBeenCalled();
   });
 });

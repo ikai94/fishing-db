@@ -18,7 +18,14 @@ function toSafeCount(value: bigint): number {
   return Number(value);
 }
 
-export function buildBaitStatisticsQuery(fishId: string, baseId: string): Prisma.Sql {
+export function buildBaitStatisticsQuery(fishId: string, baseIds: readonly string[]): Prisma.Sql {
+  const baseScope =
+    baseIds.length === 0
+      ? Prisma.empty
+      : Prisma.sql`AND source_location."fishingBaseId" IN (${Prisma.join(
+          baseIds.map((baseId) => Prisma.sql`${baseId}::uuid`),
+        )})`;
+
   return Prisma.sql`
     WITH "baitGroups" AS (
       SELECT
@@ -28,7 +35,7 @@ export function buildBaitStatisticsQuery(fishId: string, baseId: string): Prisma
       INNER JOIN "Location" AS source_location
         ON source_location."id" = report."locationId"
       WHERE report."fishId" = ${fishId}::uuid
-        AND source_location."fishingBaseId" = ${baseId}::uuid
+        ${baseScope}
       GROUP BY report."baitId"
     )
     SELECT
@@ -52,7 +59,7 @@ export class BaitStatisticsService {
 
   async list(query: BaitStatisticsQueryDto) {
     const rows = await this.prisma.$queryRaw<BaitStatisticsDatabaseRow[]>(
-      buildBaitStatisticsQuery(query.fishId, query.baseId),
+      buildBaitStatisticsQuery(query.fishId, query.baseIds),
     );
 
     return {

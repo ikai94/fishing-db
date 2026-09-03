@@ -34,6 +34,17 @@ function databaseRow(
     baitName: 'Мотыль',
     baitNameNormalized: 'мотыль',
     baitIsActive: false,
+    spinningCombinations: [
+      { spinningSpeed: null, spinningSize: 'LARGE' },
+      { spinningSpeed: 'MEDIUM', spinningSize: null },
+      { spinningSpeed: 'MEDIUM', spinningSize: 'LARGE' },
+      { spinningSpeed: 'MEDIUM', spinningSize: 'MEDIUM' },
+    ],
+    holeSpotDistinctCount: 1n,
+    holeSpotSingleDepthCm: 603,
+    holeSpotSinglePositionRaw: 'над леской',
+    userNoteRawDistinctCount: 2n,
+    userNoteRawSingleValue: null,
     intensity: 18n,
     contributorCount: 7n,
     maxObservedWeightGrams: 12_450,
@@ -59,6 +70,18 @@ void describe('FishCatchAggregatesService', () => {
 
     assert.deepEqual(sqlQuery.values, [FISH_ID, BASE_ID, 2]);
     assert.match(sqlQuery.text, /COUNT\(\*\) AS "intensity"/);
+    assert.match(sqlQuery.text, /jsonb_agg\(/);
+    assert.match(sqlQuery.text, /report\."fishingMethod" = 'SPINNING'/);
+    assert.match(sqlQuery.text, /report\."spinningSpeed" IS NOT NULL/);
+    assert.match(
+      sqlQuery.text,
+      /jsonb_build_array\(report\."holeDepthCm", report\."spotPositionRaw"\)/,
+    );
+    assert.match(sqlQuery.text, /AS "holeSpotDistinctCount"/);
+    assert.match(sqlQuery.text, /MIN\(report\."holeDepthCm"\)/);
+    assert.match(sqlQuery.text, /MIN\(report\."spotPositionRaw" COLLATE "C"\)/);
+    assert.match(sqlQuery.text, /COUNT\(DISTINCT report\."userNoteRaw" COLLATE "C"\)/);
+    assert.match(sqlQuery.text, /MIN\(report\."userNoteRaw" COLLATE "C"\)/);
     assert.match(sqlQuery.text, /COUNT\(DISTINCT report\."contributorKey"\) AS "contributorCount"/);
     assert.match(sqlQuery.text, /MAX\(report\."weightGrams"\) AS "maxObservedWeightGrams"/);
     assert.match(sqlQuery.text, /LEFT JOIN "FishingBaseFish" AS base_fish/);
@@ -66,17 +89,7 @@ void describe('FishCatchAggregatesService', () => {
       sqlQuery.text,
       /GROUP BY\s+fish\."id",\s+fishing_base\."id",\s+source_location\."id",\s+bait\."id",\s+base_fish\."minWeightGrams",\s+base_fish\."maxWeightGrams"/,
     );
-    for (const field of [
-      'holeDepthCm',
-      'spotPositionRaw',
-      'fishingNote',
-      'fishingMethod',
-      'spinningSize',
-      'spinningSpeed',
-      'userNoteRaw',
-      'createdAt',
-      'userId',
-    ]) {
+    for (const field of ['fishingNote', 'createdAt', 'userId', 'rawSourceText']) {
       assert.equal(sqlQuery.text.includes(field), false, field);
     }
     assert.match(
@@ -89,6 +102,17 @@ void describe('FishCatchAggregatesService', () => {
         fishingBase: { id: BASE_ID, name: 'Ахтуба' },
         location: { id: LOCATION_ID, number: 7, name: 'Судачий откос' },
         bait: { id: BAIT_ID, name: 'Мотыль', isActive: false },
+        spinningCombinations: [
+          { spinningSpeed: 'MEDIUM', spinningSize: 'MEDIUM' },
+          { spinningSpeed: 'MEDIUM', spinningSize: 'LARGE' },
+          { spinningSpeed: 'MEDIUM', spinningSize: null },
+          { spinningSpeed: null, spinningSize: 'LARGE' },
+        ],
+        holeSpotSummary: {
+          distinctCount: 1,
+          value: { holeDepthCm: 603, spotPositionRaw: 'над леской' },
+        },
+        userNoteRawSummary: { distinctCount: 2, value: null },
         intensity: 18,
         contributorCount: 7,
         maxObservedWeightGrams: 12_450,
@@ -101,6 +125,22 @@ void describe('FishCatchAggregatesService', () => {
     ]);
     assert.ok(result.nextCursor);
     assert.equal(JSON.stringify(result).includes('contributorKey'), false);
+  });
+
+  void it('omits the Base predicate for an empty all-Bases scope', async () => {
+    let capturedQuery: unknown;
+    const prisma = {
+      $queryRaw: (query: unknown) => {
+        capturedQuery = query;
+        return Promise.resolve([]);
+      },
+    } as unknown as PrismaService;
+
+    await new FishCatchAggregatesService(prisma).list({ ...QUERY, baseIds: [] });
+    const sqlQuery = capturedQuery as { text: string; values: unknown[] };
+
+    assert.deepEqual(sqlQuery.values, [FISH_ID, 2]);
+    assert.equal(sqlQuery.text.includes('source_location."fishingBaseId" IN'), false);
   });
 
   void it('uses the complete ordering tuple for the next-page keyset', async () => {
@@ -143,6 +183,45 @@ void describe('FishCatchAggregatesService', () => {
     ]) {
       const prisma = { $queryRaw: () => Promise.resolve([row]) } as unknown as PrismaService;
       await assert.rejects(new FishCatchAggregatesService(prisma).list(QUERY), RangeError);
+    }
+  });
+
+  void it('rejects malformed or duplicate spinning combinations', async () => {
+    for (const spinningCombinations of [
+      [{ spinningSpeed: null, spinningSize: null }],
+      [
+        { spinningSpeed: 'MEDIUM', spinningSize: 'LARGE' },
+        { spinningSpeed: 'MEDIUM', spinningSize: 'LARGE' },
+      ],
+      [{ spinningSpeed: 'INVALID', spinningSize: 'LARGE' }],
+    ]) {
+      const prisma = {
+        $queryRaw: () => Promise.resolve([databaseRow({ spinningCombinations })]),
+      } as unknown as PrismaService;
+      await assert.rejects(new FishCatchAggregatesService(prisma).list(QUERY), TypeError);
+    }
+  });
+
+  void it('rejects inconsistent or unsafe hole/spot and raw-text summaries', async () => {
+    for (const row of [
+      databaseRow({ holeSpotDistinctCount: -1n }),
+      databaseRow({ holeSpotDistinctCount: 19n }),
+      databaseRow({ holeSpotDistinctCount: 0n, holeSpotSingleDepthCm: 603 }),
+      databaseRow({
+        holeSpotDistinctCount: 1n,
+        holeSpotSingleDepthCm: null,
+        holeSpotSinglePositionRaw: null,
+      }),
+      databaseRow({ holeSpotDistinctCount: 2n, holeSpotSinglePositionRaw: 'точка' }),
+      databaseRow({ holeSpotSingleDepthCm: 0 }),
+      databaseRow({ holeSpotSinglePositionRaw: '' }),
+      databaseRow({ userNoteRawDistinctCount: 1n, userNoteRawSingleValue: '' }),
+      databaseRow({
+        userNoteRawDistinctCount: BigInt(Number.MAX_SAFE_INTEGER) + 1n,
+      }),
+    ]) {
+      const prisma = { $queryRaw: () => Promise.resolve([row]) } as unknown as PrismaService;
+      await assert.rejects(new FishCatchAggregatesService(prisma).list(QUERY));
     }
   });
 });
