@@ -133,8 +133,9 @@ Important REST families, all below `/api/v1`:
   lowercase. It does not merge punctuation, `е/ё`, aliases, or directional meaning.
 - `ScreenAnchor` may help recognize input but is neither CatchReport identity nor a foreign key.
 - There is no current `Spot` entity; do not assume one when changing report or statistics code.
-- On Fish detail, no Base selection parameters means all active memberships; explicit empty scope
-  means none. Stale IDs are ignored and selection remains URL-addressable.
+- On Fish detail, zero selected Bases means unfiltered statistics across all historical Bases;
+  one or more selected Bases restricts statistics to those IDs. Stale IDs are ignored and
+  selection remains URL-addressable.
 - Public projections include historical inactive names while links/UI activation depend on current
   catalog state. Owner-only `rawSourceText` must never enter a public projection.
 
@@ -165,7 +166,7 @@ The committed canonical offline seed asserts:
 
 - 77 FishingBases and 853 Locations;
 - 1,255 global Fish identities and 3,230 canonical FishingBaseFish memberships;
-- 249 Baits: 68 `BAIT` and 181 `LURE`;
+- 248 Baits: 68 `BAIT` and 180 `LURE`;
 - 8 ScreenAnchors.
 
 These are canonical seed counts, not authoritative totals for a development database, which may
