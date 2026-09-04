@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
+import { ActivityModule } from './activity/activity.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { CatchReportsModule } from './catch-reports/catch-reports.module.js';
 import { CatalogModule } from './catalog/catalog.module.js';
@@ -15,6 +16,7 @@ import { OriginGuard } from './security/origin.guard.js';
       cache: true,
       validate: validateEnvironment,
     }),
+    ActivityModule,
     AuthModule,
     CatchReportsModule,
     CatalogModule,

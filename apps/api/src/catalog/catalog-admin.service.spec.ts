@@ -1,11 +1,28 @@
 import assert from 'node:assert/strict';
 import { HttpException } from '@nestjs/common';
 import { describe, it } from 'node:test';
+import type { ActivityEventWriter } from '../activity/activity-event-writer.service.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
 import { CatalogAdminService } from './catalog-admin.service.js';
 import type { UpdateLocationDto } from './dto/update-location.dto.js';
 
 const NOW = new Date('2026-08-08T12:00:00.000Z');
+const ACTOR_ID = '00000000-0000-4000-8000-000000000001';
+
+const activityEvents = {
+  append: () => Promise.resolve(),
+} as unknown as ActivityEventWriter;
+
+function createService(prisma: PrismaService): CatalogAdminService {
+  const database = prisma as unknown as {
+    $transaction?: <Result>(callback: (tx: PrismaService) => Promise<Result>) => Promise<Result>;
+  };
+  if (typeof database.$transaction !== 'function') {
+    database.$transaction = <Result>(callback: (tx: PrismaService) => Promise<Result>) =>
+      callback(prisma);
+  }
+  return new CatalogAdminService(prisma, activityEvents);
+}
 
 function asObject(value: unknown): Record<string, unknown> {
   assert.ok(typeof value === 'object' && value !== null && !Array.isArray(value));
@@ -60,9 +77,9 @@ void describe('CatalogAdminService', () => {
         },
       },
     } as unknown as PrismaService;
-    const service = new CatalogAdminService(prisma);
+    const service = createService(prisma);
 
-    await service.createFishingBase({ name: '  Озера\u00a0  Танзании  ' });
+    await service.createFishingBase(ACTOR_ID, { name: '  Озера\u00a0  Танзании  ' });
 
     assert.deepEqual(asObject(asObject(createQuery).data), {
       name: 'Озера\u00a0  Танзании',
@@ -81,10 +98,10 @@ void describe('CatalogAdminService', () => {
         },
       },
     } as unknown as PrismaService;
-    const service = new CatalogAdminService(prisma);
+    const service = createService(prisma);
 
     await assert.rejects(
-      () => service.createLocation('base-id', { number: 1, name: 'Протока' }),
+      () => service.createLocation(ACTOR_ID, 'base-id', { number: 1, name: 'Протока' }),
       hasCode('FISHING_BASE_INACTIVE'),
     );
     assert.equal(createCalled, false);
@@ -101,10 +118,10 @@ void describe('CatalogAdminService', () => {
         },
       },
     } as unknown as PrismaService;
-    const service = new CatalogAdminService(prisma);
+    const service = createService(prisma);
 
     await assert.rejects(
-      () => service.updateLocation('location-id', { isActive: true }),
+      () => service.updateLocation(ACTOR_ID, 'location-id', { isActive: true }),
       hasCode('FISHING_BASE_INACTIVE'),
     );
     assert.equal(updateCalled, false);
@@ -129,14 +146,14 @@ void describe('CatalogAdminService', () => {
         },
       },
     } as unknown as PrismaService;
-    const service = new CatalogAdminService(prisma);
+    const service = createService(prisma);
     const maliciousDto = {
       number: 2,
       name: 'Новая протока',
       fishingBaseId: 'other-base-id',
     } as unknown as UpdateLocationDto;
 
-    await service.updateLocation('location-id', maliciousDto);
+    await service.updateLocation(ACTOR_ID, 'location-id', maliciousDto);
     const data = asObject(asObject(updateQuery).data);
 
     assert.equal('fishingBaseId' in data, false);
@@ -165,10 +182,10 @@ void describe('CatalogAdminService', () => {
         fishingBase: { findUnique: () => Promise.resolve({ isActive: true }) },
         location: { create: () => Promise.reject(prismaError) },
       } as unknown as PrismaService;
-      const service = new CatalogAdminService(prisma);
+      const service = createService(prisma);
 
       await assert.rejects(
-        () => service.createLocation('base-id', { number: 1, name: 'Протока' }),
+        () => service.createLocation(ACTOR_ID, 'base-id', { number: 1, name: 'Протока' }),
         hasCode(expectedCode),
       );
     }
@@ -184,9 +201,9 @@ void describe('CatalogAdminService', () => {
         },
       },
     } as unknown as PrismaService;
-    const successfulService = new CatalogAdminService(successfulPrisma);
+    const successfulService = createService(successfulPrisma);
 
-    const result = await successfulService.createBait({ name: 'Блесна', type: 'LURE' });
+    const result = await successfulService.createBait(ACTOR_ID, { name: 'Блесна', type: 'LURE' });
 
     assert.equal(asObject(asObject(createQuery).data).type, 'LURE');
     assert.equal(result.bait.type, 'LURE');
@@ -194,10 +211,10 @@ void describe('CatalogAdminService', () => {
     const duplicatePrisma = {
       bait: { create: () => Promise.reject(knownPrismaError('P2002')) },
     } as unknown as PrismaService;
-    const duplicateService = new CatalogAdminService(duplicatePrisma);
+    const duplicateService = createService(duplicatePrisma);
 
     await assert.rejects(
-      () => duplicateService.createBait({ name: 'БЛЕСНА', type: 'BAIT' }),
+      () => duplicateService.createBait(ACTOR_ID, { name: 'БЛЕСНА', type: 'BAIT' }),
       hasCode('BAIT_NAME_ALREADY_EXISTS'),
     );
   });
@@ -216,14 +233,14 @@ void describe('CatalogAdminService', () => {
         },
       },
     } as unknown as PrismaService;
-    const service = new CatalogAdminService(prisma);
+    const service = createService(prisma);
 
     await assert.rejects(
-      () => service.createFish({ name: 'Сайда (спиннинг)' }),
+      () => service.createFish(ACTOR_ID, { name: 'Сайда (спиннинг)' }),
       hasCode('VALIDATION_ERROR'),
     );
     await assert.rejects(
-      () => service.updateFish('fish-id', { name: 'Жерех-лысач (спиннинг)' }),
+      () => service.updateFish(ACTOR_ID, 'fish-id', { name: 'Жерех-лысач (спиннинг)' }),
       hasCode('VALIDATION_ERROR'),
     );
     assert.equal(mutationCalled, false);
@@ -236,12 +253,24 @@ void describe('CatalogAdminService', () => {
     const prisma = withCatalogLocks(
       {
         fishingBaseFish: {
+          findUnique: () =>
+            Promise.resolve({
+              fishingBaseId: 'base-id',
+              fishId: 'fish-id',
+              minWeightGrams: null,
+              maxWeightGrams: null,
+              createdAt: NOW,
+              fishingBase: { id: 'base-id', name: 'База' },
+              fish: { id: 'fish-id', name: 'Рыба' },
+            }),
           create: (input: unknown) => {
             calls.push('create');
             createQuery = input;
             return Promise.resolve({
               fishingBaseId: 'base-id',
               fishId: 'fish-id',
+              minWeightGrams: null,
+              maxWeightGrams: null,
               createdAt: NOW,
             });
           },
@@ -254,10 +283,10 @@ void describe('CatalogAdminService', () => {
       },
       [true, true],
     ) as unknown as PrismaService;
-    const service = new CatalogAdminService(prisma);
+    const service = createService(prisma);
 
-    const result = await service.addFishToFishingBase('base-id', { fishId: 'fish-id' });
-    await service.removeFishFromFishingBase('base-id', 'fish-id');
+    const result = await service.addFishToFishingBase(ACTOR_ID, 'base-id', { fishId: 'fish-id' });
+    await service.removeFishFromFishingBase(ACTOR_ID, 'base-id', 'fish-id');
 
     assert.deepEqual(calls, ['create', 'delete']);
     assert.deepEqual(asObject(asObject(createQuery).data), {
@@ -280,26 +309,26 @@ void describe('CatalogAdminService', () => {
       { fishingBaseFish: { create: () => Promise.reject(knownPrismaError('P2002')) } },
       [true, true],
     ) as unknown as PrismaService;
-    const duplicateService = new CatalogAdminService(duplicatePrisma);
+    const duplicateService = createService(duplicatePrisma);
 
     await assert.rejects(
-      () => duplicateService.addFishToFishingBase('base-id', { fishId: 'fish-id' }),
+      () => duplicateService.addFishToFishingBase(ACTOR_ID, 'base-id', { fishId: 'fish-id' }),
       hasCode('FISHING_BASE_FISH_ALREADY_EXISTS'),
     );
 
     const inactiveBasePrisma = withCatalogLocks({}, [false]) as unknown as PrismaService;
-    const inactiveBaseService = new CatalogAdminService(inactiveBasePrisma);
+    const inactiveBaseService = createService(inactiveBasePrisma);
 
     await assert.rejects(
-      () => inactiveBaseService.addFishToFishingBase('base-id', { fishId: 'fish-id' }),
+      () => inactiveBaseService.addFishToFishingBase(ACTOR_ID, 'base-id', { fishId: 'fish-id' }),
       hasCode('FISHING_BASE_INACTIVE'),
     );
 
     const inactiveFishPrisma = withCatalogLocks({}, [true, false]) as unknown as PrismaService;
-    const inactiveFishService = new CatalogAdminService(inactiveFishPrisma);
+    const inactiveFishService = createService(inactiveFishPrisma);
 
     await assert.rejects(
-      () => inactiveFishService.addFishToFishingBase('base-id', { fishId: 'fish-id' }),
+      () => inactiveFishService.addFishToFishingBase(ACTOR_ID, 'base-id', { fishId: 'fish-id' }),
       hasCode('FISH_INACTIVE'),
     );
   });
@@ -332,9 +361,9 @@ void describe('CatalogAdminService', () => {
       $transaction: <Result>(callback: (tx: typeof transactionClient) => Promise<Result>) =>
         callback(transactionClient),
     }) as unknown as PrismaService;
-    const service = new CatalogAdminService(prisma);
+    const service = createService(prisma);
 
-    const result = await service.updateFishingBaseFish('base-id', 'fish-id', {
+    const result = await service.updateFishingBaseFish(ACTOR_ID, 'base-id', 'fish-id', {
       minWeightGrams: 150,
     });
 
@@ -372,16 +401,19 @@ void describe('CatalogAdminService', () => {
       $transaction: <Result>(callback: (tx: typeof transactionClient) => Promise<Result>) =>
         callback(transactionClient),
     }) as unknown as PrismaService;
-    const service = new CatalogAdminService(prisma);
+    const service = createService(prisma);
 
-    await service.updateFishingBaseFish('base-id', 'fish-id', { maxWeightGrams: null });
+    await service.updateFishingBaseFish(ACTOR_ID, 'base-id', 'fish-id', { maxWeightGrams: null });
     assert.deepEqual(asObject(asObject(updateQuery).data), { maxWeightGrams: null });
     await assert.rejects(
-      () => service.updateFishingBaseFish('base-id', 'fish-id', {}),
+      () => service.updateFishingBaseFish(ACTOR_ID, 'base-id', 'fish-id', {}),
       hasCode('VALIDATION_ERROR'),
     );
     await assert.rejects(
-      () => service.updateFishingBaseFish('base-id', 'fish-id', { minWeightGrams: 1_001 }),
+      () =>
+        service.updateFishingBaseFish(ACTOR_ID, 'base-id', 'fish-id', {
+          minWeightGrams: 1_001,
+        }),
       hasCode('VALIDATION_ERROR'),
     );
 
@@ -395,7 +427,7 @@ void describe('CatalogAdminService', () => {
     }) as unknown as PrismaService;
     await assert.rejects(
       () =>
-        new CatalogAdminService(missingPrisma).updateFishingBaseFish('base-id', 'fish-id', {
+        createService(missingPrisma).updateFishingBaseFish(ACTOR_ID, 'base-id', 'fish-id', {
           minWeightGrams: null,
         }),
       hasCode('FISHING_BASE_FISH_NOT_FOUND'),
@@ -407,6 +439,7 @@ void describe('CatalogAdminService', () => {
     let relationDeleteCalled = false;
     const prisma = {
       fish: {
+        findUnique: () => Promise.resolve(namedItem('fish-id', 'Осётр', true)),
         update: (input: unknown) => {
           updateQuery = input;
           return Promise.resolve(namedItem('fish-id', 'Осётр', false));
@@ -419,9 +452,9 @@ void describe('CatalogAdminService', () => {
         },
       },
     } as unknown as PrismaService;
-    const service = new CatalogAdminService(prisma);
+    const service = createService(prisma);
 
-    const result = await service.updateFish('fish-id', { isActive: false });
+    const result = await service.updateFish(ACTOR_ID, 'fish-id', { isActive: false });
 
     assert.deepEqual(asObject(asObject(updateQuery).data), { isActive: false });
     assert.equal(result.fish.isActive, false);
@@ -442,7 +475,7 @@ void describe('CatalogAdminService', () => {
         },
       },
     } as unknown as PrismaService;
-    const service = new CatalogAdminService(prisma);
+    const service = createService(prisma);
 
     await service.createScreenAnchor({ name: '  Удочка  ' });
     await service.updateScreenAnchor('anchor-id', { name: 'События', isActive: false });
@@ -468,9 +501,12 @@ void describe('CatalogAdminService', () => {
         },
       },
     } as unknown as PrismaService;
-    const service = new CatalogAdminService(prisma);
+    const service = createService(prisma);
 
-    await assert.rejects(() => service.updateFish('fish-id', {}), hasCode('VALIDATION_ERROR'));
+    await assert.rejects(
+      () => service.updateFish(ACTOR_ID, 'fish-id', {}),
+      hasCode('VALIDATION_ERROR'),
+    );
     assert.equal(updateCalled, false);
   });
 });

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { HttpException } from '@nestjs/common';
 import { describe, it } from 'node:test';
+import type { ActivityEventWriter } from '../activity/activity-event-writer.service.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
 import { encodeCatchReportCursor } from './catch-report-pagination.js';
 import { CatchReportsService } from './catch-reports.service.js';
@@ -20,6 +21,14 @@ const BASE_ID = '60000000-0000-4000-8000-000000000001';
 const OTHER_BASE_ID = '60000000-0000-4000-8000-000000000002';
 const CREATED_AT = new Date('2026-08-09T10:00:00.000Z');
 const UPDATED_AT = new Date('2026-08-09T10:05:00.000Z');
+
+const activityEvents = {
+  append: () => Promise.resolve(),
+} as unknown as ActivityEventWriter;
+
+function createService(prisma: PrismaService): CatchReportsService {
+  return new CatchReportsService(prisma, activityEvents);
+}
 
 function asObject(value: unknown): Record<string, unknown> {
   assert.ok(typeof value === 'object' && value !== null && !Array.isArray(value));
@@ -323,7 +332,7 @@ function createPrisma(options: CreateMockOptions = {}) {
 void describe('CatchReportsService v2', () => {
   void it('derives BAIT_FISHING, validates Base membership, preserves text, and ignores spoofed fields', async () => {
     const mock = createPrisma();
-    const service = new CatchReportsService(mock.prisma);
+    const service = createService(mock.prisma);
     const malicious = {
       ...createDto(),
       userId: OTHER_USER_ID,
@@ -361,17 +370,14 @@ void describe('CatchReportsService v2', () => {
   });
 
   void it('allows BAIT without a hole and SPINNING without structured settings', async () => {
-    await new CatchReportsService(createPrisma().prisma).create(
-      USER_ID,
-      createDto({ holeDepthCm: null }),
-    );
-    await new CatchReportsService(createPrisma({ baitType: 'LURE' }).prisma).create(
+    await createService(createPrisma().prisma).create(USER_ID, createDto({ holeDepthCm: null }));
+    await createService(createPrisma({ baitType: 'LURE' }).prisma).create(
       USER_ID,
       createDto({ holeDepthCm: null, spinningSize: null, spinningSpeed: null }),
     );
 
     await assert.rejects(
-      new CatchReportsService(createPrisma().prisma).create(
+      createService(createPrisma().prisma).create(
         USER_ID,
         createDto({ spinningSize: 'MEDIUM', spinningSpeed: 'SLOW' }),
       ),
@@ -402,7 +408,7 @@ void describe('CatchReportsService v2', () => {
       return originalCreate(value);
     };
 
-    await new CatchReportsService(mock.prisma).create(
+    await createService(mock.prisma).create(
       USER_ID,
       createDto({ holeDepthCm: 1_078, spinningSize: 'MEDIUM', spinningSpeed: 'SLOW' }),
     );
@@ -427,7 +433,7 @@ void describe('CatchReportsService v2', () => {
   });
 
   void it('returns stable catalog errors for missing Base/Fish membership', async () => {
-    const service = new CatchReportsService(createPrisma({ membership: null }).prisma);
+    const service = createService(createPrisma({ membership: null }).prisma);
     await assert.rejects(
       service.create(USER_ID, createDto()),
       hasCode('FISH_NOT_AVAILABLE_AT_FISHING_BASE'),
@@ -436,7 +442,7 @@ void describe('CatchReportsService v2', () => {
 
   void it('retries serializable transaction conflicts before writing', async () => {
     const mock = createPrisma({ transactionConflicts: 2 });
-    const result = await new CatchReportsService(mock.prisma).create(USER_ID, createDto());
+    const result = await createService(mock.prisma).create(USER_ID, createDto());
 
     assert.equal(result.report.id, REPORT_ID);
     assert.deepEqual(mock.calls, ['location', 'fish', 'membership', 'bait', 'create']);
@@ -444,7 +450,7 @@ void describe('CatchReportsService v2', () => {
 
   void it('creates every batch row in order with native identity and no deduplication', async () => {
     const mock = createPrisma();
-    const result = await new CatchReportsService(mock.prisma).createBatch(USER_ID, [
+    const result = await createService(mock.prisma).createBatch(USER_ID, [
       createDto({ rawSourceText: 'одинаковая строка' }),
       createDto({ rawSourceText: 'одинаковая строка' }),
     ]);
@@ -464,7 +470,7 @@ void describe('CatchReportsService v2', () => {
 
   void it('validates all batch rows before inserts and reports an indexed row error', async () => {
     const mock = createPrisma();
-    const service = new CatchReportsService(mock.prisma);
+    const service = createService(mock.prisma);
 
     await assert.rejects(
       service.createBatch(USER_ID, [
@@ -486,7 +492,7 @@ void describe('CatchReportsService v2', () => {
     });
 
     await assert.rejects(
-      new CatchReportsService(mock.prisma).createBatch(USER_ID, [
+      createService(mock.prisma).createBatch(USER_ID, [
         createDto(),
         createDto({ fishId: otherBaseFishId }),
       ]),
@@ -500,7 +506,7 @@ void describe('CatchReportsService v2', () => {
     const mock = createPrisma({
       transactionConflicts: 2,
     });
-    const result = await new CatchReportsService(mock.prisma).createBatch(USER_ID, [
+    const result = await createService(mock.prisma).createBatch(USER_ID, [
       createDto(),
       createDto({ weightGrams: 41 }),
     ]);
@@ -552,7 +558,7 @@ void describe('CatchReportsService v2', () => {
       fish: { findUnique: () => Promise.resolve({ id: FISH_ID, name: 'Рыба' }) },
     }) as unknown as PrismaService;
 
-    await new CatchReportsService(prisma).update(USER_ID, REPORT_ID, {
+    await createService(prisma).update(USER_ID, REPORT_ID, {
       baitId: BAIT_ID,
       weightGrams: 41,
     });
@@ -566,7 +572,7 @@ void describe('CatchReportsService v2', () => {
 
   void it('re-derives an actual BAIT to LURE change without requiring spinning observations', async () => {
     const prisma = updatePrisma({ replacementType: 'LURE' });
-    const service = new CatchReportsService(prisma.value);
+    const service = createService(prisma.value);
 
     await service.update(USER_ID, REPORT_ID, { baitId: OTHER_BAIT_ID });
     const data = asObject(asObject(prisma.lastUpdate()).data);
@@ -583,7 +589,7 @@ void describe('CatchReportsService v2', () => {
       currentSpeed: 'SLOW',
       replacementType: 'BAIT',
     });
-    const service = new CatchReportsService(prisma.value);
+    const service = createService(prisma.value);
 
     await service.update(USER_ID, REPORT_ID, { baitId: OTHER_BAIT_ID });
     assert.deepEqual(asObject(asObject(prisma.lastUpdate()).data), {
@@ -596,7 +602,7 @@ void describe('CatchReportsService v2', () => {
 
   void it('allows unrelated edits on a BAIT row without a hole', async () => {
     const prisma = updatePrisma({ currentMethod: 'BAIT_FISHING', currentHole: null });
-    await new CatchReportsService(prisma.value).update(USER_ID, REPORT_ID, { weightGrams: 50 });
+    await createService(prisma.value).update(USER_ID, REPORT_ID, { weightGrams: 50 });
     assert.deepEqual(asObject(asObject(prisma.lastUpdate()).data), { weightGrams: 50 });
   });
 
@@ -608,7 +614,7 @@ void describe('CatchReportsService v2', () => {
       importKey: 'forum:observation:spoofed',
     } as unknown as UpdateCatchReportDto;
 
-    await new CatchReportsService(prisma.value).update(USER_ID, REPORT_ID, malicious);
+    await createService(prisma.value).update(USER_ID, REPORT_ID, malicious);
 
     assert.deepEqual(asObject(asObject(prisma.lastUpdate()).data), { weightGrams: 41 });
   });
@@ -635,7 +641,7 @@ void describe('CatchReportsService v2', () => {
       },
       fishingBaseFish: weightMembershipDelegate(),
     } as unknown as PrismaService;
-    const service = new CatchReportsService(prisma);
+    const service = createService(prisma);
 
     const publicResult = await service.getPublic(REPORT_ID);
     const ownerResult = await service.getMine(USER_ID, REPORT_ID);
@@ -660,7 +666,7 @@ void describe('CatchReportsService v2', () => {
       },
       fishingBaseFish: weightMembershipDelegate(),
     } as unknown as PrismaService;
-    const service = new CatchReportsService(prisma);
+    const service = createService(prisma);
     const cursorDate = new Date('2026-08-09T11:00:00.000Z');
     const cursor = encodeCatchReportCursor({ createdAt: cursorDate, id: REPORT_ID });
 
@@ -709,7 +715,7 @@ void describe('CatchReportsService v2', () => {
       },
     } as unknown as PrismaService;
 
-    const result = await new CatchReportsService(prisma).listPublic({ limit: 20 });
+    const result = await createService(prisma).listPublic({ limit: 20 });
 
     assert.equal(membershipQueries, 1);
     assert.equal(result.items.length, 2);
@@ -786,7 +792,7 @@ void describe('CatchReportsService v2', () => {
       fishingBaseFish: weightMembershipDelegate(),
     } as unknown as PrismaService;
 
-    const result = await new CatchReportsService(prisma).listLocationObservations(LOCATION_ID);
+    const result = await createService(prisma).listLocationObservations(LOCATION_ID);
     const queryObject = asObject(query);
 
     assert.deepEqual(queryObject.where, { locationId: LOCATION_ID });
@@ -837,7 +843,7 @@ void describe('CatchReportsService v2', () => {
         },
       },
     } as unknown as PrismaService;
-    const service = new CatchReportsService(prisma);
+    const service = createService(prisma);
 
     await service.listPublic({ limit: 20 });
     await service.listMine(USER_ID, { limit: 20 });
@@ -851,7 +857,7 @@ void describe('CatchReportsService v2', () => {
   void it('checks ownership before validating an update', async () => {
     const prisma = updatePrisma({ ownerId: OTHER_USER_ID });
     await assert.rejects(
-      new CatchReportsService(prisma.value).update(USER_ID, REPORT_ID, {
+      createService(prisma.value).update(USER_ID, REPORT_ID, {
         locationId: OTHER_LOCATION_ID,
         fishId: OTHER_FISH_ID,
       }),
@@ -875,7 +881,7 @@ void describe('CatchReportsService v2', () => {
     ) as unknown as PrismaService;
 
     await assert.rejects(
-      () => new CatchReportsService(prisma).create(USER_ID, createDto()),
+      () => createService(prisma).create(USER_ID, createDto()),
       hasCode('ACCOUNT_BANNED'),
     );
     assert.equal(createCalled, false);

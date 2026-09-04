@@ -2,10 +2,8 @@
 
 ## Accepted functional state
 
-- Last accepted application milestone: `57b435e6579c00d7f852de991c1fc5fb767864de`
-  (`add common hole statistics`).
-- This historical milestone is NOT the current repository HEAD.
-- Snapshot date: 2026-08-20 (Europe/Moscow).
+- Current accepted application milestone: ActivityEvent v1.
+- Snapshot date: 2026-09-04 (Europe/Moscow).
 
 This file records the accepted functional/product state; Git history records commit history.
 
@@ -33,10 +31,10 @@ Root engines allow Node `>=24.0.0 <25` and pnpm `>=11.0.0 <12`.
 - `apps/web/src/app` — route pages and route-local components.
 - `apps/web/src/lib` — REST clients, response decoders, form helpers, and hooks.
 - `apps/api` — NestJS modular monolith and Node test runner suites.
-- `apps/api/src` — auth, catalog, CatchReport, health, security, and Prisma modules.
+- `apps/api/src` — activity, auth, catalog, CatchReport, health, security, and Prisma modules.
 - `apps/api/prisma/schema.prisma` — current PostgreSQL domain schema.
-- `apps/api/prisma/migrations` — eight accepted migrations, from auth through relaxed optional
-  CatchReport observations.
+- `apps/api/prisma/migrations` — ordered migration history, including the append-only
+  `ActivityEvent` store.
 - `apps/api/test` — PostgreSQL e2e, database-safety, and migration-semantic tests.
 - `apps/api/prisma/catalog-data` — deterministic offline catalog inputs and provenance.
 - `docs/phase5-rollout.md` — CatchReport v2 migration and audit procedure.
@@ -77,6 +75,12 @@ The workspace currently includes only `apps/*`; there is no accepted `packages/s
   `spotPositionRaw`; it reports both `reportsCount` and contributor-distinct
   `uniqueUsersCount`.
 - Common-hole output excludes author identity, `fishingNote`, `userNoteRaw`, and `rawSourceText`.
+- `ActivityEvent` is the append-only source for the public recent-activity feed. It stores a
+  monotonic bigint identity, event and subject discriminators, the authenticated actor identity,
+  immutable actor nickname/role snapshots, a versioned public-safe JSON snapshot, and a database
+  occurrence timestamp. PostgreSQL blocks event updates and deletes.
+- Activity history begins when the ActivityEvent migration is applied; existing catalog rows and
+  CatchReports are deliberately not backfilled or reconstructed from entity timestamps.
 - Roles are `USER` and `ADMIN`. ADMIN catalog access is enforced by backend guards.
 - Banned users may authenticate, read their archive, and preview parser output, but cannot create,
   update, or delete public reports. Banned ADMIN users cannot use ADMIN catalog routes.
@@ -99,12 +103,16 @@ The workspace currently includes only `apps/*`; there is no accepted `packages/s
 - Fish Explorer with URL-backed Base selection and a dense, paginated CatchReport table.
 - Common-hole statistics with multi-contributor confirmations separated from repeated
   observations by one contributor, including ADMIN-owned external observations.
+- Public recent-activity feed for approved online CatchReport and ADMIN catalog mutations, with
+  immutable snapshots, opaque cursor pagination, and the latest ten events rendered on the
+  homepage.
 
 ## Public routes
 
 Important frontend routes:
 
-- `/` — health/navigation; `/login`, `/register`, `/account` — authentication and account.
+- `/` — health, recent catches, and the latest ten activity events; `/login`, `/register`,
+  `/account` — authentication and account.
 - `/bases`, `/bases/:id`, `/locations/:id` — public Base and Location catalog.
 - `/fish`, `/fish/:id`, `/baits` — Fish search/explorer and bait catalog.
 - `/catches`, `/catches/:id` — public report feed and detail.
@@ -119,6 +127,7 @@ Important REST families, all below `/api/v1`:
 - `/admin/catalog` — ADMIN catalog reads/mutations and Base–Fish membership.
 - `/catch-reports` — public feed/detail/statistics, parser preview, and guarded mutations.
 - `/me/catch-reports` — authenticated owner list/detail.
+- `/activity` — anonymous append-only activity feed with versioned opaque cursor pagination.
 
 ## Important accepted decisions
 
@@ -138,6 +147,16 @@ Important REST families, all below `/api/v1`:
   selection remains URL-addressable.
 - Public projections include historical inactive names while links/UI activation depend on current
   catalog state. Owner-only `rawSourceText` must never enter a public projection.
+- Activity events are appended inside the same transaction as the successful online domain
+  mutation and as its final database write. One PostgreSQL advisory transaction lock serializes
+  event insertion so descending bigint IDs are a trustworthy public order.
+- Activity v1 publishes CatchReport create, aggregate batch-create, actual update, and delete;
+  catalog Base, Location, Fish, and Bait create/actual update; and Base–Fish membership add, actual
+  weight-bound update, and remove. Effective no-op updates do not append events. Auth, parser
+  preview, ScreenAnchor, offline import, seed, and reconciliation flows do not publish events.
+- Public activity projections validate every payload version and discriminator, expose only
+  immutable allowlisted snapshots, never expose `actorUserId`, `contributorKey`, `importKey`, or
+  private raw source text, and represent catalog administrators only as `ADMINISTRATION`.
 
 ## Verification baseline
 

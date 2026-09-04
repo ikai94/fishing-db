@@ -191,6 +191,8 @@ void describe('FishingBaseFish reconciliation (PostgreSQL e2e)', { concurrency: 
       adapter: createPrismaAdapter(databaseConfiguration.testDatabaseUrl),
     });
     await clearTestData(databaseConfiguration, {
+      truncateActivityEvents: () =>
+        prisma.$executeRawUnsafe('TRUNCATE TABLE "ActivityEvent" RESTART IDENTITY'),
       deleteCatchReports: () => prisma.catchReport.deleteMany(),
       deleteFishingBaseFish: () => prisma.fishingBaseFish.deleteMany(),
       deleteLocations: () => prisma.location.deleteMany(),
@@ -206,6 +208,8 @@ void describe('FishingBaseFish reconciliation (PostgreSQL e2e)', { concurrency: 
   void after(async () => {
     try {
       await clearTestData(databaseConfiguration, {
+        truncateActivityEvents: () =>
+          prisma.$executeRawUnsafe('TRUNCATE TABLE "ActivityEvent" RESTART IDENTITY'),
         deleteCatchReports: () => prisma.catchReport.deleteMany(),
         deleteFishingBaseFish: () => prisma.fishingBaseFish.deleteMany(),
         deleteLocations: () => prisma.location.deleteMany(),

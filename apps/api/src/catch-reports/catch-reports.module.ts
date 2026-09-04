@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ActivityModule } from '../activity/activity.module.js';
 import { AuthModule } from '../auth/auth.module.js';
 import { PrismaModule } from '../prisma/prisma.module.js';
 import { BaitStatisticsService } from './bait-statistics.service.js';
@@ -11,7 +12,7 @@ import { MyCatchReportsController } from './my-catch-reports.controller.js';
 import { CatchReportParserService } from './parser/catch-report-parser.service.js';
 
 @Module({
-  imports: [PrismaModule, AuthModule],
+  imports: [PrismaModule, AuthModule, ActivityModule],
   controllers: [CatchReportsController, MyCatchReportsController],
   providers: [
     CatchReportsService,

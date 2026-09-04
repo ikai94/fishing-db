@@ -23,6 +23,7 @@ const CONTRIBUTOR_IDENTITY_MIGRATION = '20260820120000_add_catch_report_contribu
 const RELAX_OBSERVATIONS_MIGRATION = '20260826120000_relax_catch_report_observations';
 const FISH_IMAGE_METADATA_MIGRATION = '20260828190000_add_fish_image_metadata';
 const BASE_FISH_WEIGHT_MIGRATION = '20260901120000_add_fishing_base_fish_weights';
+const ACTIVITY_EVENT_MIGRATION = '20260904120000_add_activity_events';
 
 loadEnvironmentFile({ path: `${API_DIRECTORY}/.env`, quiet: true });
 loadEnvironmentFile({ path: `${API_DIRECTORY}/test/.env`, quiet: true });
@@ -909,6 +910,128 @@ void describe('FishingBaseFish weight migration semantics', () => {
     } finally {
       await weightClient.query(`DROP SCHEMA IF EXISTS ${quotedIdentifier(weightSchema)} CASCADE`);
       await weightClient.end();
+    }
+  });
+});
+
+void describe('ActivityEvent migration semantics', () => {
+  void test('starts empty and enforces append-only actor-attributed events', async () => {
+    const configuration = getTestDatabaseConfiguration(process.env);
+    const activitySchema = `activity_events_${randomUUID().replaceAll('-', '')}`;
+    const activityClient = new Client({ connectionString: configuration.testDatabaseUrl });
+    await activityClient.connect();
+
+    try {
+      await activityClient.query(`CREATE SCHEMA ${quotedIdentifier(activitySchema)}`);
+      await activityClient.query(`SET search_path TO ${quotedIdentifier(activitySchema)}`);
+      for (const migration of PHASE_FOUR_MIGRATIONS)
+        await applyMigration(migration, activityClient);
+      for (const migration of PHASE_FIVE_COMPATIBILITY_MIGRATIONS) {
+        await applyMigration(migration, activityClient);
+      }
+      await applyMigration(PHASE_FIVE_INVARIANT_MIGRATION, activityClient);
+      await applyMigration(CONTRIBUTOR_IDENTITY_MIGRATION, activityClient);
+      await applyMigration(RELAX_OBSERVATIONS_MIGRATION, activityClient);
+      await applyMigration(FISH_IMAGE_METADATA_MIGRATION, activityClient);
+      await applyMigration(BASE_FISH_WEIGHT_MIGRATION, activityClient);
+      await activityClient.query(`
+        INSERT INTO "User" (
+          "id", "email", "nickname", "nicknameNormalized", "passwordHash"
+        ) VALUES (
+          '10000000-0000-4000-8000-000000000001',
+          'activity@example.ru',
+          'Activity User',
+          'activity user',
+          'not-a-real-password-hash'
+        );
+        INSERT INTO "FishingBase" ("id", "name", "nameNormalized") VALUES
+          ('20000000-0000-4000-8000-000000000001', 'Existing Base', 'existing base');
+        INSERT INTO "Location" (
+          "id", "fishingBaseId", "number", "name", "nameNormalized"
+        ) VALUES (
+          '30000000-0000-4000-8000-000000000001',
+          '20000000-0000-4000-8000-000000000001',
+          1,
+          'Existing Location',
+          'existing location'
+        );
+        INSERT INTO "Fish" ("id", "name", "nameNormalized") VALUES
+          ('40000000-0000-4000-8000-000000000001', 'Existing Fish', 'existing fish');
+        INSERT INTO "Bait" ("id", "name", "nameNormalized", "type") VALUES
+          ('50000000-0000-4000-8000-000000000001', 'Existing Bait', 'existing bait', 'BAIT');
+        INSERT INTO "FishingBaseFish" ("fishingBaseId", "fishId") VALUES (
+          '20000000-0000-4000-8000-000000000001',
+          '40000000-0000-4000-8000-000000000001'
+        );
+        INSERT INTO "CatchReport" (
+          "id",
+          "userId",
+          "contributorKey",
+          "locationId",
+          "fishId",
+          "baitId",
+          "weightGrams",
+          "fishingMethod"
+        ) VALUES (
+          '60000000-0000-4000-8000-000000000001',
+          '10000000-0000-4000-8000-000000000001',
+          'local-user:10000000-0000-4000-8000-000000000001',
+          '30000000-0000-4000-8000-000000000001',
+          '40000000-0000-4000-8000-000000000001',
+          '50000000-0000-4000-8000-000000000001',
+          100,
+          'BAIT_FISHING'
+        )
+      `);
+
+      await applyMigration(ACTIVITY_EVENT_MIGRATION, activityClient);
+      const initiallyEmpty = await activityClient.query<{ count: string }>(
+        `SELECT COUNT(*)::text AS "count" FROM "ActivityEvent"`,
+      );
+      assert.equal(initiallyEmpty.rows[0]?.count, '0');
+
+      const inserted = await activityClient.query<{ id: string }>(`
+        INSERT INTO "ActivityEvent" (
+          "type",
+          "subjectType",
+          "subjectKey",
+          "actorUserId",
+          "actorNicknameSnapshot",
+          "actorRoleSnapshot",
+          "payload"
+        ) VALUES (
+          'CATCH_REPORT_BATCH_CREATED',
+          'CATCH_REPORT_BATCH',
+          '20000000-0000-4000-8000-000000000001',
+          '10000000-0000-4000-8000-000000000001',
+          'Activity User',
+          'USER',
+          '{"createdCount": 2}'::jsonb
+        )
+        RETURNING "id"::text
+      `);
+      assert.equal(inserted.rows[0]?.id, '1');
+
+      await assert.rejects(
+        activityClient.query(`UPDATE "ActivityEvent" SET "subjectKey" = 'changed'`),
+        /ActivityEvent is append-only/u,
+      );
+      await assert.rejects(
+        activityClient.query(`DELETE FROM "ActivityEvent"`),
+        /ActivityEvent is append-only/u,
+      );
+      await activityClient.query(`DELETE FROM "CatchReport"`);
+      await assert.rejects(
+        activityClient.query(
+          `DELETE FROM "User" WHERE "id" = '10000000-0000-4000-8000-000000000001'`,
+        ),
+        /ActivityEvent_actorUserId_fkey/u,
+      );
+    } finally {
+      await activityClient.query(
+        `DROP SCHEMA IF EXISTS ${quotedIdentifier(activitySchema)} CASCADE`,
+      );
+      await activityClient.end();
     }
   });
 });

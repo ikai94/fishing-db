@@ -1,5 +1,10 @@
 import { HttpException, Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import { ActivityEventWriter } from '../activity/activity-event-writer.service.js';
+import type {
+  CatchReportActivityField,
+  CatchReportActivitySnapshot,
+} from '../activity/activity-event.types.js';
 import {
   assessBaseFishWeight,
   type BaseFishWeightBounds,
@@ -271,10 +276,14 @@ interface CurrentCatchReportState {
   locationId: string;
   fishId: string;
   baitId: string;
+  weightGrams: number;
   fishingMethod: CatchReportFishingMethod;
   holeDepthCm: number | null;
+  spotPositionRaw: string | null;
+  fishingNote: CatchReportFishingNote | null;
   spinningSize: CatchReportSpinningSize | null;
   spinningSpeed: CatchReportSpinningSpeed | null;
+  userNoteRaw: string | null;
 }
 
 interface CatchReportWriteData {
@@ -467,9 +476,65 @@ function compareStableStrings(left: string, right: string): number {
   return 0;
 }
 
+function activitySnapshot(report: {
+  id: string;
+  weightGrams: number;
+  fishingBase: { id: string; name: string };
+  location: { id: string; number: number; name: string };
+  fish: { id: string; name: string };
+  bait: { id: string; name: string };
+}): CatchReportActivitySnapshot {
+  return {
+    reportId: report.id,
+    fish: report.fish,
+    fishingBase: report.fishingBase,
+    location: report.location,
+    bait: report.bait,
+    weightGrams: report.weightGrams,
+  };
+}
+
+function changedActivityFields(
+  before: CurrentCatchReportState,
+  after: {
+    location: { id: string };
+    fish: { id: string };
+    bait: { id: string };
+    weightGrams: number;
+    fishingMethod: CatchReportFishingMethod;
+    holeDepthCm: number | null;
+    spotPositionRaw: string | null;
+    fishingNote: CatchReportFishingNote | null;
+    spinningSize: CatchReportSpinningSize | null;
+    spinningSpeed: CatchReportSpinningSpeed | null;
+    userNoteRaw: string | null;
+  },
+): CatchReportActivityField[] {
+  const candidates: Array<[CatchReportActivityField, unknown, unknown]> = [
+    ['locationId', before.locationId, after.location.id],
+    ['fishId', before.fishId, after.fish.id],
+    ['baitId', before.baitId, after.bait.id],
+    ['weightGrams', before.weightGrams, after.weightGrams],
+    ['fishingMethod', before.fishingMethod, after.fishingMethod],
+    ['holeDepthCm', before.holeDepthCm, after.holeDepthCm],
+    ['spotPositionRaw', before.spotPositionRaw, after.spotPositionRaw],
+    ['fishingNote', before.fishingNote, after.fishingNote],
+    ['spinningSize', before.spinningSize, after.spinningSize],
+    ['spinningSpeed', before.spinningSpeed, after.spinningSpeed],
+    ['userNoteRaw', before.userNoteRaw, after.userNoteRaw],
+  ];
+
+  return candidates
+    .filter(([, beforeValue, afterValue]) => beforeValue !== afterValue)
+    .map(([field]) => field);
+}
+
 @Injectable()
 export class CatchReportsService {
-  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
+  constructor(
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Inject(ActivityEventWriter) private readonly activityEvents: ActivityEventWriter,
+  ) {}
 
   async listPublic(query: PublicCatchReportListQueryDto) {
     return this.list(query, undefined, {
@@ -573,7 +638,14 @@ export class CatchReportsService {
           select: { id: true },
         });
 
-        return this.getMineInTransaction(tx, actorUserId, record.id);
+        const result = await this.getMineInTransaction(tx, actorUserId, record.id);
+        await this.activityEvents.append(tx, actorUserId, {
+          type: 'CATCH_REPORT_CREATED',
+          subjectType: 'CATCH_REPORT',
+          subjectKey: record.id,
+          payload: { report: activitySnapshot(result.report) },
+        });
+        return result;
       });
     } catch (error: unknown) {
       if (isPrismaError(error, 'P2003') || isPrismaError(error, 'P2034')) {
@@ -620,6 +692,13 @@ export class CatchReportsService {
           });
         }
 
+        await this.activityEvents.append(tx, actorUserId, {
+          type: 'CATCH_REPORT_BATCH_CREATED',
+          subjectType: 'CATCH_REPORT_BATCH',
+          subjectKey: randomUUID(),
+          payload: { createdCount: reportIds.length },
+        });
+
         return { createdCount: reportIds.length, reportIds };
       }, BATCH_TRANSACTION_TIMEOUT_MS);
     } catch (error: unknown) {
@@ -641,10 +720,14 @@ export class CatchReportsService {
             locationId: true,
             fishId: true,
             baitId: true,
+            weightGrams: true,
             fishingMethod: true,
             holeDepthCm: true,
+            spotPositionRaw: true,
+            fishingNote: true,
             spinningSize: true,
             spinningSpeed: true,
+            userNoteRaw: true,
           },
         });
 
@@ -714,7 +797,17 @@ export class CatchReportsService {
           select: { id: true },
         });
 
-        return this.getMineInTransaction(tx, actorUserId, record.id);
+        const result = await this.getMineInTransaction(tx, actorUserId, record.id);
+        const changedFields = changedActivityFields(current, result.report);
+        if (changedFields.length > 0) {
+          await this.activityEvents.append(tx, actorUserId, {
+            type: 'CATCH_REPORT_UPDATED',
+            subjectType: 'CATCH_REPORT',
+            subjectKey: record.id,
+            payload: { report: activitySnapshot(result.report), changedFields },
+          });
+        }
+        return result;
       });
     } catch (error: unknown) {
       if (isPrismaError(error, 'P2025')) throw catchReportErrors.notFound();
@@ -737,8 +830,16 @@ export class CatchReportsService {
         if (current === null) throw catchReportErrors.notFound();
         if (current.userId !== actorUserId) throw catchReportErrors.notOwned();
 
+        const beforeDelete = await this.getMineInTransaction(tx, actorUserId, reportId);
+
         await tx.catchReport.delete({
           where: { id: reportId, userId: actorUserId },
+        });
+        await this.activityEvents.append(tx, actorUserId, {
+          type: 'CATCH_REPORT_DELETED',
+          subjectType: 'CATCH_REPORT',
+          subjectKey: reportId,
+          payload: { report: activitySnapshot(beforeDelete.report) },
         });
       });
     } catch (error: unknown) {

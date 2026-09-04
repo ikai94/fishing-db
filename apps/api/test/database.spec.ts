@@ -4,6 +4,10 @@ import { clearTestData, getTestDatabaseConfiguration, type TestDataCleaner } fro
 
 function recordingCleaner(calls: string[]): TestDataCleaner {
   return {
+    truncateActivityEvents: () => {
+      calls.push('activityEvents');
+      return Promise.resolve();
+    },
     deleteCatchReports: () => {
       calls.push('catchReports');
       return Promise.resolve();
@@ -116,6 +120,7 @@ void describe('test database safety guard', () => {
     );
 
     assert.deepEqual(calls, [
+      'activityEvents',
       'catchReports',
       'fishingBaseFish',
       'locations',

@@ -2,11 +2,18 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { apiBaseUrl } from '@/lib/api-client';
+import type { ActivityEvent } from '@/lib/activity-api';
 import type { CatchReport } from '@/lib/catch-reports-api';
 
 const mocks = vi.hoisted(() => ({
+  listActivity: vi.fn(),
   listCatchReports: vi.fn(),
 }));
+
+vi.mock('@/lib/activity-api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/activity-api')>();
+  return { ...actual, listActivity: mocks.listActivity };
+});
 
 vi.mock('@/lib/catch-reports-api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/catch-reports-api')>();
@@ -39,6 +46,27 @@ const report: CatchReport = {
   updatedAt: '2026-08-12T22:30:00.000Z',
 };
 
+const activityEvent: ActivityEvent = {
+  id: '1',
+  type: 'CATCH_REPORT_CREATED',
+  occurredAt: '2026-09-04T12:00:00.000Z',
+  actor: { kind: 'ANGLER', nickname: 'Рыбак' },
+  data: {
+    report: {
+      reportId: '20000000-0000-4000-8000-000000000001',
+      fish: { id: '40000000-0000-4000-8000-000000000001', name: 'Кижуч' },
+      fishingBase: { id: '60000000-0000-4000-8000-000000000001', name: 'Амур' },
+      location: {
+        id: '30000000-0000-4000-8000-000000000001',
+        number: 7,
+        name: 'Протока',
+      },
+      bait: { id: '50000000-0000-4000-8000-000000000001', name: 'Мотыль' },
+      weightGrams: 950,
+    },
+  },
+};
+
 function healthResponse(database: 'up' | 'down') {
   return {
     ok: database === 'up',
@@ -54,6 +82,8 @@ function healthResponse(database: 'up' | 'down') {
 
 describe('HomeDashboard', () => {
   beforeEach(() => {
+    mocks.listActivity.mockReset();
+    mocks.listActivity.mockResolvedValue({ items: [], nextCursor: null });
     mocks.listCatchReports.mockReset();
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(healthResponse('up')));
   });
@@ -62,8 +92,9 @@ describe('HomeDashboard', () => {
     vi.unstubAllGlobals();
   });
 
-  test('loads exactly ten recent public reports and renders no legacy body actions', async () => {
+  test('loads exactly ten recent reports and real activity events', async () => {
     mocks.listCatchReports.mockResolvedValue({ items: [report], nextCursor: 'unused' });
+    mocks.listActivity.mockResolvedValue({ items: [activityEvent], nextCursor: 'unused' });
     render(<HomeDashboard />);
 
     expect(await screen.findByRole('link', { name: 'Кижуч' })).toHaveAttribute(
@@ -87,7 +118,13 @@ describe('HomeDashboard', () => {
         'доступна',
       );
     });
-    expect(screen.getByText('Лента действий пока недоступна.')).toBeVisible();
+    expect(
+      await screen.findByText(/Рыбак: добавлен улов — Кижуч, 950 г, Амур, 7\. Протока\./),
+    ).toBeVisible();
+    expect(mocks.listActivity).toHaveBeenCalledWith({
+      limit: 10,
+      signal: expect.any(AbortSignal),
+    });
     expect(screen.queryByRole('button', { name: /показать ещё/i })).not.toBeInTheDocument();
     for (const name of [
       'Публичные уловы',
@@ -115,6 +152,7 @@ describe('HomeDashboard', () => {
       );
     });
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    expect(screen.getByText('Действий после запуска ленты пока нет.')).toBeVisible();
   });
 
   test('offers a focused retry when recent CatchReports fail', async () => {
@@ -127,5 +165,18 @@ describe('HomeDashboard', () => {
     await user.click(await screen.findByRole('button', { name: 'Повторить' }));
     expect(await screen.findByText('Публичных уловов пока нет.')).toBeVisible();
     expect(mocks.listCatchReports).toHaveBeenCalledTimes(2);
+  });
+
+  test('offers an independent retry when activity loading fails', async () => {
+    const user = userEvent.setup();
+    mocks.listCatchReports.mockResolvedValue({ items: [], nextCursor: null });
+    mocks.listActivity
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce({ items: [], nextCursor: null });
+    render(<HomeDashboard />);
+
+    await user.click(await screen.findByRole('button', { name: 'Повторить загрузку действий' }));
+    expect(await screen.findByText('Действий после запуска ленты пока нет.')).toBeVisible();
+    expect(mocks.listActivity).toHaveBeenCalledTimes(2);
   });
 });

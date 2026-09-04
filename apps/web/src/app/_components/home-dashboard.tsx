@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import styles from '../page.module.css';
+import { RecentActivityList } from './recent-activity-list';
 import { RecentCatchTable } from './recent-catch-table';
+import { listActivity } from '@/lib/activity-api';
 import { apiBaseUrl } from '@/lib/api-client';
 import { listCatchReports } from '@/lib/catch-reports-api';
 import { useApiResource } from '@/lib/use-api-resource';
@@ -41,6 +43,14 @@ export function HomeDashboard() {
   const { state: catches, reload: reloadCatches } = useApiResource(
     loadRecentCatches,
     'Не удалось загрузить недавние уловы.',
+  );
+  const loadRecentActivity = useCallback(
+    (signal: AbortSignal) => listActivity({ limit: 10, signal }),
+    [],
+  );
+  const { state: activity, reload: reloadActivity } = useApiResource(
+    loadRecentActivity,
+    'Не удалось загрузить недавние действия.',
   );
 
   useEffect(() => {
@@ -173,7 +183,29 @@ export function HomeDashboard() {
         <h2 className={styles.sectionTitle} id="recent-activity-title">
           Недавние действия на сайте
         </h2>
-        <p className={styles.activityState}>Лента действий пока недоступна.</p>
+        {activity.kind === 'loading' ? (
+          <p className={styles.activityState} aria-live="polite">
+            Загружаем недавние действия…
+          </p>
+        ) : null}
+        {activity.kind === 'error' || activity.kind === 'not-found' ? (
+          <div className={`${styles.statusMessage} ${styles.errorMessage}`} role="alert">
+            <p>
+              {activity.kind === 'error'
+                ? activity.message
+                : 'Не удалось загрузить недавние действия.'}
+            </p>
+            <button className={styles.retryButton} type="button" onClick={reloadActivity}>
+              Повторить загрузку действий
+            </button>
+          </div>
+        ) : null}
+        {activity.kind === 'ready' && activity.data.items.length === 0 ? (
+          <p className={styles.activityState}>Действий после запуска ленты пока нет.</p>
+        ) : null}
+        {activity.kind === 'ready' && activity.data.items.length > 0 ? (
+          <RecentActivityList events={activity.data.items} />
+        ) : null}
       </section>
     </article>
   );

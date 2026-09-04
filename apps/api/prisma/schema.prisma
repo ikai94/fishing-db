@@ -42,18 +42,41 @@ enum SpinningSpeed {
   FAST
 }
 
+enum ActivityEventType {
+  CATCH_REPORT_CREATED
+  CATCH_REPORT_BATCH_CREATED
+  CATCH_REPORT_UPDATED
+  CATCH_REPORT_DELETED
+  CATALOG_ITEM_CREATED
+  CATALOG_ITEM_UPDATED
+  FISHING_BASE_FISH_ADDED
+  FISHING_BASE_FISH_UPDATED
+  FISHING_BASE_FISH_REMOVED
+}
+
+enum ActivitySubjectType {
+  CATCH_REPORT
+  CATCH_REPORT_BATCH
+  FISHING_BASE
+  LOCATION
+  FISH
+  BAIT
+  FISHING_BASE_FISH
+}
+
 model User {
-  id                 String        @id @default(uuid()) @db.Uuid
-  email              String        @unique @db.VarChar(254)
-  nickname           String        @db.VarChar(32)
-  nicknameNormalized String        @unique @db.VarChar(32)
-  passwordHash       String        @db.VarChar(255)
-  role               UserRole      @default(USER)
-  isBanned           Boolean       @default(false)
-  createdAt          DateTime      @default(now()) @db.Timestamptz(3)
-  updatedAt          DateTime      @default(now()) @updatedAt @db.Timestamptz(3)
+  id                 String          @id @default(uuid()) @db.Uuid
+  email              String          @unique @db.VarChar(254)
+  nickname           String          @db.VarChar(32)
+  nicknameNormalized String          @unique @db.VarChar(32)
+  passwordHash       String          @db.VarChar(255)
+  role               UserRole        @default(USER)
+  isBanned           Boolean         @default(false)
+  createdAt          DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime        @default(now()) @updatedAt @db.Timestamptz(3)
   sessions           Session[]
   catchReports       CatchReport[]
+  activityEvents     ActivityEvent[]
 }
 
 model Session {
@@ -167,4 +190,20 @@ model CatchReport {
 
   @@index([createdAt(sort: Desc), id(sort: Desc)])
   @@index([userId, createdAt(sort: Desc), id(sort: Desc)])
+}
+
+model ActivityEvent {
+  id                    BigInt              @id @default(autoincrement())
+  type                  ActivityEventType
+  subjectType           ActivitySubjectType
+  subjectKey            String              @db.VarChar(80)
+  actorUserId           String              @db.Uuid
+  actorNicknameSnapshot String              @db.VarChar(32)
+  actorRoleSnapshot     UserRole
+  payloadVersion        Int                 @default(1) @db.SmallInt
+  payload               Json                @db.JsonB
+  occurredAt            DateTime            @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(3)
+  actor                 User                @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([subjectType, subjectKey, id(sort: Desc)])
 }

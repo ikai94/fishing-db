@@ -154,6 +154,8 @@ void describe('Catalog seed (PostgreSQL e2e)', { concurrency: false }, () => {
     });
     clearDatabase = async () => {
       await clearTestData(databaseConfiguration, {
+        truncateActivityEvents: () =>
+          prisma.$executeRawUnsafe('TRUNCATE TABLE "ActivityEvent" RESTART IDENTITY'),
         deleteCatchReports: async () => {
           await prisma.catchReport.deleteMany();
         },

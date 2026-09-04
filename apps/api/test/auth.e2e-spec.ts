@@ -204,6 +204,8 @@ void describe('Auth API (PostgreSQL e2e)', { concurrency: false }, () => {
     prisma = app.get(prismaModule.PrismaService);
     clearDatabase = async () => {
       await clearTestData(databaseConfiguration, {
+        truncateActivityEvents: () =>
+          prisma.$executeRawUnsafe('TRUNCATE TABLE "ActivityEvent" RESTART IDENTITY'),
         deleteCatchReports: async () => {
           await prisma.catchReport.deleteMany();
         },

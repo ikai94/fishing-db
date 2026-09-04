@@ -26,6 +26,7 @@ Browser
 | ---------------- | ------------------------------------------------------- | ------------------------------------------------------- |
 | Composition      | `apps/api/src/app.module.ts`                            | Wires modules and the global origin guard               |
 | HTTP setup       | `apps/api/src/app.setup.ts`                             | Prefix, cookies, validation, CORS, shutdown             |
+| Activity         | `apps/api/src/activity`                                 | Append-only writes, public projection, cursor feed      |
 | Auth             | `apps/api/src/auth`                                     | Register/login/logout, sessions, roles, ban guards      |
 | Catalog          | `apps/api/src/catalog`                                  | Public queries and guarded ADMIN catalog changes        |
 | CatchReports     | `apps/api/src/catch-reports`                            | Feed/detail/archive, mutations, projections, pagination |
@@ -38,6 +39,7 @@ Browser
 
 Controller entry points:
 
+- `activity/activity.controller.ts` — anonymous `/api/v1/activity` cursor feed.
 - `auth/auth.controller.ts` — `/api/v1/auth`.
 - `catalog/catalog.controller.ts` — `/api/v1/catalog` public reads.
 - `catalog/admin-catalog.controller.ts` — `/api/v1/admin/catalog`.
@@ -49,7 +51,7 @@ Controller entry points:
 
 | Area            | Route path                           | Look first in                                           |
 | --------------- | ------------------------------------ | ------------------------------------------------------- |
-| Home/health     | `/`                                  | `apps/web/src/app/page.tsx`                             |
+| Home/activity   | `/`                                  | `src/app/_components/home-dashboard.tsx`                |
 | Auth/account    | `/login`, `/register`, `/account`    | matching `src/app/*/page.tsx`, `src/lib/auth-api.ts`    |
 | Bases           | `/bases`, `/bases/[id]`              | `src/app/bases`, `src/lib/catalog-api.ts`               |
 | Locations       | `/locations/[id]`                    | `src/app/locations/[id]`                                |
@@ -63,6 +65,7 @@ Controller entry points:
 Shared frontend navigation points:
 
 - `src/lib/api-client.ts` — timeout, cookie credentials, no-store transport, API errors.
+- `src/lib/activity-api.ts` — strict public activity union and cursor-page decoder.
 - `src/lib/catalog-api.ts` — public catalog requests and strict decoders.
 - `src/lib/catch-reports-api.ts` — public/owner projections and CatchReport commands.
 - `src/lib/hole-statistics-api.ts` — common-hole request and response decoder.
@@ -97,6 +100,33 @@ NotBanned guards applied by the relevant controller route.
 React route rendering. ADMIN screens instead use `admin-catalog-api.ts`, `AdminCatalogController`,
 and `CatalogAdminService` behind server-side Auth/Admin/ban checks.
 
+## ActivityEvent request and write flow
+
+`ActivityEvent` is owned by `apps/api/src/activity`. `ActivityEventWriter` accepts only the typed v1
+event union and never opens a transaction: the CatchReport or catalog domain service passes its
+existing `Prisma.TransactionClient`. The event append is the final database operation in that
+transaction. Before insertion, the writer resolves the authenticated actor snapshot and takes the
+shared PostgreSQL advisory transaction lock; the lock remains held through commit, so descending
+bigint event IDs provide commit-consistent feed ordering. A failed mutation or failed event append
+rolls back both sides.
+
+CatchReport create, aggregate batch-create, actual update, and delete publish activity. ADMIN Base,
+Location, Fish, and Bait create/actual update plus Base–Fish membership add/actual weight
+update/remove also publish. Effective no-op updates are suppressed. Auth, parser preview,
+ScreenAnchor, offline import, seed, and reconciliation paths do not depend on the writer and do not
+publish events. The migration creates an empty store without historical backfill and installs a
+PostgreSQL trigger that rejects every `UPDATE` or `DELETE` of an event.
+
+Anonymous `GET /api/v1/activity` validates `limit` and a versioned opaque cursor, selects only the
+stored columns needed for projection, orders by `id DESC`, and continues with `id < beforeId`.
+`ActivityQueryService` fails closed unless the payload version, exact keys, event/subject pair, and
+snapshot values match the v1 contract. The response exposes string event IDs, occurrence time, and
+public-safe immutable data. Angler events use the stored nickname snapshot; catalog events expose
+only `{ kind: "ADMINISTRATION" }`. Internal actor IDs, contributor/import keys, and private raw
+source text never enter the projection. The homepage requests `limit=10`, strictly decodes the
+response in `activity-api.ts`, and renders independent loading, error/retry, empty, and populated
+states.
+
 ## Where tests live
 
 - API unit tests: colocated `apps/api/src/**/*.spec.ts`; run by the API `test` script.
@@ -116,6 +146,7 @@ and `CatalogAdminService` behind server-side Auth/Admin/ban checks.
 | Prisma schema                  | schema, migrations, semantic migration tests, full PG e2e         |
 | Catalog query                  | catalog controller/query service, route tests, catalog e2e        |
 | ADMIN catalog mutation         | ADMIN UI client, admin controller/service, auth and catalog tests |
+| Activity event or public feed  | activity module/decoder/UI, activity e2e, migration semantics     |
 | Parser behavior                | parser services, notebook/form components, parser-focused tests   |
 | Pure formatter/normalizer      | owning helper and its colocated unit tests                        |
 | Auth/session/security          | auth/security modules, unit tests, auth e2e                       |

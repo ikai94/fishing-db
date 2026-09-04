@@ -260,6 +260,34 @@
   background: var(--app-sidebar);
 }
 
+.activityList {
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+  background: var(--app-surface);
+  list-style: none;
+}
+
+.activityItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: 7px 10px;
+  border-bottom: 1px solid rgb(204 215 220 / 72%);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
+.activityItem:last-child {
+  border-bottom: 0;
+}
+
+.activityDate {
+  color: var(--app-text-muted);
+  white-space: nowrap;
+}
+
 .retryButton:focus-visible,
 .reportLink:focus-visible,
 .tableRegion:focus-visible {
@@ -292,5 +320,10 @@
 
   .statusList {
     justify-content: flex-start;
+  }
+
+  .activityItem {
+    grid-template-columns: 1fr;
+    gap: 2px;
   }
 }

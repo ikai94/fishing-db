@@ -162,6 +162,8 @@ void describe(
       });
       clearDatabase = async () => {
         await clearTestData(databaseConfiguration, {
+          truncateActivityEvents: () =>
+            prisma.$executeRawUnsafe('TRUNCATE TABLE "ActivityEvent" RESTART IDENTITY'),
           deleteCatchReports: async () => prisma.catchReport.deleteMany(),
           deleteFishingBaseFish: async () => prisma.fishingBaseFish.deleteMany(),
           deleteLocations: async () => prisma.location.deleteMany(),

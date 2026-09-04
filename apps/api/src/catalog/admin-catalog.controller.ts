@@ -14,6 +14,8 @@ import {
 } from '@nestjs/common';
 import { AdminGuard } from '../auth/admin.guard.js';
 import { AuthGuard } from '../auth/auth.guard.js';
+import type { SafeUser } from '../auth/auth.types.js';
+import { CurrentUser } from '../auth/current-user.decorator.js';
 import { createApplicationValidationPipe } from '../common/validation/validation-exception.factory.js';
 import { CatalogAdminService } from './catalog-admin.service.js';
 import { CatalogQueryService } from './catalog-query.service.js';
@@ -57,9 +59,10 @@ export class AdminCatalogController {
   @Post('bases')
   @HttpCode(HttpStatus.CREATED)
   createFishingBase(
+    @CurrentUser() user: SafeUser,
     @Body(createApplicationValidationPipe(CreateFishingBaseDto)) dto: CreateFishingBaseDto,
   ) {
-    return this.catalogAdmin.createFishingBase(dto);
+    return this.catalogAdmin.createFishingBase(user.id, dto);
   }
 
   @Get('bases/:baseId')
@@ -72,21 +75,23 @@ export class AdminCatalogController {
 
   @Patch('bases/:baseId')
   updateFishingBase(
+    @CurrentUser() user: SafeUser,
     @Param(createApplicationValidationPipe(FishingBaseIdParamsDto))
     params: FishingBaseIdParamsDto,
     @Body(createApplicationValidationPipe(UpdateFishingBaseDto)) dto: UpdateFishingBaseDto,
   ) {
-    return this.catalogAdmin.updateFishingBase(params.baseId, dto);
+    return this.catalogAdmin.updateFishingBase(user.id, params.baseId, dto);
   }
 
   @Post('bases/:baseId/locations')
   @HttpCode(HttpStatus.CREATED)
   createLocation(
+    @CurrentUser() user: SafeUser,
     @Param(createApplicationValidationPipe(FishingBaseIdParamsDto))
     params: FishingBaseIdParamsDto,
     @Body(createApplicationValidationPipe(CreateLocationDto)) dto: CreateLocationDto,
   ) {
-    return this.catalogAdmin.createLocation(params.baseId, dto);
+    return this.catalogAdmin.createLocation(user.id, params.baseId, dto);
   }
 
   @Get('locations/:locationId')
@@ -98,10 +103,11 @@ export class AdminCatalogController {
 
   @Patch('locations/:locationId')
   updateLocation(
+    @CurrentUser() user: SafeUser,
     @Param(createApplicationValidationPipe(LocationIdParamsDto)) params: LocationIdParamsDto,
     @Body(createApplicationValidationPipe(UpdateLocationDto)) dto: UpdateLocationDto,
   ) {
-    return this.catalogAdmin.updateLocation(params.locationId, dto);
+    return this.catalogAdmin.updateLocation(user.id, params.locationId, dto);
   }
 
   @Get('fish')
@@ -113,16 +119,20 @@ export class AdminCatalogController {
 
   @Post('fish')
   @HttpCode(HttpStatus.CREATED)
-  createFish(@Body(createApplicationValidationPipe(CreateFishDto)) dto: CreateFishDto) {
-    return this.catalogAdmin.createFish(dto);
+  createFish(
+    @CurrentUser() user: SafeUser,
+    @Body(createApplicationValidationPipe(CreateFishDto)) dto: CreateFishDto,
+  ) {
+    return this.catalogAdmin.createFish(user.id, dto);
   }
 
   @Patch('fish/:fishId')
   updateFish(
+    @CurrentUser() user: SafeUser,
     @Param(createApplicationValidationPipe(FishIdParamsDto)) params: FishIdParamsDto,
     @Body(createApplicationValidationPipe(UpdateFishDto)) dto: UpdateFishDto,
   ) {
-    return this.catalogAdmin.updateFish(params.fishId, dto);
+    return this.catalogAdmin.updateFish(user.id, params.fishId, dto);
   }
 
   @Get('baits')
@@ -134,16 +144,20 @@ export class AdminCatalogController {
 
   @Post('baits')
   @HttpCode(HttpStatus.CREATED)
-  createBait(@Body(createApplicationValidationPipe(CreateBaitDto)) dto: CreateBaitDto) {
-    return this.catalogAdmin.createBait(dto);
+  createBait(
+    @CurrentUser() user: SafeUser,
+    @Body(createApplicationValidationPipe(CreateBaitDto)) dto: CreateBaitDto,
+  ) {
+    return this.catalogAdmin.createBait(user.id, dto);
   }
 
   @Patch('baits/:baitId')
   updateBait(
+    @CurrentUser() user: SafeUser,
     @Param(createApplicationValidationPipe(BaitIdParamsDto)) params: BaitIdParamsDto,
     @Body(createApplicationValidationPipe(UpdateBaitDto)) dto: UpdateBaitDto,
   ) {
-    return this.catalogAdmin.updateBait(params.baitId, dto);
+    return this.catalogAdmin.updateBait(user.id, params.baitId, dto);
   }
 
   @Get('screen-anchors')
@@ -173,29 +187,32 @@ export class AdminCatalogController {
   @Post('bases/:baseId/fish')
   @HttpCode(HttpStatus.CREATED)
   addFishToFishingBase(
+    @CurrentUser() user: SafeUser,
     @Param(createApplicationValidationPipe(FishingBaseIdParamsDto))
     params: FishingBaseIdParamsDto,
     @Body(createApplicationValidationPipe(AddFishingBaseFishDto)) dto: AddFishingBaseFishDto,
   ) {
-    return this.catalogAdmin.addFishToFishingBase(params.baseId, dto);
+    return this.catalogAdmin.addFishToFishingBase(user.id, params.baseId, dto);
   }
 
   @Patch('bases/:baseId/fish/:fishId')
   updateFishingBaseFish(
+    @CurrentUser() user: SafeUser,
     @Param(createApplicationValidationPipe(FishingBaseFishParamsDto))
     params: FishingBaseFishParamsDto,
     @Body(createApplicationValidationPipe(UpdateFishingBaseFishDto))
     dto: UpdateFishingBaseFishDto,
   ) {
-    return this.catalogAdmin.updateFishingBaseFish(params.baseId, params.fishId, dto);
+    return this.catalogAdmin.updateFishingBaseFish(user.id, params.baseId, params.fishId, dto);
   }
 
   @Delete('bases/:baseId/fish/:fishId')
   @HttpCode(HttpStatus.NO_CONTENT)
   removeFishFromFishingBase(
+    @CurrentUser() user: SafeUser,
     @Param(createApplicationValidationPipe(FishingBaseFishParamsDto))
     params: FishingBaseFishParamsDto,
   ): Promise<void> {
-    return this.catalogAdmin.removeFishFromFishingBase(params.baseId, params.fishId);
+    return this.catalogAdmin.removeFishFromFishingBase(user.id, params.baseId, params.fishId);
   }
 }
