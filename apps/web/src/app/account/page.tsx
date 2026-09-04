@@ -3,9 +3,10 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import styles from './page.module.css';
+import { ApplicationShell } from '@/components/application-shell/application-shell';
 import { getApiErrorMessage, isApiError } from '@/lib/api-client';
 import { AuthUser, getCurrentUser, logout } from '@/lib/auth-api';
-import styles from '../auth.module.css';
 
 type AccountState =
   { kind: 'loading' } | { kind: 'ready'; user: AuthUser } | { kind: 'error'; message: string };
@@ -77,26 +78,28 @@ export default function AccountPage() {
   }
 
   return (
-    <main className={styles.page}>
-      <section className={`${styles.card} ${styles.wideCard}`}>
-        <Link className={styles.backLink} href="/">
-          ← На главную
-        </Link>
-        <p className={styles.eyebrow}>Личный архив</p>
-        <h1 className={styles.title}>Аккаунт</h1>
+    <ApplicationShell>
+      <section className={styles.page} aria-labelledby="account-title">
+        <header className={styles.header}>
+          <div>
+            <p className={styles.eyebrow}>Личный архив</p>
+            <h1 className={styles.title} id="account-title">
+              Аккаунт
+            </h1>
+          </div>
+          <p className={styles.subtitle}>Профиль и доступные действия текущего пользователя.</p>
+        </header>
 
         {state.kind === 'loading' ? (
-          <p className={styles.loading} aria-live="polite">
+          <p className={styles.statusMessage} aria-live="polite">
             Загружаем данные аккаунта…
           </p>
         ) : null}
 
         {state.kind === 'error' ? (
-          <div className={styles.form}>
-            <p className={styles.errorBanner} role="alert">
-              {state.message}
-            </p>
-            <button className={styles.secondaryButton} type="button" onClick={retry}>
+          <div className={`${styles.statusMessage} ${styles.errorMessage}`} role="alert">
+            <p>{state.message}</p>
+            <button className={styles.button} type="button" onClick={retry}>
               Повторить
             </button>
           </div>
@@ -104,9 +107,7 @@ export default function AccountPage() {
 
         {state.kind === 'ready' ? (
           <>
-            <p className={styles.description}>Вы вошли как {state.user.nickname}.</p>
-
-            <dl className={styles.accountDetails}>
+            <dl className={styles.profileSummary} aria-label="Данные профиля">
               <div>
                 <dt>Никнейм</dt>
                 <dd>{state.user.nickname}</dd>
@@ -128,28 +129,28 @@ export default function AccountPage() {
             </dl>
 
             {state.user.isBanned ? (
-              <p className={styles.bannedNotice} role="status">
+              <p className={`${styles.statusMessage} ${styles.warningMessage}`} role="status">
                 Аккаунт заблокирован. Создание, изменение и удаление публичных отчётов недоступны.
               </p>
             ) : null}
 
             {logoutError ? (
-              <p className={styles.errorBanner} role="alert">
+              <p className={`${styles.statusMessage} ${styles.errorMessage}`} role="alert">
                 {logoutError}
               </p>
             ) : null}
 
             <div className={styles.actions}>
-              <Link className={styles.adminLink} href="/my/catches">
+              <Link className={styles.primaryLink} href="/my/catches">
                 Мои уловы
               </Link>
               {state.user.role === 'ADMIN' && !state.user.isBanned ? (
-                <Link className={styles.adminLink} href="/admin/catalog">
+                <Link className={styles.secondaryLink} href="/admin/catalog">
                   Управлять игровым каталогом
                 </Link>
               ) : null}
               <button
-                className={styles.secondaryButton}
+                className={styles.button}
                 type="button"
                 onClick={handleLogout}
                 disabled={isLoggingOut}
@@ -161,6 +162,6 @@ export default function AccountPage() {
           </>
         ) : null}
       </section>
-    </main>
+    </ApplicationShell>
   );
 }

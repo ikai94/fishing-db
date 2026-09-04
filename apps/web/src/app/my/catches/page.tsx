@@ -3,8 +3,9 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import styles from '../../catch-reports.module.css';
-import { CatchReportList } from '../../catches/_components/catch-report-list';
+import styles from './page.module.css';
+import { OwnerCatchTable } from './_components/owner-catch-table';
+import { ApplicationShell } from '@/components/application-shell/application-shell';
 import { getApiErrorMessage, isApiError } from '@/lib/api-client';
 import type { AuthUser } from '@/lib/auth-api';
 import { type CatchReport, deleteCatchReport, listMyCatchReports } from '@/lib/catch-reports-api';
@@ -19,27 +20,18 @@ export default function MyCatchReportsPage() {
   const userResource = useRequiredUser();
 
   return (
-    <main className={styles.page}>
-      <div className={styles.container}>
-        <nav className={styles.topNav} aria-label="Навигация по уловам">
-          <Link className={styles.backLink} href="/catches">
-            ← Все уловы
-          </Link>
-          <Link className={styles.textLink} href="/account">
-            Аккаунт
-          </Link>
-        </nav>
-
+    <ApplicationShell>
+      <section className={styles.page} aria-labelledby="my-catches-title">
         {userResource.state.kind === 'loading' ? (
-          <p className={styles.message} aria-live="polite">
+          <p className={styles.statusMessage} aria-live="polite">
             Проверяем аккаунт…
           </p>
         ) : null}
 
         {userResource.state.kind === 'error' ? (
-          <div className={`${styles.message} ${styles.errorMessage}`} role="alert">
+          <div className={`${styles.statusMessage} ${styles.errorMessage}`} role="alert">
             <p>{userResource.state.message}</p>
-            <button className={styles.secondaryButton} type="button" onClick={userResource.reload}>
+            <button className={styles.button} type="button" onClick={userResource.reload}>
               Повторить
             </button>
           </div>
@@ -48,8 +40,8 @@ export default function MyCatchReportsPage() {
         {userResource.state.kind === 'ready' ? (
           <MyCatchReportsContent user={userResource.state.user} />
         ) : null}
-      </div>
-    </main>
+      </section>
+    </ApplicationShell>
   );
 }
 
@@ -195,15 +187,18 @@ function MyCatchReportsContent({ user }: { user: AuthUser }) {
   return (
     <>
       <header className={styles.header}>
-        <p className={styles.eyebrow}>Личный архив</p>
-        <h1 className={styles.title}>Мои уловы</h1>
-        <p className={styles.subtitle}>
-          Публичные отчёты пользователя {user.nickname}. Здесь их можно открыть, изменить или
-          удалить.
-        </p>
-        <div className={styles.pageActions}>
+        <div>
+          <p className={styles.eyebrow}>Личный архив</p>
+          <h1 className={styles.title} id="my-catches-title">
+            Мои уловы
+          </h1>
+          <p className={styles.subtitle}>
+            Публичные отчёты пользователя {user.nickname}. Их можно открыть, изменить или удалить.
+          </p>
+        </div>
+        <div>
           {user.isBanned ? (
-            <button className={styles.primaryButton} type="button" disabled>
+            <button className={styles.button} type="button" disabled>
               Добавление недоступно
             </button>
           ) : (
@@ -215,35 +210,35 @@ function MyCatchReportsContent({ user }: { user: AuthUser }) {
       </header>
 
       {user.isBanned ? (
-        <p className={`${styles.message} ${styles.warningMessage}`} role="status">
+        <p className={`${styles.statusMessage} ${styles.warningMessage}`} role="status">
           Аккаунт заблокирован. Ваши прежние отчёты доступны для чтения, но создание, редактирование
           и удаление отключены.
         </p>
       ) : null}
 
       {mutationError ? (
-        <p className={`${styles.message} ${styles.errorMessage}`} role="alert">
+        <p className={`${styles.statusMessage} ${styles.errorMessage}`} role="alert">
           {mutationError}
         </p>
       ) : null}
 
       {state.kind === 'loading' ? (
-        <p className={styles.message} aria-live="polite">
+        <p className={styles.statusMessage} aria-live="polite">
           Загружаем ваши уловы…
         </p>
       ) : null}
 
       {state.kind === 'error' ? (
-        <div className={`${styles.message} ${styles.errorMessage}`} role="alert">
+        <div className={`${styles.statusMessage} ${styles.errorMessage}`} role="alert">
           <p>{state.message}</p>
-          <button className={styles.secondaryButton} type="button" onClick={retry}>
+          <button className={styles.button} type="button" onClick={retry}>
             Повторить
           </button>
         </div>
       ) : null}
 
       {state.kind === 'ready' && state.items.length === 0 && state.nextCursor === null ? (
-        <div className={styles.message}>
+        <div className={styles.statusMessage}>
           <p>У вас пока нет опубликованных уловов.</p>
           {!user.isBanned ? (
             <Link className={styles.primaryLink} href="/catches/new">
@@ -254,34 +249,11 @@ function MyCatchReportsContent({ user }: { user: AuthUser }) {
       ) : null}
 
       {state.kind === 'ready' && state.items.length > 0 ? (
-        <CatchReportList
+        <OwnerCatchTable
           reports={state.items}
-          renderActions={(report) =>
-            user.isBanned ? (
-              <>
-                <button className={styles.secondaryButton} type="button" disabled>
-                  Изменение недоступно
-                </button>
-                <button className={styles.dangerButton} type="button" disabled>
-                  Удаление недоступно
-                </button>
-              </>
-            ) : (
-              <>
-                <Link className={styles.textLink} href={`/catches/${report.id}/edit`}>
-                  Редактировать
-                </Link>
-                <button
-                  className={styles.dangerButton}
-                  type="button"
-                  onClick={() => void handleDelete(report)}
-                  disabled={deletingId !== null}
-                >
-                  {deletingId === report.id ? 'Удаляем…' : 'Удалить'}
-                </button>
-              </>
-            )
-          }
+          isBanned={user.isBanned}
+          deletingId={deletingId}
+          onDelete={(report) => void handleDelete(report)}
         />
       ) : null}
 
@@ -294,7 +266,7 @@ function MyCatchReportsContent({ user }: { user: AuthUser }) {
       {state.kind === 'ready' && state.nextCursor !== null ? (
         <div className={styles.loadMore}>
           <button
-            className={styles.secondaryButton}
+            className={styles.button}
             type="button"
             onClick={() => void loadMore()}
             disabled={isLoadingMore}
