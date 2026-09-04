@@ -607,6 +607,239 @@
   font-size: 1.25rem;
 }
 
+.entryV1 {
+  --searchable-combobox-height: 36px;
+  --searchable-combobox-padding: 7px 32px 7px 9px;
+  --searchable-combobox-border: var(--app-border-strong);
+  --searchable-combobox-radius: var(--app-radius-sm);
+  --searchable-combobox-text: var(--app-text);
+  --searchable-combobox-surface: var(--app-surface);
+  --searchable-combobox-indicator-top: 8px;
+  --searchable-combobox-indicator-right: 9px;
+  color: var(--app-text);
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.entryV1 .previewStack,
+.entryV1 .batchPreview,
+.entryV1 .batchRows {
+  gap: 12px;
+}
+
+.entryV1 .message,
+.entryV1 .panel {
+  border-color: var(--app-border);
+  border-radius: var(--app-radius-md);
+  background: var(--app-surface);
+  box-shadow: var(--app-shadow-subtle);
+}
+
+.entryV1 .message {
+  padding: 10px 12px;
+}
+
+.entryV1 .panel {
+  padding: 14px 16px;
+}
+
+.entryV1 .notebookPanel {
+  border-color: var(--app-accent);
+  background: linear-gradient(155deg, var(--app-surface) 0%, #f3f9fc 100%);
+}
+
+.entryV1 .panelTitle {
+  color: var(--app-text);
+  font-size: 1rem;
+}
+
+.entryV1 .muted,
+.entryV1 .fieldHint,
+.entryV1 .historicalHint {
+  color: var(--app-text-muted);
+  line-height: 1.4;
+}
+
+.entryV1 .muted {
+  margin: 5px 0 0;
+}
+
+.entryV1 .form {
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.entryV1 .formGrid {
+  gap: 12px 16px;
+}
+
+.entryV1 .field,
+.entryV1 .fieldWide {
+  gap: 4px;
+}
+
+.entryV1 .label {
+  font-size: 0.78rem;
+}
+
+.entryV1 .input,
+.entryV1 .select,
+.entryV1 .textarea {
+  min-height: 36px;
+  padding: 7px 9px;
+  border-color: var(--app-border-strong);
+  border-radius: var(--app-radius-sm);
+  color: var(--app-text);
+  background: var(--app-surface);
+}
+
+.entryV1 .textarea {
+  min-height: 84px;
+}
+
+.entryV1 .sourceTextarea {
+  min-height: 176px;
+}
+
+.entryV1 .readonlyValue {
+  min-height: 36px;
+  padding: 7px 9px;
+  border-color: var(--app-border);
+  border-radius: var(--app-radius-sm);
+  color: var(--app-accent-strong);
+  background: #f4f8fa;
+}
+
+.entryV1 .fieldError,
+.entryV1 .fieldHint,
+.entryV1 .historicalHint,
+.entryV1 .formError {
+  font-size: 0.75rem;
+}
+
+.entryV1 .formError {
+  padding: 8px 10px;
+  border-radius: var(--app-radius-sm);
+}
+
+.entryV1 .primaryButton,
+.entryV1 .secondaryButton,
+.entryV1 .primaryLink,
+.entryV1 .secondaryLink {
+  min-height: 34px;
+  padding: 6px 11px;
+  border-radius: var(--app-radius-sm);
+}
+
+.entryV1 .primaryButton,
+.entryV1 .primaryLink {
+  border-color: var(--app-accent-strong);
+  background: var(--app-accent-strong);
+}
+
+.entryV1 .primaryButton:hover:not(:disabled),
+.entryV1 .primaryLink:hover {
+  background: #194f70;
+}
+
+.entryV1 .secondaryButton,
+.entryV1 .secondaryLink {
+  border-color: var(--app-accent);
+  color: var(--app-accent-strong);
+  background: var(--app-surface);
+}
+
+.entryV1 .secondaryButton:hover:not(:disabled),
+.entryV1 .secondaryLink:hover {
+  background: var(--app-accent-soft);
+  text-decoration: none;
+}
+
+.entryV1 .batchSummary {
+  top: 70px;
+  padding: 10px 12px;
+  border-color: var(--app-border-strong);
+  border-radius: var(--app-radius-md);
+  background: rgb(255 254 251 / 97%);
+  box-shadow: var(--app-shadow-subtle);
+}
+
+.entryV1 .batchRow {
+  padding: 10px 12px;
+  border-color: var(--app-border);
+  border-radius: var(--app-radius-md);
+  background: var(--app-surface);
+}
+
+.entryV1 .excludedBatchRow {
+  background: #f1f3f3;
+}
+
+.entryV1 .batchRawSource {
+  margin: 8px 0;
+}
+
+.entryV1 .batchRowSummary {
+  margin-top: 8px;
+  color: var(--app-accent-strong);
+}
+
+.entryV1 .batchRowEditor {
+  margin-top: 10px;
+}
+
+.entryV1 .batchRowErrors {
+  margin: 7px 0;
+}
+
+.entryV1 .parseFieldList {
+  gap: 5px 16px;
+  margin-top: 10px;
+}
+
+.entryV1 .parseFieldList > div {
+  gap: 4px;
+  padding: 6px 0;
+}
+
+.entryV1 .draftStatus {
+  padding: 2px 6px;
+  font-size: 0.7rem;
+}
+
+.entryV1 .issueList {
+  margin-top: 12px;
+}
+
+.entryV1 .issueList ul {
+  gap: 5px;
+  margin-top: 5px;
+}
+
+.entryV1 .successMessage {
+  border-color: #a9cfb6;
+  color: #185d31;
+  background: #eff9f2;
+}
+
+.entryV1 .warningMessage {
+  border-color: #dfc48b;
+  color: #704d0d;
+  background: #fff8e9;
+}
+
+.entryV1 .errorMessage,
+.entryV1 .formError {
+  border-color: #ddb4b0;
+  color: var(--app-danger);
+  background: var(--app-danger-soft);
+}
+
+.entryV1 .forbiddenTitle {
+  margin-bottom: 3px;
+  font-size: 0.95rem;
+}
+
 @media (max-width: 700px) {
   .topNav,
   .reportHeader,
@@ -637,5 +870,9 @@
   .batchRowHeader {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .entryV1 .panel {
+    padding: 12px;
   }
 }

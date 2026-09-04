@@ -1,42 +1,54 @@
 'use client';
 
 import Link from 'next/link';
-import styles from '../../catch-reports.module.css';
+import { useState } from 'react';
+import catchStyles from '../../catch-reports.module.css';
+import styles from './page.module.css';
 import { CatchReportForm } from '../_components/catch-report-form';
 import { NotebookCatchEntry } from '../_components/notebook-catch-entry';
+import { ApplicationShell } from '@/components/application-shell/application-shell';
+import { ShellIcon } from '@/components/application-shell/shell-icon';
 import { useRequiredUser } from '@/lib/use-required-user';
+
+type EntryMode = 'notebook' | 'manual';
 
 export default function NewCatchReportPage() {
   const { state, reload } = useRequiredUser();
+  const [entryMode, setEntryMode] = useState<EntryMode>('notebook');
 
   return (
-    <main className={styles.page}>
-      <div className={styles.narrowContainer}>
-        <nav className={styles.topNav} aria-label="Навигация по уловам">
-          <Link className={styles.backLink} href="/catches">
-            ← Все уловы
-          </Link>
-          <Link className={styles.textLink} href="/my/catches">
-            Мои уловы
-          </Link>
-        </nav>
-
+    <ApplicationShell>
+      <div className={styles.page}>
         <header className={styles.header}>
-          <p className={styles.eyebrow}>Личный архив и общая база</p>
-          <h1 className={styles.title}>Добавить улов</h1>
-          <p className={styles.subtitle}>
-            Автор определяется текущей сессией. Отчёт после публикации будет доступен всем.
-          </p>
+          <div>
+            <div className={styles.titleRow}>
+              <span className={styles.titleIcon}>
+                <ShellIcon name="addCatch" />
+              </span>
+              <h1 className={styles.title}>Добавить рыбу</h1>
+            </div>
+            <p className={styles.subtitle}>
+              Автор определяется текущей сессией. После публикации улов будет доступен всем.
+            </p>
+          </div>
+          <nav className={styles.headerActions} aria-label="Навигация по уловам">
+            <Link className={styles.secondaryLink} href="/catches">
+              Все уловы
+            </Link>
+            <Link className={styles.secondaryLink} href="/my/catches">
+              Мои уловы
+            </Link>
+          </nav>
         </header>
 
         {state.kind === 'loading' ? (
-          <p className={styles.message} aria-live="polite">
+          <p className={styles.statusMessage} aria-live="polite">
             Проверяем аккаунт…
           </p>
         ) : null}
 
         {state.kind === 'error' ? (
-          <div className={`${styles.message} ${styles.errorMessage}`} role="alert">
+          <div className={`${styles.statusMessage} ${styles.errorMessage}`} role="alert">
             <p>{state.message}</p>
             <button className={styles.secondaryButton} type="button" onClick={reload}>
               Повторить
@@ -45,36 +57,66 @@ export default function NewCatchReportPage() {
         ) : null}
 
         {state.kind === 'ready' ? (
-          <>
+          <div className={`${styles.entryContent} ${catchStyles.entryV1}`}>
             {state.user.isBanned ? (
-              <div className={`${styles.message} ${styles.warningMessage}`} role="status">
-                <h2 className={styles.forbiddenTitle}>Публикация недоступна</h2>
+              <div className={`${styles.statusMessage} ${styles.warningMessage}`} role="status">
+                <h2 className={styles.messageTitle}>Публикация недоступна</h2>
                 <p>
                   Аккаунт заблокирован. Распознать и проверить запись можно, но сохранить её нельзя.
                 </p>
               </div>
-            ) : null}
+            ) : (
+              <div className={styles.modeSwitch} role="group" aria-label="Способ добавления">
+                <button
+                  aria-controls="notebook-entry-pane"
+                  aria-pressed={entryMode === 'notebook'}
+                  className={`${styles.modeButton} ${entryMode === 'notebook' ? styles.modeButtonActive : ''}`}
+                  id="notebook-entry-mode"
+                  type="button"
+                  onClick={() => setEntryMode('notebook')}
+                >
+                  Из блокнота
+                </button>
+                <button
+                  aria-controls="manual-entry-pane"
+                  aria-pressed={entryMode === 'manual'}
+                  className={`${styles.modeButton} ${entryMode === 'manual' ? styles.modeButtonActive : ''}`}
+                  id="manual-entry-mode"
+                  type="button"
+                  onClick={() => setEntryMode('manual')}
+                >
+                  Вручную
+                </button>
+              </div>
+            )}
 
-            <NotebookCatchEntry canSave={!state.user.isBanned} />
+            <section
+              aria-labelledby={state.user.isBanned ? undefined : 'notebook-entry-mode'}
+              aria-label={state.user.isBanned ? 'Из блокнота' : undefined}
+              className={styles.modePane}
+              hidden={!state.user.isBanned && entryMode !== 'notebook'}
+              id="notebook-entry-pane"
+            >
+              <NotebookCatchEntry canSave={!state.user.isBanned} />
+            </section>
 
             {!state.user.isBanned ? (
-              <section className={styles.manualEntrySection} aria-labelledby="manual-entry-title">
-                <header className={styles.sectionHeading}>
-                  <p className={styles.eyebrow}>Другой способ</p>
-                  <h2 className={styles.sectionTitle} id="manual-entry-title">
-                    Заполнить вручную
-                  </h2>
-                </header>
+              <section
+                aria-labelledby="manual-entry-mode"
+                className={styles.modePane}
+                hidden={entryMode !== 'manual'}
+                id="manual-entry-pane"
+              >
                 <CatchReportForm />
               </section>
             ) : (
-              <Link className={styles.secondaryLink} href="/my/catches">
+              <Link className={styles.archiveLink} href="/my/catches">
                 Открыть мои уловы
               </Link>
             )}
-          </>
+          </div>
         ) : null}
       </div>
-    </main>
+    </ApplicationShell>
   );
 }

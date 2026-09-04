@@ -1,4 +1,4 @@
-type ShellIconName = 'bait' | 'bases' | 'fish' | 'home' | 'search';
+type ShellIconName = 'addCatch' | 'bait' | 'bases' | 'fish' | 'home' | 'search';
 
 type ShellIconProps = {
   name: ShellIconName;
@@ -42,6 +42,14 @@ export function ShellIcon({ name }: ShellIconProps) {
         <>
           <circle cx="10.5" cy="10.5" r="6.25" />
           <path d="m15.25 15.25 4.5 4.5" />
+        </>
+      ) : null}
+      {name === 'addCatch' ? (
+        <>
+          <path d="M3.5 10.25C5.2 7.7 7.5 6.4 10.3 6.4c2.2 0 4 .8 5.55 2.45l-2.35 1.4 2.35 1.4c-1.55 1.65-3.35 2.45-5.55 2.45-2.8 0-5.1-1.3-6.8-3.85Z" />
+          <path d="m3.5 10.25-1.75-2.2v4.4l1.75-2.2Z" />
+          <circle cx="10.9" cy="8.9" r=".65" fill="currentColor" stroke="none" />
+          <path d="M18.25 14.25v6M15.25 17.25h6" />
         </>
       ) : null}
     </svg>

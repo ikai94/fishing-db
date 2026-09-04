@@ -4,12 +4,12 @@
 
 .input {
   width: 100%;
-  min-height: 44px;
-  padding: 10px 38px 10px 12px;
-  border: 1px solid #aebcb3;
-  border-radius: 8px;
-  color: #17251d;
-  background: #fff;
+  min-height: var(--searchable-combobox-height, 44px);
+  padding: var(--searchable-combobox-padding, 10px 38px 10px 12px);
+  border: 1px solid var(--searchable-combobox-border, #aebcb3);
+  border-radius: var(--searchable-combobox-radius, 8px);
+  color: var(--searchable-combobox-text, #17251d);
+  background: var(--searchable-combobox-surface, #fff);
 }
 
 .input:disabled {
@@ -28,8 +28,8 @@
 
 .indicator {
   position: absolute;
-  top: 12px;
-  right: 12px;
+  top: var(--searchable-combobox-indicator-top, 12px);
+  right: var(--searchable-combobox-indicator-right, 12px);
   color: #647168;
   pointer-events: none;
 }

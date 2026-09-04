@@ -1,0 +1,222 @@
+.page {
+  width: min(100%, 1140px);
+  margin: 0 auto;
+  padding: 16px 18px 24px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-md);
+  color: var(--app-text);
+  background: var(--app-surface);
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.titleIcon {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid rgb(139 189 216 / 66%);
+  border-radius: 50%;
+  color: var(--app-accent-strong);
+  background: var(--app-accent-soft);
+}
+
+.titleIcon svg {
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.55;
+}
+
+.title {
+  margin: 0;
+  font-size: clamp(1.55rem, 3vw, 1.9rem);
+  line-height: 1.15;
+}
+
+.subtitle {
+  max-width: 680px;
+  margin: 4px 0 0 42px;
+  color: var(--app-text-muted);
+}
+
+.headerActions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.secondaryLink,
+.archiveLink {
+  display: inline-flex;
+  min-height: 33px;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 10px;
+  border: 1px solid var(--app-accent);
+  border-radius: var(--app-radius-sm);
+  color: var(--app-accent-strong);
+  background: var(--app-surface);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.secondaryLink:hover,
+.archiveLink:hover {
+  background: var(--app-accent-soft);
+}
+
+.entryContent {
+  margin-top: 14px;
+}
+
+.modeSwitch {
+  display: inline-flex;
+  gap: 3px;
+  margin-bottom: 12px;
+  padding: 3px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-md);
+  background: #f3f7f8;
+}
+
+.modeButton {
+  min-height: 32px;
+  padding: 5px 12px;
+  border: 1px solid transparent;
+  border-radius: var(--app-radius-sm);
+  color: var(--app-text-muted);
+  background: transparent;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.modeButton:hover {
+  color: var(--app-accent-strong);
+  background: rgb(220 238 248 / 58%);
+}
+
+.modeButtonActive,
+.modeButtonActive:hover {
+  border-color: var(--app-accent);
+  color: var(--app-accent-strong);
+  background: var(--app-surface);
+  box-shadow: var(--app-shadow-subtle);
+}
+
+.modePane[hidden] {
+  display: none;
+}
+
+.statusMessage {
+  margin: 14px 0 0;
+  padding: 9px 11px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+  color: var(--app-text-muted);
+  background: var(--app-surface);
+}
+
+.statusMessage p {
+  margin: 0;
+}
+
+.statusMessage p + .secondaryButton {
+  margin-top: 8px;
+}
+
+.errorMessage {
+  border-color: #ddb4b0;
+  color: var(--app-danger);
+  background: var(--app-danger-soft);
+}
+
+.warningMessage {
+  margin: 0 0 12px;
+  border-color: #dfc48b;
+  color: #704d0d;
+  background: #fff8e9;
+}
+
+.messageTitle {
+  margin: 0 0 3px;
+  font-size: 0.95rem;
+}
+
+.secondaryButton {
+  min-height: 33px;
+  padding: 5px 10px;
+  border: 1px solid var(--app-accent);
+  border-radius: var(--app-radius-sm);
+  color: var(--app-accent-strong);
+  background: var(--app-surface);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.secondaryButton:hover {
+  background: var(--app-accent-soft);
+}
+
+.archiveLink {
+  margin-top: 12px;
+}
+
+.secondaryLink:focus-visible,
+.archiveLink:focus-visible,
+.modeButton:focus-visible,
+.secondaryButton:focus-visible {
+  outline: 3px solid rgb(102 173 216 / 45%);
+  outline-offset: 2px;
+}
+
+@media (max-width: 700px) {
+  .page {
+    padding: 14px;
+  }
+
+  .header {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .headerActions {
+    justify-content: flex-start;
+  }
+
+  .subtitle {
+    margin-left: 0;
+  }
+
+  .modeSwitch {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 420px) {
+  .headerActions > * {
+    flex: 1 1 auto;
+  }
+}

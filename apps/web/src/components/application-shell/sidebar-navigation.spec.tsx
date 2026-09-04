@@ -16,7 +16,7 @@ describe('SidebarNavigation', () => {
     mocks.pathname = '/fish';
   });
 
-  test('renders only the four approved destinations and marks Fish current', () => {
+  test('renders the approved destinations and marks Fish current', () => {
     render(<SidebarNavigation />);
 
     const navigation = screen.getByRole('navigation', { name: 'Основная навигация' });
@@ -25,12 +25,14 @@ describe('SidebarNavigation', () => {
       'Главная',
       'Базы и локации',
       'Рыбы',
+      'Добавить рыбу',
       'Наживки',
     ]);
     expect(links.map((link) => link.getAttribute('href'))).toEqual([
       '/',
       '/bases',
       '/fish',
+      '/catches/new',
       '/baits',
     ]);
     expect(within(navigation).getByRole('link', { current: 'page' })).toHaveTextContent('Рыбы');
@@ -45,4 +47,11 @@ describe('SidebarNavigation', () => {
       expect(screen.getByRole('link', { current: 'page' })).toHaveTextContent('Базы и локации');
     },
   );
+
+  test('marks only the catch-entry destination current on the new catch route', () => {
+    mocks.pathname = '/catches/new';
+    render(<SidebarNavigation />);
+
+    expect(screen.getByRole('link', { current: 'page' })).toHaveTextContent('Добавить рыбу');
+  });
 });
