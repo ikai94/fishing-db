@@ -230,6 +230,7 @@
 }
 
 .userLink,
+.registerLink,
 .loginLink {
   display: inline-flex;
   min-height: 34px;
@@ -240,6 +241,12 @@
   text-decoration: none;
 }
 
+.guestActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .userLink {
   gap: 8px;
   max-width: min(42vw, 300px);
@@ -247,13 +254,22 @@
   border: 1px solid transparent;
 }
 
+.registerLink,
 .loginLink {
   padding: 5px 9px;
+}
+
+.registerLink {
+  border: 1px solid transparent;
+}
+
+.loginLink {
   border: 1px solid var(--app-accent);
   background: var(--app-accent-soft);
 }
 
 .userLink:hover,
+.registerLink:hover,
 .loginLink:hover {
   border-color: rgb(139 189 216 / 58%);
   background: var(--app-accent-soft);
@@ -302,6 +318,7 @@
 .compactRetry:focus-visible,
 .userRetry:focus-visible,
 .userLink:focus-visible,
+.registerLink:focus-visible,
 .loginLink:focus-visible {
   outline: 3px solid rgb(102 173 216 / 45%);
   outline-offset: 2px;

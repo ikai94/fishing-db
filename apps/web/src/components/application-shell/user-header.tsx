@@ -13,6 +13,19 @@ export function classifyCurrentUserError(error: unknown): 'guest' | 'error' {
   return isApiError(error) && error.status === 401 ? 'guest' : 'error';
 }
 
+export function GuestAuthActions() {
+  return (
+    <nav className={styles.guestActions} aria-label="Действия аккаунта">
+      <Link className={styles.registerLink} href="/register">
+        Регистрация
+      </Link>
+      <Link className={styles.loginLink} href="/login">
+        Войти
+      </Link>
+    </nav>
+  );
+}
+
 export function UserHeader() {
   const [state, setState] = useState<UserHeaderState>({ kind: 'loading' });
   const [attempt, setAttempt] = useState(0);
@@ -46,11 +59,7 @@ export function UserHeader() {
   }
 
   if (state.kind === 'guest') {
-    return (
-      <Link className={styles.loginLink} href="/login">
-        Войти
-      </Link>
-    );
+    return <GuestAuthActions />;
   }
 
   if (state.kind === 'error') {

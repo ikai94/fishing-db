@@ -11,7 +11,7 @@ vi.mock('@/lib/auth-api', () => ({
   getCurrentUser: mocks.getCurrentUser,
 }));
 
-import { classifyCurrentUserError, UserHeader } from './user-header';
+import { classifyCurrentUserError, GuestAuthActions, UserHeader } from './user-header';
 
 const user = {
   id: 'user-id',
@@ -40,6 +40,13 @@ describe('UserHeader', () => {
       'guest',
     );
     expect(classifyCurrentUserError(new Error('offline'))).toBe('error');
+  });
+
+  test('shows registration and login actions for a guest in the shell header', () => {
+    render(<GuestAuthActions />);
+
+    expect(screen.getByRole('link', { name: 'Регистрация' })).toHaveAttribute('href', '/register');
+    expect(screen.getByRole('link', { name: 'Войти' })).toHaveAttribute('href', '/login');
   });
 
   test('retries a non-authentication failure', async () => {
