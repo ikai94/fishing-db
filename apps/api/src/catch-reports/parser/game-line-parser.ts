@@ -1,4 +1,9 @@
-import { normalizeCatalogName } from '../../catalog/catalog-normalization.js';
+import {
+  buildCatalogLookupIndex,
+  type CatalogLookupItem,
+  type CatalogLookupResolution,
+  resolveCatalogLookup,
+} from '../../catalog/catalog-lookup.js';
 import { parseWeightGrams } from './numeric-parsers.js';
 import type { SourceRange } from './catch-report-parser.types.js';
 
@@ -23,12 +28,10 @@ export interface ParsedGameLine {
   unresolvedFragments: SourceRange[];
 }
 
-export interface CatalogPrefixCandidate {
-  nameNormalized: string;
-}
+export type CatalogPrefixCandidate = CatalogLookupItem;
 
 export interface CatalogPrefixMatch<T extends CatalogPrefixCandidate> {
-  item: T;
+  resolution: CatalogLookupResolution<T>;
   source: SourceRange;
   remainder: SourceRange;
 }
@@ -169,9 +172,7 @@ export function matchCatalogPrefix<T extends CatalogPrefixCandidate>(
   candidates: readonly T[],
   expectedBoundary: 'COMMA' | 'SUFFIX',
 ): CatalogPrefixMatch<T> | null {
-  const byNormalizedName = new Map(
-    candidates.map((candidate) => [candidate.nameNormalized, candidate]),
-  );
+  const lookupIndex = buildCatalogLookupIndex(candidates);
   let best: CatalogPrefixMatch<T> | null = null;
   let codePoints = 0;
 
@@ -187,17 +188,9 @@ export function matchCatalogPrefix<T extends CatalogPrefixCandidate>(
       continue;
     }
 
-    let normalized: string;
+    const resolution = resolveCatalogLookup(lookupIndex, source.text);
 
-    try {
-      normalized = normalizeCatalogName(source.text).nameNormalized;
-    } catch {
-      continue;
-    }
-
-    const candidate = byNormalizedName.get(normalized);
-
-    if (candidate === undefined) {
+    if (resolution.status === 'NOT_FOUND') {
       continue;
     }
 
@@ -211,7 +204,7 @@ export function matchCatalogPrefix<T extends CatalogPrefixCandidate>(
     }
 
     best = {
-      item: candidate,
+      resolution,
       source,
       remainder: trimSourceRange(rawSourceText, source.end, range.end),
     };

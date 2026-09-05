@@ -50,18 +50,18 @@ Controller entry points:
 
 ## Frontend route/module map
 
-| Area            | Route path                           | Look first in                                           |
-| --------------- | ------------------------------------ | ------------------------------------------------------- |
-| Home/activity   | `/`                                  | `src/app/_components/home-dashboard.tsx`                |
-| Auth/account    | `/login`, `/register`, `/verify-email/**`, `/forgot-password`, `/reset-password`, `/account` | matching `src/app/*/page.tsx`, `src/lib/auth-api.ts` |
-| Bases           | `/bases`, `/bases/[id]`              | `src/app/bases`, `src/lib/catalog-api.ts`               |
-| Locations       | `/locations/[id]`                    | `src/app/locations/[id]`                                |
-| Fish            | `/fish`, `/fish/[id]`                | `src/app/fish`, Fish Explorer `_components`             |
-| Baits           | `/baits`                             | `src/app/baits/page.tsx`                                |
-| Public catches  | `/catches`, `/catches/[id]`          | `src/app/catches`, `src/lib/catch-reports-api.ts`       |
-| Catch entry     | `/catches/new`, `/catches/[id]/edit` | catch form/notebook components                          |
-| Private archive | `/my/catches`                        | `src/app/my/catches/page.tsx`                           |
-| ADMIN catalog   | `/admin/catalog/**`                  | `src/app/admin/catalog`, `src/lib/admin-catalog-api.ts` |
+| Area            | Route path                                                                                   | Look first in                                           |
+| --------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| Home/activity   | `/`                                                                                          | `src/app/_components/home-dashboard.tsx`                |
+| Auth/account    | `/login`, `/register`, `/verify-email/**`, `/forgot-password`, `/reset-password`, `/account` | matching `src/app/*/page.tsx`, `src/lib/auth-api.ts`    |
+| Bases           | `/bases`, `/bases/[id]`                                                                      | `src/app/bases`, `src/lib/catalog-api.ts`               |
+| Locations       | `/locations/[id]`                                                                            | `src/app/locations/[id]`                                |
+| Fish            | `/fish`, `/fish/[id]`                                                                        | `src/app/fish`, Fish Explorer `_components`             |
+| Baits           | `/baits`                                                                                     | `src/app/baits/page.tsx`                                |
+| Public catches  | `/catches`, `/catches/[id]`                                                                  | `src/app/catches`, `src/lib/catch-reports-api.ts`       |
+| Catch entry     | `/catches/new`, `/catches/[id]/edit`                                                         | catch form/notebook components                          |
+| Private archive | `/my/catches`                                                                                | `src/app/my/catches/page.tsx`                           |
+| ADMIN catalog   | `/admin/catalog/**`                                                                          | `src/app/admin/catalog`, `src/lib/admin-catalog-api.ts` |
 
 Shared frontend navigation points:
 

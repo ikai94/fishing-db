@@ -60,6 +60,7 @@ const FISH = [
     name: 'Шамбардия Валберга',
     nameNormalized: 'шамбардия валберга',
   },
+  { id: 'fish-valyok', name: 'Валёк', nameNormalized: 'валёк' },
 ] as const;
 
 const BAITS = [
@@ -90,33 +91,53 @@ const ANCHORS = [
   { name: 'Чат', nameNormalized: 'чат' },
 ] as const;
 
+interface NamedFixture {
+  id: string;
+  name: string;
+  nameNormalized: string;
+}
+
+interface LocationFixture extends NamedFixture {
+  fishingBaseId: string;
+  number: number;
+}
+
+interface BaitFixture extends NamedFixture {
+  type: 'BAIT' | 'LURE';
+}
+
 interface FixtureOptions {
   withoutMembership?: boolean;
   withoutBaits?: boolean;
+  additionalBases?: readonly NamedFixture[];
+  additionalFish?: readonly NamedFixture[];
+  additionalLocations?: readonly LocationFixture[];
+  additionalBaits?: readonly BaitFixture[];
 }
 
 function fixtureService(options: FixtureOptions = {}): CatchReportParserService {
+  const bases: NamedFixture[] = [...BASES, ...(options.additionalBases ?? [])];
+  const fish: NamedFixture[] = [...FISH, ...(options.additionalFish ?? [])];
+  const locations: LocationFixture[] = [...LOCATIONS, ...(options.additionalLocations ?? [])];
+  const baits: BaitFixture[] =
+    options.withoutBaits === true ? [] : [...BAITS, ...(options.additionalBaits ?? [])];
   const prisma = {
     fishingBase: {
-      findFirst: ({ where }: { where: { nameNormalized: string } }) =>
-        Promise.resolve(BASES.find((base) => base.nameNormalized === where.nameNormalized) ?? null),
-      findMany: () => Promise.resolve(BASES),
+      findMany: () => Promise.resolve(bases),
     },
     fish: {
-      findFirst: ({ where }: { where: { nameNormalized: string } }) =>
-        Promise.resolve(FISH.find((fish) => fish.nameNormalized === where.nameNormalized) ?? null),
-      findMany: () => Promise.resolve(FISH),
+      findMany: () => Promise.resolve(fish),
     },
     location: {
       findMany: ({ where }: { where: { fishingBaseId?: string } }) =>
         Promise.resolve(
           where.fishingBaseId === undefined
-            ? LOCATIONS
-            : LOCATIONS.filter((location) => location.fishingBaseId === where.fishingBaseId),
+            ? locations
+            : locations.filter((location) => location.fishingBaseId === where.fishingBaseId),
         ),
     },
     bait: {
-      findMany: () => Promise.resolve(options.withoutBaits === true ? [] : BAITS),
+      findMany: () => Promise.resolve(baits),
     },
     screenAnchor: {
       findMany: () => Promise.resolve(ANCHORS),
@@ -132,8 +153,8 @@ function fixtureService(options: FixtureOptions = {}): CatchReportParserService 
         Promise.resolve(
           options.withoutMembership === true
             ? []
-            : BASES.flatMap((base) =>
-                FISH.map((fish) => ({ fishingBaseId: base.id, fishId: fish.id })),
+            : bases.flatMap((base) =>
+                fish.map((item) => ({ fishingBaseId: base.id, fishId: item.id })),
               ),
         ),
     },
@@ -156,6 +177,149 @@ async function parse(raw: string, options?: FixtureOptions): Promise<CatchReport
 }
 
 void describe('CatchReportParserService', () => {
+  void it('applies deterministic lookup normalization in single and batch parsing without changing source text', async () => {
+    const raw =
+      'ВАЛЕК 40 грамм. Поймана на АМУР: Понтонныи\u00a0  мост, Большои живец. ямка 6,00 уда-леска';
+    const service = fixtureService({
+      additionalLocations: [
+        {
+          id: 'location-other-pontoon-i',
+          fishingBaseId: 'base-tanzania',
+          number: 5,
+          name: 'Понтонныи мост',
+          nameNormalized: 'понтонныи мост',
+        },
+      ],
+    });
+    const single = (await service.parse(raw)).draft;
+    const batch = await service.parseBatch(raw);
+
+    assert.equal(batch.rows.length, 1);
+    for (const draft of [single, batch.rows[0]?.draft]) {
+      assert.ok(draft !== undefined);
+      assert.equal(draft.rawSourceText, raw);
+      assert.equal(resolvedValue(draft.fields.fish)?.name, 'Валёк');
+      assert.equal(draft.fields.fish.sourceText, 'ВАЛЕК');
+      assert.equal(resolvedValue(draft.fields.fishingBase)?.name, 'Амур');
+      assert.equal(draft.fields.fishingBase.sourceText, 'АМУР');
+      assert.equal(resolvedValue(draft.fields.location)?.name, 'Понтонный мост');
+      assert.equal(draft.fields.location.sourceText, 'Понтонныи\u00a0  мост');
+      assert.equal(resolvedValue(draft.fields.bait)?.name, 'Большой живец');
+      assert.equal(draft.fields.bait.sourceText, 'Большои живец');
+      assert.equal(resolvedValue(draft.fields.fishingMethod), 'BAIT_FISHING');
+      assert.equal(resolvedValue(draft.fields.spotPositionRaw), 'уда-леска');
+      assert.equal(draft.canConfirm, true);
+    }
+  });
+
+  void it('blocks colliding Fish lookups in single and batch parsing without checking membership', async () => {
+    const raw = amurLine('Валек', '40 грамм', 'Большой живец.');
+    const service = fixtureService({
+      additionalFish: [{ id: 'fish-valek', name: 'Валек', nameNormalized: 'валек' }],
+    });
+    const single = (await service.parse(raw)).draft;
+    const batch = await service.parseBatch(raw);
+
+    for (const draft of [single, batch.rows[0]?.draft]) {
+      assert.ok(draft !== undefined);
+      assert.deepEqual(draft.fields.fish, {
+        status: 'UNRESOLVED',
+        sourceText: 'Валек',
+        value: null,
+        required: true,
+        code: 'FISH_AMBIGUOUS',
+      });
+      assert.equal(draft.baseFishMembership.status, 'MISSING');
+      assert.ok(
+        draft.issues.some(
+          (issue) =>
+            issue.code === 'FISH_AMBIGUOUS' &&
+            issue.severity === 'BLOCKING' &&
+            issue.message === 'Найдено несколько совпадений. Выберите значение вручную',
+        ),
+      );
+      assert.equal(
+        draft.issues.some((issue) => issue.code === 'FISH_NOT_IN_BASE'),
+        false,
+      );
+      assert.equal(draft.canConfirm, false);
+    }
+  });
+
+  void it('returns approved blocking ambiguity codes for Base, Base-scoped Location and Bait', async () => {
+    const ambiguousBase = await parse(
+      'Шамбардия Валберга 40 грамм. Поймана на Озера Танзании: Берег слоновьего бивня, Мотыль.',
+      {
+        additionalBases: [
+          {
+            id: 'base-tanzania-yo',
+            name: 'Озёра Танзании',
+            nameNormalized: 'озёра танзании',
+          },
+        ],
+      },
+    );
+    assert.equal(ambiguousBase.fields.fishingBase.status, 'UNRESOLVED');
+    assert.equal(
+      ambiguousBase.fields.fishingBase.status === 'UNRESOLVED'
+        ? ambiguousBase.fields.fishingBase.code
+        : null,
+      'FISHING_BASE_AMBIGUOUS',
+    );
+    assert.equal(ambiguousBase.baseFishMembership.status, 'MISSING');
+
+    const ambiguousLocationRaw = 'Кижуч 7,242 кг. Поймана на Амур: Понтонный мост, Большой живец.';
+    const ambiguousLocation = await parse(ambiguousLocationRaw, {
+      additionalLocations: [
+        {
+          id: 'location-amur-pontoon-i',
+          fishingBaseId: 'base-amur',
+          number: 5,
+          name: 'Понтонныи мост',
+          nameNormalized: 'понтонныи мост',
+        },
+      ],
+    });
+    assert.deepEqual(ambiguousLocation.fields.location, {
+      status: 'UNRESOLVED',
+      sourceText: 'Понтонный мост',
+      value: null,
+      required: true,
+      code: 'LOCATION_AMBIGUOUS',
+    });
+    assert.equal(ambiguousLocation.fields.bait.status, 'MISSING');
+    assert.equal(ambiguousLocation.rawSourceText, ambiguousLocationRaw);
+
+    const ambiguousBait = await parse(amurLine('Кижуч', '7,242 кг', 'Большой живец. ямка 6,00'), {
+      additionalBaits: [
+        {
+          id: 'bait-live-i',
+          name: 'Большои живец',
+          nameNormalized: 'большои живец',
+          type: 'BAIT',
+        },
+      ],
+    });
+    assert.deepEqual(ambiguousBait.fields.bait, {
+      status: 'UNRESOLVED',
+      sourceText: 'Большой живец',
+      value: null,
+      required: true,
+      code: 'BAIT_AMBIGUOUS',
+    });
+    assert.equal(ambiguousBait.fields.fishingMethod.status, 'UNRESOLVED');
+    assert.equal(resolvedValue(ambiguousBait.fields.holeDepthCm), null);
+
+    for (const [draft, code] of [
+      [ambiguousBase, 'FISHING_BASE_AMBIGUOUS'],
+      [ambiguousLocation, 'LOCATION_AMBIGUOUS'],
+      [ambiguousBait, 'BAIT_AMBIGUOUS'],
+    ] as const) {
+      assert.ok(draft.issues.some((issue) => issue.code === code && issue.severity === 'BLOCKING'));
+      assert.equal(draft.canConfirm, false);
+    }
+  });
+
   void it('returns a confirmable SPINNING draft when the game omitted size and speed', async () => {
     const draft = await parse(amurLine('Кижуч', '7,242 кг', 'Vib-rapan.'));
 

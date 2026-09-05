@@ -49,7 +49,13 @@ export type FishAlphabetGroupId = (typeof FISH_ALPHABET_GROUPS)[number]['id'];
 export type SpecificFishAlphabetGroupId = Exclude<FishAlphabetGroupId, 'all'>;
 
 export function catalogSearchTokens(value: string): string[] {
-  return value.normalize('NFKC').toLocaleLowerCase('ru-RU').split(TOKEN_SEPARATOR).filter(Boolean);
+  return value
+    .normalize('NFKC')
+    .toLocaleLowerCase('ru-RU')
+    .replace(/ё/gu, 'е')
+    .replace(/й/gu, 'и')
+    .split(TOKEN_SEPARATOR)
+    .filter(Boolean);
 }
 
 /** Stable, conservative catalog filtering: every query token must occur in a name token. */

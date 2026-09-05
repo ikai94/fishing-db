@@ -1192,6 +1192,116 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
     assert.equal(await prisma.catchReport.count(), reportsBeforeParse + 1);
   });
 
+  void test('normalizes deterministic catalog lookup and blocks collisions through single and batch parser APIs', async () => {
+    const actor = await createActor();
+    const suffix = randomUUID().slice(0, 8);
+    const base = await prisma.fishingBase.create({
+      data: {
+        name: `Рыбачий край ${suffix}`,
+        nameNormalized: `рыбачий край ${suffix}`,
+      },
+    });
+    const location = await prisma.location.create({
+      data: {
+        fishingBaseId: base.id,
+        number: 1,
+        name: `Тёмные воды ${suffix}`,
+        nameNormalized: `тёмные воды ${suffix}`,
+      },
+    });
+    const fish = await prisma.fish.create({
+      data: {
+        name: `Валёк ${suffix}`,
+        nameNormalized: `валёк ${suffix}`,
+      },
+    });
+    const bait = await prisma.bait.create({
+      data: {
+        name: `Большой живец ${suffix}`,
+        nameNormalized: `большой живец ${suffix}`,
+        type: 'BAIT',
+      },
+    });
+    await prisma.fishingBaseFish.create({
+      data: { fishingBaseId: base.id, fishId: fish.id },
+    });
+
+    const rawSourceText = `ВАЛЕК ${suffix} 40 грамм. Поймана на Рыбачии краи ${suffix}: Темные воды ${suffix}, Большои живец ${suffix}. ямка 6,00 удочка`;
+    const parseDraft = (body: unknown) => asObject(asObject(body).draft);
+    const batchDraft = (body: unknown) => {
+      const row = asObject(asArray(asObject(body).rows)[0]);
+      return asObject(row.draft);
+    };
+    const field = (draft: Record<string, unknown>, name: string) =>
+      asObject(asObject(draft.fields)[name]);
+    const singleResolved = parseDraft(
+      (
+        await mutation(api().post('/api/v1/catch-reports/parse'), actor.cookie)
+          .send({ rawSourceText })
+          .expect(200)
+      ).body as unknown,
+    );
+    const batchResolved = batchDraft(
+      (
+        await mutation(api().post('/api/v1/catch-reports/parse-batch'), actor.cookie)
+          .send({ rawSourceText })
+          .expect(200)
+      ).body as unknown,
+    );
+
+    for (const draft of [singleResolved, batchResolved]) {
+      assert.equal(draft.rawSourceText, rawSourceText);
+      assert.equal(asString(asObject(field(draft, 'fishingBase').value).id, 'base.id'), base.id);
+      assert.equal(
+        asString(asObject(field(draft, 'location').value).id, 'location.id'),
+        location.id,
+      );
+      assert.equal(asString(asObject(field(draft, 'fish').value).id, 'fish.id'), fish.id);
+      assert.equal(asString(asObject(field(draft, 'bait').value).id, 'bait.id'), bait.id);
+      assert.equal(field(draft, 'fish').sourceText, `ВАЛЕК ${suffix}`);
+      assert.equal(draft.canConfirm, true);
+    }
+
+    const collidingFish = await prisma.fish.create({
+      data: {
+        name: `Валек ${suffix}`,
+        nameNormalized: `валек ${suffix}`,
+      },
+    });
+    await prisma.fishingBaseFish.create({
+      data: { fishingBaseId: base.id, fishId: collidingFish.id },
+    });
+    const singleAmbiguous = parseDraft(
+      (
+        await mutation(api().post('/api/v1/catch-reports/parse'), actor.cookie)
+          .send({ rawSourceText })
+          .expect(200)
+      ).body as unknown,
+    );
+    const batchAmbiguous = batchDraft(
+      (
+        await mutation(api().post('/api/v1/catch-reports/parse-batch'), actor.cookie)
+          .send({ rawSourceText })
+          .expect(200)
+      ).body as unknown,
+    );
+
+    for (const draft of [singleAmbiguous, batchAmbiguous]) {
+      assert.equal(field(draft, 'fish').status, 'UNRESOLVED');
+      assert.equal(field(draft, 'fish').code, 'FISH_AMBIGUOUS');
+      assert.equal(field(draft, 'fish').value, null);
+      assert.equal(asObject(draft.baseFishMembership).status, 'MISSING');
+      assert.equal(draft.canConfirm, false);
+      assert.ok(
+        asArray(draft.issues).some(
+          (issue) =>
+            asObject(issue).code === 'FISH_AMBIGUOUS' && asObject(issue).severity === 'BLOCKING',
+        ),
+      );
+    }
+    assert.equal(await prisma.catchReport.count(), 0);
+  });
+
   void test('parses and atomically creates ordered native batches without deduplicating reports', async () => {
     const actor = await createActor();
     const base = await prisma.fishingBase.create({

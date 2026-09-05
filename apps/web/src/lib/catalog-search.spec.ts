@@ -24,6 +24,26 @@ describe('filterCatalogItems', () => {
     expect(catalogSearchTokens('Ａмур—Щ')).toEqual(['aмур', 'щ']);
   });
 
+  test('accepts deterministic ё/е and й/и lookup variants', () => {
+    const variants = [
+      { id: 'valyok', name: 'Валёк' },
+      { id: 'far', name: 'Крайний берег' },
+    ];
+
+    expect(catalogSearchTokens(' ВАЛЕ\u0308К\u00a0 \tКРАЙНИЙ ')).toEqual(['валек', 'краинии']);
+    expect(filterCatalogItems(variants, 'валек')).toEqual([variants[0]]);
+    expect(filterCatalogItems(variants, 'краинии')).toEqual([variants[1]]);
+  });
+
+  test('keeps every distinct item when lookup normalization collides', () => {
+    const colliding = [
+      { id: 'with-yo', name: 'Валёк' },
+      { id: 'without-yo', name: 'Валек' },
+    ];
+
+    expect(filterCatalogItems(colliding, 'валек')).toEqual(colliding);
+  });
+
   test('does not fuzzy-correct misspellings', () => {
     expect(filterCatalogItems(items, 'омурская')).toEqual([]);
   });

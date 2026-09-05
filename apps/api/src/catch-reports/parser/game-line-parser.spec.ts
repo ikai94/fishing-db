@@ -78,21 +78,20 @@ void describe('game notebook line parser', () => {
     const location = matchCatalogPrefix(
       raw,
       whole,
-      [{ id: 'location', nameNormalized: 'протока бешеная - створы' }],
+      [{ id: 'location', name: 'Протока бешеная - створы' }],
       'COMMA',
     );
 
-    assert.equal(location?.item.id, 'location');
+    assert.equal(location?.resolution.status, 'UNIQUE');
+    assert.equal(
+      location?.resolution.status === 'UNIQUE' ? location.resolution.item.id : null,
+      'location',
+    );
     assert.equal(location?.source.text, 'Протока   бешеная - створы');
 
     assert.ok(location !== null);
     const baitRange = sourceAfterComma(raw, location.source);
-    const bait = matchCatalogPrefix(
-      raw,
-      baitRange,
-      [{ id: 'bait', nameNormalized: 'pilk-107' }],
-      'SUFFIX',
-    );
+    const bait = matchCatalogPrefix(raw, baitRange, [{ id: 'bait', name: 'Pilk-107' }], 'SUFFIX');
 
     assert.equal(bait?.source.text, 'Pilk-107');
   });
@@ -105,7 +104,7 @@ void describe('game notebook line parser', () => {
       matchCatalogPrefix(
         typo,
         { text: typo, start: 0, end: typo.length },
-        [{ nameNormalized: 'амурская щука' }],
+        [{ id: 'pike', name: 'Амурская Щука' }],
         'COMMA',
       ),
       null,
@@ -114,10 +113,31 @@ void describe('game notebook line parser', () => {
       matchCatalogPrefix(
         prefix,
         { text: prefix, start: 0, end: prefix.length },
-        [{ nameNormalized: 'pilk' }],
+        [{ id: 'pilk', name: 'Pilk' }],
         'SUFFIX',
       ),
       null,
+    );
+  });
+
+  void it('returns an ambiguous longest prefix without falling back to a shorter match', () => {
+    const raw = 'Темные, воды, Мотыль';
+    const match = matchCatalogPrefix(
+      raw,
+      { text: raw, start: 0, end: raw.length },
+      [
+        { id: 'shorter', name: 'Темные' },
+        { id: 'with-yo', name: 'Тёмные, воды' },
+        { id: 'without-yo', name: 'Темные, воды' },
+      ],
+      'COMMA',
+    );
+
+    assert.equal(match?.source.text, 'Темные, воды');
+    assert.equal(match?.resolution.status, 'AMBIGUOUS');
+    assert.deepEqual(
+      match?.resolution.status === 'AMBIGUOUS' ? match.resolution.items.map((item) => item.id) : [],
+      ['with-yo', 'without-yo'],
     );
   });
 

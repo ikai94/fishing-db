@@ -1,5 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { normalizeCatalogName } from '../../catalog/catalog-normalization.js';
+import {
+  buildCatalogLookupIndex,
+  type CatalogLookupResolution,
+  resolveCatalogLookup,
+} from '../../catalog/catalog-lookup.js';
 import type { CatalogBaitType } from '../../catalog/catalog.constants.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { CatchReportFishingMethod } from '../catch-reports.constants.js';
@@ -45,13 +49,9 @@ interface ResolvedSource<T> {
   source: SourceRange;
 }
 
-interface LocationCandidate extends DraftLocation {
-  nameNormalized: string;
-}
+type LocationCandidate = DraftLocation;
 
-interface BaitCandidate extends DraftBait {
-  nameNormalized: string;
-}
+type BaitCandidate = DraftBait;
 
 interface AnchorCandidate {
   name: string;
@@ -59,8 +59,8 @@ interface AnchorCandidate {
 }
 
 interface ParserCatalog {
-  findBase: (nameNormalized: string) => Promise<DraftNamedItem | null>;
-  findFish: (nameNormalized: string) => Promise<DraftNamedItem | null>;
+  findBase: (lookupText: string) => Promise<CatalogLookupResolution<DraftNamedItem>>;
+  findFish: (lookupText: string) => Promise<CatalogLookupResolution<DraftNamedItem>>;
   listBaits: () => Promise<readonly BaitCandidate[]>;
   listAnchors: () => Promise<readonly AnchorCandidate[]>;
   listLocations: (baseId: string) => Promise<readonly LocationCandidate[]>;
@@ -76,26 +76,38 @@ const FIELD_MESSAGES: Record<string, string> = {
   fishingMethod: 'Метод ловли нельзя определить без наживки или приманки',
 };
 
-function normalizedSource(source: SourceRange): string | null {
-  try {
-    return normalizeCatalogName(source.text).nameNormalized;
-  } catch {
-    return null;
-  }
+function notFoundLookup<T>(): CatalogLookupResolution<T> {
+  return { status: 'NOT_FOUND' };
+}
+
+function resolvedSource<T>(
+  source: SourceRange | null,
+  resolution: CatalogLookupResolution<T>,
+): ResolvedSource<T> | null {
+  return source !== null && resolution.status === 'UNIQUE'
+    ? { item: resolution.item, source }
+    : null;
 }
 
 function requiredCatalogField<T>(
   source: SourceRange | null,
-  item: T | null,
-  code: string,
+  resolution: CatalogLookupResolution<T>,
+  unresolvedCode: string,
+  ambiguousCode: string,
 ): DraftField<T> {
   if (source === null) {
     return missingField();
   }
 
-  return item === null
-    ? unresolvedField(source.text, code, true)
-    : resolvedField(item, source.text, true);
+  if (resolution.status === 'NOT_FOUND') {
+    return unresolvedField(source.text, unresolvedCode, true);
+  }
+
+  if (resolution.status === 'AMBIGUOUS') {
+    return unresolvedField(source.text, ambiguousCode, true);
+  }
+
+  return resolvedField(resolution.item, source.text, true);
 }
 
 function methodFromBait(type: CatalogBaitType): CatchReportFishingMethod {
@@ -111,7 +123,10 @@ function issueForField(field: string, fieldValue: DraftField<unknown>): DraftIss
     severity: 'BLOCKING',
     code: fieldValue.status === 'MISSING' ? `MISSING_${field.toUpperCase()}` : fieldValue.code,
     field,
-    message: FIELD_MESSAGES[field] ?? 'Заполните обязательное поле',
+    message:
+      fieldValue.status === 'UNRESOLVED' && fieldValue.code.endsWith('_AMBIGUOUS')
+        ? 'Найдено несколько совпадений. Выберите значение вручную'
+        : (FIELD_MESSAGES[field] ?? 'Заполните обязательное поле'),
   };
 }
 
@@ -173,17 +188,19 @@ export class CatchReportParserService {
     const gameLine = parseGameLine(rawSourceText);
     const baseSource = gameLine.fishingBaseSource;
     const fishSource = gameLine.fishSource;
-    const baseNameNormalized = baseSource === null ? null : normalizedSource(baseSource);
-    const fishNameNormalized = fishSource === null ? null : normalizedSource(fishSource);
+    const [baseResolution, fishResolution, baits, anchors] = await Promise.all([
+      baseSource === null
+        ? Promise.resolve(notFoundLookup<DraftNamedItem>())
+        : catalog.findBase(baseSource.text),
+      fishSource === null
+        ? Promise.resolve(notFoundLookup<DraftNamedItem>())
+        : catalog.findFish(fishSource.text),
+      catalog.listBaits(),
+      catalog.listAnchors(),
+    ]);
 
-    const base = baseNameNormalized === null ? null : await catalog.findBase(baseNameNormalized);
-    const fish = fishNameNormalized === null ? null : await catalog.findFish(fishNameNormalized);
-    const [baits, anchors] = await Promise.all([catalog.listBaits(), catalog.listAnchors()]);
-
-    const baseResolved: ResolvedSource<DraftNamedItem> | null =
-      baseSource === null || base === null ? null : { item: base, source: baseSource };
-    const fishResolved: ResolvedSource<DraftNamedItem> | null =
-      fishSource === null || fish === null ? null : { item: fish, source: fishSource };
+    const baseResolved = resolvedSource(baseSource, baseResolution);
+    const fishResolved = resolvedSource(fishSource, fishResolution);
 
     const locationResult = await this.resolveLocation(
       rawSourceText,
@@ -212,18 +229,21 @@ export class CatchReportParserService {
     );
     const fishingBaseField = requiredCatalogField(
       baseSource,
-      baseResolved?.item ?? null,
+      baseResolution,
       'FISHING_BASE_UNRESOLVED',
+      'FISHING_BASE_AMBIGUOUS',
     );
     const fishField = requiredCatalogField(
       fishSource,
-      fishResolved?.item ?? null,
+      fishResolution,
       'FISH_UNRESOLVED',
+      'FISH_AMBIGUOUS',
     );
     const baitField = requiredCatalogField(
       baitResult.source,
-      baitResult.resolved?.item ?? null,
+      baitResult.resolution,
       'BAIT_UNRESOLVED',
+      'BAIT_AMBIGUOUS',
     );
     const methodField: DraftField<CatchReportFishingMethod> =
       fishingMethod !== null
@@ -244,8 +264,9 @@ export class CatchReportParserService {
         fishingBase: fishingBaseField,
         location: requiredCatalogField(
           locationResult.source,
-          locationResult.resolved?.item ?? null,
+          locationResult.resolution,
           baseResolved === null ? 'LOCATION_REQUIRES_FISHING_BASE' : 'LOCATION_UNRESOLVED',
+          'LOCATION_AMBIGUOUS',
         ),
         fish: fishField,
         bait: baitField,
@@ -410,11 +431,17 @@ export class CatchReportParserService {
     catalog: ParserCatalog,
   ): Promise<{
     source: SourceRange | null;
+    resolution: CatalogLookupResolution<DraftLocation>;
     resolved: ResolvedSource<DraftLocation> | null;
     baitAndSuffixSource: SourceRange | null;
   }> {
     if (locationAndBaitSource === null) {
-      return { source: null, resolved: null, baitAndSuffixSource: null };
+      return {
+        source: null,
+        resolution: notFoundLookup(),
+        resolved: null,
+        baitAndSuffixSource: null,
+      };
     }
 
     if (base !== null) {
@@ -426,15 +453,16 @@ export class CatchReportParserService {
         'COMMA',
       );
 
-      if (match !== null) {
+      if (match?.resolution.status === 'UNIQUE') {
         const item: DraftLocation = {
-          id: match.item.id,
-          number: match.item.number,
-          name: match.item.name,
+          id: match.resolution.item.id,
+          number: match.resolution.item.number,
+          name: match.resolution.item.name,
         };
 
         return {
           source: match.source,
+          resolution: { status: 'UNIQUE', item },
           resolved: { item, source: match.source },
           baitAndSuffixSource: sourceAfterComma(
             rawSourceText,
@@ -443,11 +471,21 @@ export class CatchReportParserService {
           ),
         };
       }
+
+      if (match?.resolution.status === 'AMBIGUOUS') {
+        return {
+          source: match.source,
+          resolution: match.resolution,
+          resolved: null,
+          baitAndSuffixSource: null,
+        };
+      }
     }
 
     const fallback = splitLocationAndBaitFallback(rawSourceText, locationAndBaitSource);
     return {
       source: fallback.locationSource,
+      resolution: notFoundLookup(),
       resolved: null,
       baitAndSuffixSource: fallback.baitAndSuffixSource,
     };
@@ -459,32 +497,49 @@ export class CatchReportParserService {
     baits: readonly BaitCandidate[],
   ): {
     source: SourceRange | null;
+    resolution: CatalogLookupResolution<DraftBait>;
     resolved: ResolvedSource<DraftBait> | null;
     observationSource: SourceRange | null;
   } {
     if (baitAndSuffixSource === null) {
-      return { source: null, resolved: null, observationSource: null };
+      return {
+        source: null,
+        resolution: notFoundLookup(),
+        resolved: null,
+        observationSource: null,
+      };
     }
 
     const match = matchCatalogPrefix(rawSourceText, baitAndSuffixSource, baits, 'SUFFIX');
 
-    if (match !== null) {
+    if (match?.resolution.status === 'UNIQUE') {
       const item: DraftBait = {
-        id: match.item.id,
-        name: match.item.name,
-        type: match.item.type,
+        id: match.resolution.item.id,
+        name: match.resolution.item.name,
+        type: match.resolution.item.type,
       };
 
       return {
         source: match.source,
+        resolution: { status: 'UNIQUE', item },
         resolved: { item, source: match.source },
         observationSource: match.remainder,
+      };
+    }
+
+    if (match?.resolution.status === 'AMBIGUOUS') {
+      return {
+        source: match.source,
+        resolution: match.resolution,
+        resolved: null,
+        observationSource: null,
       };
     }
 
     const fallback = fallbackBaitSource(rawSourceText, baitAndSuffixSource);
     return {
       source: fallback.baitSource.text.length === 0 ? null : fallback.baitSource,
+      resolution: notFoundLookup(),
       resolved: null,
       observationSource: fallback.observationSource,
     };
@@ -504,21 +559,27 @@ export class CatchReportParserService {
 
   private databaseCatalog(): ParserCatalog {
     return {
-      findBase: (nameNormalized) =>
-        this.prisma.fishingBase.findFirst({
-          where: { nameNormalized, isActive: true },
+      findBase: async (lookupText) => {
+        const items = await this.prisma.fishingBase.findMany({
+          where: { isActive: true },
+          orderBy: [{ nameNormalized: 'asc' }, { id: 'asc' }],
           select: { id: true, name: true },
-        }),
-      findFish: (nameNormalized) =>
-        this.prisma.fish.findFirst({
-          where: { nameNormalized, isActive: true },
+        });
+        return resolveCatalogLookup(buildCatalogLookupIndex(items), lookupText);
+      },
+      findFish: async (lookupText) => {
+        const items = await this.prisma.fish.findMany({
+          where: { isActive: true },
+          orderBy: [{ nameNormalized: 'asc' }, { id: 'asc' }],
           select: { id: true, name: true },
-        }),
+        });
+        return resolveCatalogLookup(buildCatalogLookupIndex(items), lookupText);
+      },
       listBaits: () =>
         this.prisma.bait.findMany({
           where: { isActive: true },
           orderBy: [{ nameNormalized: 'asc' }, { id: 'asc' }],
-          select: { id: true, name: true, nameNormalized: true, type: true },
+          select: { id: true, name: true, type: true },
         }),
       listAnchors: () =>
         this.prisma.screenAnchor.findMany({
@@ -534,7 +595,7 @@ export class CatchReportParserService {
             fishingBase: { isActive: true },
           },
           orderBy: [{ number: 'asc' }, { nameNormalized: 'asc' }, { id: 'asc' }],
-          select: { id: true, number: true, name: true, nameNormalized: true },
+          select: { id: true, number: true, name: true },
         }),
       hasMembership: async (baseId, fishId) =>
         (await this.prisma.fishingBaseFish.findUnique({
@@ -548,16 +609,16 @@ export class CatchReportParserService {
     const [bases, fish, baits, anchors, locations, memberships] = await Promise.all([
       this.prisma.fishingBase.findMany({
         where: { isActive: true },
-        select: { id: true, name: true, nameNormalized: true },
+        select: { id: true, name: true },
       }),
       this.prisma.fish.findMany({
         where: { isActive: true },
-        select: { id: true, name: true, nameNormalized: true },
+        select: { id: true, name: true },
       }),
       this.prisma.bait.findMany({
         where: { isActive: true },
         orderBy: [{ nameNormalized: 'asc' }, { id: 'asc' }],
-        select: { id: true, name: true, nameNormalized: true, type: true },
+        select: { id: true, name: true, type: true },
       }),
       this.prisma.screenAnchor.findMany({
         where: { isActive: true },
@@ -577,15 +638,14 @@ export class CatchReportParserService {
           fishingBaseId: true,
           number: true,
           name: true,
-          nameNormalized: true,
         },
       }),
       this.prisma.fishingBaseFish.findMany({
         select: { fishingBaseId: true, fishId: true },
       }),
     ]);
-    const basesByName = new Map(bases.map((item) => [item.nameNormalized, item]));
-    const fishByName = new Map(fish.map((item) => [item.nameNormalized, item]));
+    const basesByName = buildCatalogLookupIndex(bases);
+    const fishByName = buildCatalogLookupIndex(fish);
     const locationsByBase = new Map<string, LocationCandidate[]>();
     for (const location of locations) {
       const items = locationsByBase.get(location.fishingBaseId) ?? [];
@@ -597,8 +657,8 @@ export class CatchReportParserService {
     );
 
     return {
-      findBase: (nameNormalized) => Promise.resolve(basesByName.get(nameNormalized) ?? null),
-      findFish: (nameNormalized) => Promise.resolve(fishByName.get(nameNormalized) ?? null),
+      findBase: (lookupText) => Promise.resolve(resolveCatalogLookup(basesByName, lookupText)),
+      findFish: (lookupText) => Promise.resolve(resolveCatalogLookup(fishByName, lookupText)),
       listBaits: () => Promise.resolve(baits),
       listAnchors: () => Promise.resolve(anchors),
       listLocations: (baseId) => Promise.resolve(locationsByBase.get(baseId) ?? []),
