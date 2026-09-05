@@ -47,6 +47,7 @@ import { catchReportErrors } from './catch-reports.errors.js';
 import type { CatchReportListQueryDto } from './dto/catch-report-list-query.dto.js';
 import type { CreateCatchReportDto } from './dto/create-catch-report.dto.js';
 import type { PublicCatchReportListQueryDto } from './dto/public-catch-report-list-query.dto.js';
+import type { OwnerCatchReportListQueryDto } from './dto/owner-catch-report-list-query.dto.js';
 import type { UpdateCatchReportDto } from './dto/update-catch-report.dto.js';
 
 const PUBLIC_CATCH_REPORT_SELECT = {
@@ -543,8 +544,14 @@ export class CatchReportsService {
     });
   }
 
-  async listMine(actorUserId: string, query: CatchReportListQueryDto) {
-    return this.list(query, actorUserId);
+  async listMine(actorUserId: string, query: OwnerCatchReportListQueryDto) {
+    return this.list(query, actorUserId, undefined, {
+      source: query.source,
+      fishId: query.fishId,
+      baseId: query.baseId,
+      locationId: query.locationId,
+      baitId: query.baitId,
+    });
   }
 
   async listLocationObservations(locationId: string) {
@@ -855,6 +862,13 @@ export class CatchReportsService {
     query: CatchReportListQueryDto,
     actorUserId?: string,
     publicFilters?: PublicCatchReportFilters,
+    ownerFilters?: {
+      source?: 'native';
+      fishId?: string;
+      baseId?: string;
+      locationId?: string;
+      baitId?: string;
+    },
   ) {
     const limit = query.limit ?? CATCH_REPORT_DEFAULT_LIMIT;
     const cursorWhere = this.cursorWhere(query.cursor);
@@ -872,8 +886,21 @@ export class CatchReportsService {
                 }),
           };
     const where = {
-      ...(actorUserId === undefined ? {} : { userId: actorUserId }),
+      ...(actorUserId === undefined
+        ? {}
+        : {
+            userId: actorUserId,
+            ...(ownerFilters?.source === 'native'
+              ? { importKey: null, contributorKey: nativeContributorKey(actorUserId) }
+              : {}),
+          }),
       ...filterWhere,
+      ...(ownerFilters?.fishId === undefined ? {} : { fishId: ownerFilters.fishId }),
+      ...(ownerFilters?.locationId === undefined ? {} : { locationId: ownerFilters.locationId }),
+      ...(ownerFilters?.baitId === undefined ? {} : { baitId: ownerFilters.baitId }),
+      ...(ownerFilters?.baseId === undefined
+        ? {}
+        : { location: { fishingBaseId: ownerFilters.baseId } }),
       ...cursorWhere,
     };
     const fetchedRecords = await this.prisma.catchReport.findMany({

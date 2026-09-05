@@ -2457,11 +2457,18 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
       .get(`/api/v1/catch-reports?baseIds=${firstCatalog.base.id}&baseIds=${secondCatalog.base.id}`)
       .expect(400);
     assert.equal(readErrorCode(repeatedBaseIds.body as unknown), 'VALIDATION_ERROR');
-    const privateFilter = await api()
-      .get(`/api/v1/me/catch-reports?fishId=${firstCatalog.fish.id}`)
-      .set('Cookie', actor.cookie)
-      .expect(400);
-    assert.equal(readErrorCode(privateFilter.body as unknown), 'VALIDATION_ERROR');
+    const ownerFishFilter = readReportList(
+      (
+        await api()
+          .get(`/api/v1/me/catch-reports?fishId=${firstCatalog.fish.id}`)
+          .set('Cookie', actor.cookie)
+          .expect(200)
+      ).body as unknown,
+    );
+    assert.deepEqual(
+      ownerFishFilter.items.map((report) => asString(report.id, 'report.id')).sort(),
+      targetIds,
+    );
 
     await prisma.fishingBase.update({
       where: { id: firstCatalog.base.id },
@@ -3519,6 +3526,162 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
       (error: unknown) => prismaErrorCode(error) === 'P2002',
     );
     assert.equal(await prisma.catchReport.count(), 5);
+  });
+
+  void test('returns native-only personal rankings, records and filtered archive drill-downs', async () => {
+    const historical = await createCatalog();
+    const current = await createCatalog();
+    const admin = await createActor('ADMIN');
+    const other = await createActor();
+    const earlierWinner = await createStatisticsReport(admin, historical, {
+      weightGrams: 200,
+      createdAt: new Date('2026-07-01T08:00:00.000Z'),
+    });
+    await createStatisticsReport(admin, historical, {
+      weightGrams: 200,
+      createdAt: new Date('2026-07-01T09:00:00.000Z'),
+    });
+    await createStatisticsReport(admin, current, {
+      weightGrams: 50,
+      createdAt: new Date('2026-07-02T08:00:00.000Z'),
+    });
+    await createStatisticsReport(admin, historical, {
+      contributorKey: 'external:forum:personal-statistics-member',
+      importKey: 'external:forum:personal-statistics-observation',
+      weightGrams: 999,
+      createdAt: new Date('2026-06-01T08:00:00.000Z'),
+    });
+    await createStatisticsReport(other, historical, {
+      weightGrams: 500,
+      createdAt: new Date('2026-05-01T08:00:00.000Z'),
+    });
+    await prisma.$transaction([
+      prisma.fishingBaseFish.delete({
+        where: {
+          fishingBaseId_fishId: {
+            fishingBaseId: historical.base.id,
+            fishId: historical.fish.id,
+          },
+        },
+      }),
+      prisma.location.update({ where: { id: historical.location.id }, data: { isActive: false } }),
+      prisma.fishingBase.update({ where: { id: historical.base.id }, data: { isActive: false } }),
+      prisma.fish.update({ where: { id: historical.fish.id }, data: { isActive: false } }),
+      prisma.bait.update({ where: { id: historical.bait.id }, data: { isActive: false } }),
+    ]);
+
+    await api().get('/api/v1/me/catch-reports/statistics').expect(401);
+    const statistics = asObject(
+      (
+        await api()
+          .get('/api/v1/me/catch-reports/statistics')
+          .set('Cookie', admin.cookie)
+          .expect(200)
+      ).body as unknown,
+    );
+    assert.equal(asNumber(statistics.totalCatches, 'totalCatches'), 3);
+    assert.equal(asNumber(statistics.uniqueFishCount, 'uniqueFishCount'), 2);
+    const topFish = asArray(statistics.topFish).map(asObject);
+    assert.equal(asString(asObject(topFish[0]?.item).id, 'topFish.item.id'), historical.fish.id);
+    assert.equal(asNumber(topFish[0]?.reportsCount, 'topFish.reportsCount'), 2);
+    assert.equal(asObject(topFish[0]?.item).isActive, false);
+    const topBases = asArray(statistics.topBases).map(asObject);
+    assert.equal(asString(asObject(topBases[0]?.item).id, 'topBases.item.id'), historical.base.id);
+    assert.equal(asNumber(topBases[0]?.reportsCount, 'topBases.reportsCount'), 2);
+    const topLocations = asArray(statistics.topLocations).map(asObject);
+    assert.equal(
+      asString(asObject(topLocations[0]?.location).id, 'topLocations.location.id'),
+      historical.location.id,
+    );
+    assert.equal(asNumber(topLocations[0]?.reportsCount, 'topLocations.reportsCount'), 2);
+    const topBaits = asArray(statistics.topBaits).map(asObject);
+    assert.equal(asString(asObject(topBaits[0]?.item).id, 'topBaits.item.id'), historical.bait.id);
+    assert.equal(asNumber(topBaits[0]?.reportsCount, 'topBaits.reportsCount'), 2);
+    assert.equal(JSON.stringify(statistics).includes('contributorKey'), false);
+    assert.equal(JSON.stringify(statistics).includes('importKey'), false);
+
+    const firstRecordsPage = asObject(
+      (
+        await api()
+          .get('/api/v1/me/catch-reports/records')
+          .query({ limit: 1 })
+          .set('Cookie', admin.cookie)
+          .expect(200)
+      ).body as unknown,
+    );
+    const firstRecord = asObject(asArray(firstRecordsPage.items)[0]);
+    assert.equal(asNumber(firstRecord.maxWeightGrams, 'maxWeightGrams'), 200);
+    assert.equal(
+      asString(asObject(firstRecord.representativeReport).id, 'representativeReport.id'),
+      earlierWinner.id,
+    );
+    const nextCursor = asString(firstRecordsPage.nextCursor, 'nextCursor');
+    const secondRecordsPage = asObject(
+      (
+        await api()
+          .get('/api/v1/me/catch-reports/records')
+          .query({ limit: 1, cursor: nextCursor })
+          .set('Cookie', admin.cookie)
+          .expect(200)
+      ).body as unknown,
+    );
+    assert.equal(asArray(secondRecordsPage.items).length, 1);
+    assert.equal(secondRecordsPage.nextCursor, null);
+
+    const filtered = readReportList(
+      (
+        await api()
+          .get('/api/v1/me/catch-reports')
+          .query({ source: 'native', fishId: historical.fish.id, limit: 100 })
+          .set('Cookie', admin.cookie)
+          .expect(200)
+      ).body as unknown,
+    );
+    assert.equal(filtered.items.length, 2);
+    assert.equal(
+      filtered.items.every(
+        (item) => asString(asObject(item.fish).id, 'fish.id') === historical.fish.id,
+      ),
+      true,
+    );
+    for (const query of [
+      { source: 'native', baseId: historical.base.id },
+      { source: 'native', locationId: historical.location.id },
+      { source: 'native', baitId: historical.bait.id },
+    ]) {
+      const drilledDown = readReportList(
+        (
+          await api()
+            .get('/api/v1/me/catch-reports')
+            .query({ ...query, limit: 100 })
+            .set('Cookie', admin.cookie)
+            .expect(200)
+        ).body as unknown,
+      );
+      assert.equal(drilledDown.items.length, 2);
+    }
+    const unfiltered = readReportList(
+      (
+        await api()
+          .get('/api/v1/me/catch-reports')
+          .query({ limit: 100 })
+          .set('Cookie', admin.cookie)
+          .expect(200)
+      ).body as unknown,
+    );
+    assert.equal(unfiltered.items.length, 4);
+
+    for (const query of [{ source: 'imported' }, { source: 'native', baseId: 'invalid' }]) {
+      const invalid = await api()
+        .get('/api/v1/me/catch-reports')
+        .query(query)
+        .set('Cookie', admin.cookie)
+        .expect(400);
+      assert.equal(readErrorCode(invalid.body as unknown), 'VALIDATION_ERROR');
+    }
+
+    await prisma.user.update({ where: { id: admin.userId }, data: { isBanned: true } });
+    await api().get('/api/v1/me/catch-reports/statistics').set('Cookie', admin.cookie).expect(200);
   });
 
   void test('accepts all Bases and validates explicit common-hole statistics scopes', async () => {

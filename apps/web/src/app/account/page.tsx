@@ -144,6 +144,9 @@ export default function AccountPage() {
               <Link className={styles.primaryLink} href="/my/catches">
                 Мои уловы
               </Link>
+              <Link className={styles.secondaryLink} href="/my/catches?view=statistics">
+                Статистика и рекорды
+              </Link>
               {state.user.role === 'ADMIN' && !state.user.isBanned ? (
                 <Link className={styles.secondaryLink} href="/admin/catalog">
                   Управлять игровым каталогом

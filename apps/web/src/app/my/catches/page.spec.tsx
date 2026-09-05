@@ -6,9 +6,12 @@ import type { CatchReport } from '@/lib/catch-reports-api';
 
 const mocks = vi.hoisted(() => ({
   deleteCatchReport: vi.fn(),
+  getPersonalCatchStatistics: vi.fn(),
+  listPersonalCatchRecords: vi.fn(),
   listMyCatchReports: vi.fn(),
   reload: vi.fn(),
   replace: vi.fn(),
+  search: '',
   state: {
     kind: 'ready',
     user: {
@@ -37,7 +40,16 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('next/navigation', () => {
   const router = { replace: mocks.replace };
-  return { useRouter: () => router };
+  return { useRouter: () => router, useSearchParams: () => new URLSearchParams(mocks.search) };
+});
+
+vi.mock('@/lib/personal-catch-statistics-api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/personal-catch-statistics-api')>();
+  return {
+    ...actual,
+    getPersonalCatchStatistics: mocks.getPersonalCatchStatistics,
+    listPersonalCatchRecords: mocks.listPersonalCatchRecords,
+  };
 });
 
 vi.mock('@/components/application-shell/application-shell', () => ({
@@ -97,10 +109,13 @@ const activeUser = {
 describe('MyCatchReportsPage', () => {
   beforeEach(() => {
     mocks.deleteCatchReport.mockReset();
+    mocks.getPersonalCatchStatistics.mockReset();
+    mocks.listPersonalCatchRecords.mockReset();
     mocks.listMyCatchReports.mockReset();
     mocks.reload.mockReset();
     mocks.replace.mockReset();
     mocks.state = { kind: 'ready', user: activeUser };
+    mocks.search = '';
   });
 
   test('renders the owner table inside ApplicationShell and preserves detail/edit/delete', async () => {
@@ -178,5 +193,80 @@ describe('MyCatchReportsPage', () => {
     await tester.click(screen.getByRole('button', { name: 'Повторить' }));
     expect(mocks.reload).toHaveBeenCalledTimes(1);
     expect(mocks.listMyCatchReports).not.toHaveBeenCalled();
+  });
+
+  test('renders native statistics, drill-down links and deterministic record representatives', async () => {
+    mocks.search = 'view=statistics';
+    mocks.getPersonalCatchStatistics.mockResolvedValue({
+      totalCatches: 12,
+      uniqueFishCount: 1,
+      topFish: [{ item: { id: 'fish-1', name: 'Кижуч', isActive: false }, reportsCount: 12 }],
+      topBases: [{ item: { id: 'base-1', name: 'Амур', isActive: true }, reportsCount: 12 }],
+      topLocations: [
+        {
+          location: { id: 'location-1', number: 7, name: 'Протока', isActive: true },
+          fishingBase: { id: 'base-1', name: 'Амур', isActive: true },
+          reportsCount: 12,
+        },
+      ],
+      topBaits: [{ item: { id: 'bait-1', name: 'Мотыль', isActive: true }, reportsCount: 12 }],
+    });
+    mocks.listPersonalCatchRecords.mockResolvedValue({
+      items: [
+        {
+          fish: { id: 'fish-1', name: 'Кижуч', isActive: false },
+          maxWeightGrams: 950,
+          representativeReport: {
+            id: 'report-1',
+            createdAt: '2026-08-12T22:30:00.000Z',
+            fishingBase: { id: 'base-1', name: 'Амур', isActive: true },
+            location: { id: 'location-1', number: 7, name: 'Протока', isActive: true },
+            bait: { id: 'bait-1', name: 'Мотыль', isActive: true },
+          },
+        },
+      ],
+      nextCursor: null,
+    });
+
+    render(<MyCatchReportsPage />);
+
+    expect(await screen.findByText(/Уловов:/)).toHaveTextContent('12');
+    expect(screen.getByText('Внешний импорт не учитывается.')).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Кижуч' })).toHaveAttribute(
+      'href',
+      '/my/catches?source=native&fishId=fish-1',
+    );
+    expect(screen.getByRole('table', { name: 'Личные рекорды по рыбам' })).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Открыть' })).toHaveAttribute(
+      'href',
+      '/catches/report-1',
+    );
+    expect(mocks.listMyCatchReports).not.toHaveBeenCalled();
+  });
+
+  test('passes URL-backed native drill-down filters through archive pagination', async () => {
+    mocks.search = 'source=native&baseId=base-1&baitId=bait-1';
+    mocks.listMyCatchReports.mockResolvedValue({ items: [report], nextCursor: null });
+
+    render(<MyCatchReportsPage />);
+
+    expect(await screen.findByText('База: Амур')).toBeVisible();
+    expect(mocks.listMyCatchReports).toHaveBeenCalledWith({
+      source: 'native',
+      baseId: 'base-1',
+      baitId: 'bait-1',
+      limit: 20,
+      signal: expect.any(AbortSignal),
+    });
+    expect(screen.getByText('Наживка: Мотыль')).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Убрать фильтр «База: Амур»' })).toHaveAttribute(
+      'href',
+      '/my/catches?source=native&baitId=bait-1',
+    );
+    expect(screen.getByRole('link', { name: 'Убрать фильтр «Наживка: Мотыль»' })).toHaveAttribute(
+      'href',
+      '/my/catches?source=native&baseId=base-1',
+    );
+    expect(screen.getByRole('link', { name: 'Весь архив' })).toHaveAttribute('href', '/my/catches');
   });
 });

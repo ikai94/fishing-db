@@ -136,6 +136,14 @@ export type PublicCatchReportListOptions = CatchReportPaginationOptions & {
   baseIds?: string[];
 };
 
+export type OwnerCatchReportListOptions = CatchReportPaginationOptions & {
+  source?: 'native';
+  fishId?: string;
+  baseId?: string;
+  locationId?: string;
+  baitId?: string;
+};
+
 const FISHING_METHODS = new Set<FishingMethod>(['BAIT_FISHING', 'SPINNING']);
 const FISHING_NOTES = new Set<FishingNote>(['MIDWATER', 'FROM_BOTTOM', 'SURFACE']);
 const SPINNING_SIZES = new Set<SpinningSize>(['SMALL', 'MEDIUM', 'LARGE']);
@@ -630,9 +638,15 @@ function buildPublicListPath(options: PublicCatchReportListOptions): string {
   return search ? `/catch-reports?${search}` : '/catch-reports';
 }
 
-function buildPaginationPath(path: string, options: CatchReportPaginationOptions): string {
-  const search = buildPaginationQuery(options).toString();
-  return search ? `${path}?${search}` : path;
+function buildOwnerListPath(options: OwnerCatchReportListOptions): string {
+  const query = buildPaginationQuery(options);
+  if (options.source) query.set('source', options.source);
+  if (options.fishId) query.set('fishId', options.fishId);
+  if (options.baseId) query.set('baseId', options.baseId);
+  if (options.locationId) query.set('locationId', options.locationId);
+  if (options.baitId) query.set('baitId', options.baitId);
+  const search = query.toString();
+  return search ? `/me/catch-reports?${search}` : '/me/catch-reports';
 }
 
 export async function listCatchReports(
@@ -656,9 +670,9 @@ export async function getLocationObservations(
 }
 
 export async function listMyCatchReports(
-  options: CatchReportPaginationOptions = {},
+  options: OwnerCatchReportListOptions = {},
 ): Promise<CatchReportPage> {
-  const payload = await apiRequest<unknown>(buildPaginationPath('/me/catch-reports', options), {
+  const payload = await apiRequest<unknown>(buildOwnerListPath(options), {
     signal: options.signal,
   });
   return readCatchReportPage(payload);

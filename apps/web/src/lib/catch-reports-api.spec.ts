@@ -402,11 +402,20 @@ describe('CatchReport list requests', () => {
     expect(mocks.apiRequest).not.toHaveBeenCalled();
   });
 
-  test('keeps the owner list contract pagination-only', async () => {
-    await listMyCatchReports({ limit: 5, cursor: 'owner-cursor' });
-
-    expect(mocks.apiRequest).toHaveBeenCalledWith('/me/catch-reports?limit=5&cursor=owner-cursor', {
-      signal: undefined,
+  test('serializes owner pagination and native archive drill-down filters', async () => {
+    await listMyCatchReports({
+      limit: 5,
+      cursor: 'owner-cursor',
+      source: 'native',
+      fishId: 'fish-id',
+      baseId: 'base-id',
+      locationId: 'location-id',
+      baitId: 'bait-id',
     });
+
+    expect(mocks.apiRequest).toHaveBeenCalledWith(
+      '/me/catch-reports?limit=5&cursor=owner-cursor&source=native&fishId=fish-id&baseId=base-id&locationId=location-id&baitId=bait-id',
+      { signal: undefined },
+    );
   });
 });

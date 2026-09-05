@@ -854,6 +854,40 @@ void describe('CatchReportsService v2', () => {
     assert.equal('importKey' in asObject(asObject(queries[1]).select), false);
   });
 
+  void it('combines native provenance and owner archive drill-down filters', async () => {
+    let captured: unknown;
+    const prisma = {
+      catchReport: {
+        findMany: (input: unknown) => {
+          captured = input;
+          return Promise.resolve([]);
+        },
+      },
+    } as unknown as PrismaService;
+
+    await createService(prisma).listMine(USER_ID, {
+      source: 'native',
+      fishId: FISH_ID,
+      baseId: BASE_ID,
+      locationId: LOCATION_ID,
+      baitId: BAIT_ID,
+      limit: 20,
+    });
+
+    assert.deepEqual(asObject(captured).where, {
+      userId: USER_ID,
+      importKey: null,
+      contributorKey: `local-user:${USER_ID}`,
+      fishId: FISH_ID,
+      locationId: LOCATION_ID,
+      baitId: BAIT_ID,
+      location: { fishingBaseId: BASE_ID },
+    });
+    const select = asObject(asObject(captured).select);
+    assert.equal('contributorKey' in select, false);
+    assert.equal('importKey' in select, false);
+  });
+
   void it('checks ownership before validating an update', async () => {
     const prisma = updatePrisma({ ownerId: OTHER_USER_ID });
     await assert.rejects(

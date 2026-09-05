@@ -54,6 +54,10 @@ describe('AccountPage', () => {
       screen.getByRole('heading', { level: 1, name: 'Аккаунт' }),
     );
     expect(screen.getByRole('link', { name: 'Мои уловы' })).toHaveAttribute('href', '/my/catches');
+    expect(screen.getByRole('link', { name: 'Статистика и рекорды' })).toHaveAttribute(
+      'href',
+      '/my/catches?view=statistics',
+    );
     expect(screen.getByRole('link', { name: 'Управлять игровым каталогом' })).toHaveAttribute(
       'href',
       '/admin/catalog',

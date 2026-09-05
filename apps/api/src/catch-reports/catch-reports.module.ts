@@ -9,6 +9,7 @@ import { FishingConditionStatisticsService } from './fishing-condition-statistic
 import { FishCatchAggregatesService } from './fish-catch-aggregates.service.js';
 import { HoleStatisticsService } from './hole-statistics.service.js';
 import { MyCatchReportsController } from './my-catch-reports.controller.js';
+import { PersonalCatchStatisticsService } from './personal-catch-statistics.service.js';
 import { CatchReportParserService } from './parser/catch-report-parser.service.js';
 
 @Module({
@@ -20,6 +21,7 @@ import { CatchReportParserService } from './parser/catch-report-parser.service.j
     FishCatchAggregatesService,
     FishingConditionStatisticsService,
     HoleStatisticsService,
+    PersonalCatchStatisticsService,
     CatchReportParserService,
   ],
 })
