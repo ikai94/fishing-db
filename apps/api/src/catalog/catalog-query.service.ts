@@ -4,6 +4,10 @@ import type { CatalogStatus } from './catalog.constants.js';
 import { catalogErrors } from './catalog-errors.js';
 import { BaitImageDelivery } from './bait-image-delivery.js';
 import { FishImageDelivery } from './fish-image-delivery.js';
+import {
+  rankCatalogSearchCandidates,
+  type CatalogSearchCandidate,
+} from './catalog-global-search.js';
 
 const PUBLIC_NAMED_ITEM_SELECT = {
   id: true,
@@ -45,6 +49,42 @@ export class CatalogQueryService {
     ]);
 
     return { catchReportsCount, registeredUsersCount };
+  }
+
+  async searchPublicCatalog(query: string, limit: number) {
+    const [fishingBases, locations, fish, baits] = await Promise.all([
+      this.prisma.fishingBase.findMany({
+        where: { isActive: true },
+        select: PUBLIC_NAMED_ITEM_SELECT,
+      }),
+      this.prisma.location.findMany({
+        where: { isActive: true, fishingBase: { isActive: true } },
+        select: {
+          id: true,
+          name: true,
+          number: true,
+          fishingBase: { select: PUBLIC_NAMED_ITEM_SELECT },
+        },
+      }),
+      this.prisma.fish.findMany({
+        where: { isActive: true },
+        select: PUBLIC_NAMED_ITEM_SELECT,
+      }),
+      this.prisma.bait.findMany({
+        where: { isActive: true },
+        select: { ...PUBLIC_NAMED_ITEM_SELECT, type: true },
+      }),
+    ]);
+
+    const candidates: CatalogSearchCandidate[] = [
+      ...fishingBases.map((item) => ({ kind: 'FISHING_BASE' as const, ...item })),
+      ...locations.map((item) => ({ kind: 'LOCATION' as const, ...item })),
+      ...fish.map((item) => ({ kind: 'FISH' as const, ...item })),
+      ...baits.map(({ type, ...item }) => ({ kind: 'BAIT' as const, ...item, baitType: type })),
+    ];
+    const ranked = rankCatalogSearchCandidates(candidates, query);
+
+    return { items: ranked.slice(0, limit), total: ranked.length };
   }
 
   async listPublicFishingBases() {

@@ -58,8 +58,27 @@ export type PublicCatalogSummary = {
   registeredUsersCount: number;
 };
 
+export type PublicCatalogSearchItem =
+  | (PublicCatalogItem & { kind: 'FISHING_BASE' })
+  | (PublicCatalogItem & { kind: 'FISH' })
+  | (PublicCatalogItem & {
+      kind: 'LOCATION';
+      number: number;
+      fishingBase: PublicCatalogItem;
+    })
+  | (PublicCatalogItem & { kind: 'BAIT'; baitType: BaitType });
+
+export type PublicCatalogSearchResult = {
+  items: PublicCatalogSearchItem[];
+  total: number;
+};
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  return Object.keys(value).sort().join(',') === [...keys].sort().join(',');
 }
 
 function readCatalogItem(value: unknown): PublicCatalogItem {
@@ -240,9 +259,97 @@ function readBait(value: unknown): PublicBait {
   return { ...item, type: value.type, image: readBaitImage(value.image) };
 }
 
+function readCatalogSearchItem(value: unknown): PublicCatalogSearchItem {
+  if (!isRecord(value) || typeof value.kind !== 'string') {
+    throw new Error('Сервер вернул некорректный ответ поиска');
+  }
+
+  if (value.kind === 'FISHING_BASE' || value.kind === 'FISH') {
+    if (!hasExactKeys(value, ['id', 'kind', 'name'])) {
+      throw new Error('Сервер вернул некорректный ответ поиска');
+    }
+    return { kind: value.kind, ...readCatalogItem(value) };
+  }
+
+  if (value.kind === 'LOCATION') {
+    if (
+      !hasExactKeys(value, ['fishingBase', 'id', 'kind', 'name', 'number']) ||
+      typeof value.number !== 'number' ||
+      !Number.isInteger(value.number) ||
+      !isRecord(value.fishingBase) ||
+      !hasExactKeys(value.fishingBase, ['id', 'name'])
+    ) {
+      throw new Error('Сервер вернул некорректный ответ поиска');
+    }
+    return {
+      kind: 'LOCATION',
+      ...readCatalogItem(value),
+      number: value.number,
+      fishingBase: readCatalogItem(value.fishingBase),
+    };
+  }
+
+  if (
+    value.kind !== 'BAIT' ||
+    !hasExactKeys(value, ['baitType', 'id', 'kind', 'name']) ||
+    (value.baitType !== 'BAIT' && value.baitType !== 'LURE')
+  ) {
+    throw new Error('Сервер вернул некорректный ответ поиска');
+  }
+  return { kind: 'BAIT', ...readCatalogItem(value), baitType: value.baitType };
+}
+
+function readCatalogSearchResult(payload: unknown): PublicCatalogSearchResult {
+  if (
+    !isRecord(payload) ||
+    !hasExactKeys(payload, ['items', 'total']) ||
+    !Array.isArray(payload.items)
+  ) {
+    throw new Error('Сервер вернул некорректный ответ поиска');
+  }
+
+  if (
+    typeof payload.total !== 'number' ||
+    !Number.isSafeInteger(payload.total) ||
+    payload.total < 0
+  ) {
+    throw new Error('Сервер вернул некорректный ответ поиска');
+  }
+
+  return {
+    items: payload.items.map(readCatalogSearchItem),
+    total: payload.total,
+  };
+}
+
+export function catalogSearchItemHref(item: PublicCatalogSearchItem): string {
+  const id = encodeURIComponent(item.id);
+  if (item.kind === 'FISHING_BASE') return `/bases/${id}`;
+  if (item.kind === 'LOCATION') return `/locations/${id}`;
+  if (item.kind === 'FISH') return `/fish/${id}`;
+  return `/baits?baitId=${id}`;
+}
+
+export function catalogSearchItemKindLabel(item: PublicCatalogSearchItem): string {
+  if (item.kind === 'FISHING_BASE') return 'База';
+  if (item.kind === 'LOCATION') return 'Локация';
+  if (item.kind === 'FISH') return 'Рыба';
+  return item.baitType === 'BAIT' ? 'Наживка' : 'Приманка';
+}
+
 export async function listFishingBases(signal?: AbortSignal): Promise<PublicFishingBaseSummary[]> {
   const payload = await apiRequest<unknown>('/catalog/bases', { signal });
   return readItems(payload, readFishingBaseSummary);
+}
+
+export async function searchCatalog(
+  query: string,
+  limit: number,
+  signal?: AbortSignal,
+): Promise<PublicCatalogSearchResult> {
+  const search = new URLSearchParams({ q: query, limit: String(limit) });
+  const payload = await apiRequest<unknown>(`/catalog/search?${search.toString()}`, { signal });
+  return readCatalogSearchResult(payload);
 }
 
 export async function getCatalogSummary(signal?: AbortSignal): Promise<PublicCatalogSummary> {

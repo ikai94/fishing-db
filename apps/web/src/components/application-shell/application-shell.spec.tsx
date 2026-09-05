@@ -13,6 +13,10 @@ vi.mock('./user-header', () => ({
   UserHeader: () => <div>Аккаунт</div>,
 }));
 
+vi.mock('./global-catalog-search', () => ({
+  GlobalCatalogSearch: () => <form role="search" aria-label="Поиск по каталогу" />,
+}));
+
 import { ApplicationShell } from './application-shell';
 
 describe('ApplicationShell', () => {
@@ -28,6 +32,7 @@ describe('ApplicationShell', () => {
     expect(within(sidebar).getByLabelText('Статистика')).toBeVisible();
     expect(within(sidebar).getByText('РЫБНАЯ БАЗА')).toBeVisible();
     expect(within(screen.getByRole('banner')).getByText('Аккаунт')).toBeVisible();
+    expect(within(screen.getByRole('banner')).getByRole('search')).toBeVisible();
     expect(screen.getByRole('link', { name: 'К содержанию' })).toHaveAttribute(
       'href',
       '#main-content',

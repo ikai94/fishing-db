@@ -184,6 +184,14 @@
   border-bottom: 1px solid rgb(204 215 220 / 62%);
 }
 
+.focusedBaitItem,
+.baitItem:focus {
+  border-radius: var(--app-radius-sm);
+  background: var(--app-accent-soft);
+  outline: 3px solid rgb(102 173 216 / 45%);
+  outline-offset: -2px;
+}
+
 .baitImageFrame {
   display: grid;
   width: 44px;

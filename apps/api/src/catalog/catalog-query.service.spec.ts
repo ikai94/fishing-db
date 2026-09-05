@@ -35,6 +35,76 @@ function hasCode(expectedCode: string): (error: unknown) => boolean {
 }
 
 void describe('CatalogQueryService', () => {
+  void it('searches only active public catalog projections and preserves server ranking before limiting', async () => {
+    const queries: Record<string, unknown> = {};
+    const prisma = {
+      fishingBase: {
+        findMany: (input: unknown) => {
+          queries.fishingBase = input;
+          return Promise.resolve([
+            { id: 'base-amur', name: 'Амур' },
+            { id: 'base-other', name: 'Озеро' },
+          ]);
+        },
+      },
+      location: {
+        findMany: (input: unknown) => {
+          queries.location = input;
+          return Promise.resolve([
+            {
+              id: 'location-amur',
+              name: 'Амурский берег',
+              number: 2,
+              fishingBase: { id: 'base-other', name: 'Озеро' },
+            },
+          ]);
+        },
+      },
+      fish: {
+        findMany: (input: unknown) => {
+          queries.fish = input;
+          return Promise.resolve([{ id: 'fish-amur', name: 'Белый амур' }]);
+        },
+      },
+      bait: {
+        findMany: (input: unknown) => {
+          queries.bait = input;
+          return Promise.resolve([{ id: 'bait-amur', name: 'Амурский червь', type: 'BAIT' }]);
+        },
+      },
+    } as unknown as PrismaService;
+    const service = catalogQueryService(prisma);
+
+    assert.deepEqual(await service.searchPublicCatalog('амур', 3), {
+      items: [
+        { kind: 'FISHING_BASE', id: 'base-amur', name: 'Амур' },
+        {
+          kind: 'LOCATION',
+          id: 'location-amur',
+          name: 'Амурский берег',
+          number: 2,
+          fishingBase: { id: 'base-other', name: 'Озеро' },
+        },
+        { kind: 'BAIT', id: 'bait-amur', name: 'Амурский червь', baitType: 'BAIT' },
+      ],
+      total: 4,
+    });
+    assert.deepEqual(asObject(queries.fishingBase).where, { isActive: true });
+    assert.deepEqual(asObject(queries.fishingBase).select, { id: true, name: true });
+    assert.deepEqual(asObject(queries.location).where, {
+      isActive: true,
+      fishingBase: { isActive: true },
+    });
+    assert.deepEqual(Object.keys(asObject(asObject(queries.location).select)).sort(), [
+      'fishingBase',
+      'id',
+      'name',
+      'number',
+    ]);
+    assert.deepEqual(asObject(queries.fish).select, { id: true, name: true });
+    assert.deepEqual(asObject(queries.bait).select, { id: true, name: true, type: true });
+  });
+
   void it('returns only CatchReport and registered User counts for the public summary', async () => {
     const queries: unknown[] = [];
     const prisma = {

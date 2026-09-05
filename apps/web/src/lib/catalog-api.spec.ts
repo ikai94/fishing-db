@@ -9,7 +9,15 @@ vi.mock('./api-client', () => ({
   apiRequest: mocks.apiRequest,
 }));
 
-import { getCatalogSummary, getFish, listBaits, listFish, listFishingBases } from './catalog-api';
+import {
+  catalogSearchItemHref,
+  getCatalogSummary,
+  getFish,
+  listBaits,
+  listFish,
+  listFishingBases,
+  searchCatalog,
+} from './catalog-api';
 
 const IMAGE_HASH = 'a'.repeat(64);
 const IMAGE_PATH = `/api/v1/fish-images/101-${IMAGE_HASH}.png`;
@@ -19,6 +27,62 @@ const BAIT_IMAGE_URL = `http://localhost:3001${BAIT_IMAGE_PATH}`;
 
 describe('public catalog API', () => {
   beforeEach(() => mocks.apiRequest.mockReset());
+
+  test('strictly decodes ranked search results, preserves server order and builds entity links', async () => {
+    const items = [
+      { kind: 'FISHING_BASE' as const, id: 'base-1', name: 'Амур' },
+      {
+        kind: 'LOCATION' as const,
+        id: 'location/1',
+        name: 'Понтонный мост',
+        number: 3,
+        fishingBase: { id: 'base-1', name: 'Амур' },
+      },
+      { kind: 'FISH' as const, id: 'fish-1', name: 'Белый амур' },
+      { kind: 'BAIT' as const, id: 'bait?1', name: 'Живец', baitType: 'BAIT' as const },
+    ];
+    mocks.apiRequest.mockResolvedValue({ items, total: 12 });
+    const controller = new AbortController();
+
+    await expect(searchCatalog('амур щ', 8, controller.signal)).resolves.toEqual({
+      items,
+      total: 12,
+    });
+    expect(mocks.apiRequest).toHaveBeenCalledWith(
+      '/catalog/search?q=%D0%B0%D0%BC%D1%83%D1%80+%D1%89&limit=8',
+      { signal: controller.signal },
+    );
+    expect(items.map(catalogSearchItemHref)).toEqual([
+      '/bases/base-1',
+      '/locations/location%2F1',
+      '/fish/fish-1',
+      '/baits?baitId=bait%3F1',
+    ]);
+  });
+
+  test.each([
+    {},
+    { items: [], total: -1 },
+    { items: [{ kind: 'FISH', id: 'fish', name: 'Сом', private: true }], total: 1 },
+    {
+      items: [
+        {
+          kind: 'LOCATION',
+          id: 'location',
+          name: 'Берег',
+          number: 1,
+          fishingBase: { id: 'base', name: 'Амур', isActive: true },
+        },
+      ],
+      total: 1,
+    },
+    { items: [{ kind: 'BAIT', id: 'bait', name: 'Живец', baitType: 'OTHER' }], total: 1 },
+  ])('rejects malformed or expanded search payloads: %o', async (payload) => {
+    mocks.apiRequest.mockResolvedValue(payload);
+    await expect(searchCatalog('сом', 8)).rejects.toThrow(
+      'Сервер вернул некорректный ответ поиска',
+    );
+  });
 
   test('decodes active Location and Fish counts for Base summaries', async () => {
     mocks.apiRequest.mockResolvedValue({

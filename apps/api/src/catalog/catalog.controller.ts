@@ -1,4 +1,4 @@
-import { Controller, Get, Inject, Param } from '@nestjs/common';
+import { Controller, Get, Inject, Param, Query } from '@nestjs/common';
 import { createApplicationValidationPipe } from '../common/validation/validation-exception.factory.js';
 import { CatalogQueryService } from './catalog-query.service.js';
 import {
@@ -6,6 +6,7 @@ import {
   FishIdParamsDto,
   LocationIdParamsDto,
 } from './dto/catalog-params.dto.js';
+import { CatalogSearchQueryDto } from './dto/catalog-search-query.dto.js';
 
 @Controller('catalog')
 export class CatalogController {
@@ -14,6 +15,13 @@ export class CatalogController {
   @Get('summary')
   getSummary() {
     return this.catalogQuery.getPublicSummary();
+  }
+
+  @Get('search')
+  search(
+    @Query(createApplicationValidationPipe(CatalogSearchQueryDto)) query: CatalogSearchQueryDto,
+  ) {
+    return this.catalogQuery.searchPublicCatalog(query.q, query.limit);
   }
 
   @Get('bases')

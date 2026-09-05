@@ -608,6 +608,96 @@ void describe('Catalog API (PostgreSQL e2e)', { concurrency: false }, () => {
     assertPublicProjection(baitResponse.body);
   });
 
+  void test('global catalog search is active-only, normalized, AND-token ranked and publicly allowlisted', async () => {
+    const base = await prisma.fishingBase.create({
+      data: { name: 'Амур', nameNormalized: 'амур' },
+    });
+    const otherBase = await prisma.fishingBase.create({
+      data: { name: 'Крайний водоём', nameNormalized: 'крайний водоём' },
+    });
+    const inactiveBase = await prisma.fishingBase.create({
+      data: { name: 'Амур скрытый', nameNormalized: 'амур скрытый', isActive: false },
+    });
+    const location = await prisma.location.create({
+      data: {
+        fishingBaseId: otherBase.id,
+        number: 7,
+        name: 'Амурский берег',
+        nameNormalized: 'амурский берег',
+      },
+    });
+    await prisma.location.create({
+      data: {
+        fishingBaseId: inactiveBase.id,
+        number: 1,
+        name: 'Амурская скрытая локация',
+        nameNormalized: 'амурская скрытая локация',
+      },
+    });
+    const fish = await prisma.fish.create({
+      data: { name: 'Белый амур', nameNormalized: 'белый амур' },
+    });
+    const valyok = await prisma.fish.create({
+      data: { name: 'Валёк', nameNormalized: 'валёк' },
+    });
+    const bait = await prisma.bait.create({
+      data: { name: 'Амурский червь', nameNormalized: 'амурский червь', type: 'BAIT' },
+    });
+    await prisma.fish.create({
+      data: { name: 'Амур невидимый', nameNormalized: 'амур невидимый', isActive: false },
+    });
+
+    const ranked = await api()
+      .get('/api/v1/catalog/search')
+      .query({ q: 'АМУР', limit: 3 })
+      .expect(200);
+    assert.deepEqual(ranked.body, {
+      items: [
+        { kind: 'FISHING_BASE', id: base.id, name: base.name },
+        {
+          kind: 'LOCATION',
+          id: location.id,
+          name: location.name,
+          number: location.number,
+          fishingBase: { id: otherBase.id, name: otherBase.name },
+        },
+        { kind: 'BAIT', id: bait.id, name: bait.name, baitType: bait.type },
+      ],
+      total: 4,
+    });
+    assertPublicProjection(ranked.body);
+    assert.equal(JSON.stringify(ranked.body).includes('Амур невидимый'), false);
+    assert.equal(JSON.stringify(ranked.body).includes('Амур скрытый'), false);
+
+    const andTokens = await api()
+      .get('/api/v1/catalog/search')
+      .query({ q: 'бел амур', limit: 100 })
+      .expect(200);
+    assert.deepEqual(andTokens.body, {
+      items: [{ kind: 'FISH', id: fish.id, name: fish.name }],
+      total: 1,
+    });
+    const yoVariant = await api()
+      .get('/api/v1/catalog/search')
+      .query({ q: 'валек', limit: 100 })
+      .expect(200);
+    assert.deepEqual(yoVariant.body, {
+      items: [{ kind: 'FISH', id: valyok.id, name: valyok.name }],
+      total: 1,
+    });
+    const yiVariant = await api()
+      .get('/api/v1/catalog/search')
+      .query({ q: 'краинии', limit: 100 })
+      .expect(200);
+    assert.deepEqual(yiVariant.body, {
+      items: [{ kind: 'FISHING_BASE', id: otherBase.id, name: otherBase.name }],
+      total: 1,
+    });
+
+    await api().get('/api/v1/catalog/search').expect(400);
+    await api().get('/api/v1/catalog/search').query({ q: 'амур', limit: 101 }).expect(400);
+  });
+
   void test('public Fish detail returns only active related Bases in normalized order', async () => {
     const fish = await prisma.fish.create({
       data: {

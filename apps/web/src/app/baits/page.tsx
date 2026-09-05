@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useId, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { Suspense, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import styles from './page.module.css';
 import { ApplicationShell } from '@/components/application-shell/application-shell';
 import { ShellIcon } from '@/components/application-shell/shell-icon';
@@ -26,6 +27,22 @@ function baitTypeLabel(type: PublicBait['type']): string {
 }
 
 export default function BaitsPage() {
+  return (
+    <Suspense fallback={null}>
+      <BaitsCatalog />
+    </Suspense>
+  );
+}
+
+function BaitsCatalog() {
+  const searchParams = useSearchParams();
+  const focusedBaitId = searchParams.get('baitId');
+
+  return <BaitsCatalogRuntime focusedBaitId={focusedBaitId} key={focusedBaitId ?? 'no-focus'} />;
+}
+
+function BaitsCatalogRuntime({ focusedBaitId }: { focusedBaitId: string | null }) {
+  const baitElements = useRef(new Map<string, HTMLLIElement>());
   const loadBaits = useCallback((signal: AbortSignal) => listBaits(signal), []);
   const { state, reload } = useApiResource(
     loadBaits,
@@ -45,6 +62,19 @@ export default function BaitsPage() {
 
     return filterCatalogItems(typeFiltered, query);
   }, [activeType, query, sortedBaits]);
+
+  useEffect(() => {
+    if (focusedBaitId === null || state.kind !== 'ready') return;
+    if (!state.data.some((bait) => bait.id === focusedBaitId)) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      const element = baitElements.current.get(focusedBaitId);
+      if (element === undefined) return;
+      element.scrollIntoView({ block: 'center' });
+      element.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [focusedBaitId, state]);
 
   return (
     <ApplicationShell>
@@ -138,7 +168,18 @@ export default function BaitsPage() {
             ) : (
               <ul className={styles.baitList} aria-label="Наживки и приманки каталога">
                 {displayedBaits.map((bait) => (
-                  <li className={styles.baitItem} key={bait.id}>
+                  <li
+                    className={`${styles.baitItem} ${
+                      bait.id === focusedBaitId ? styles.focusedBaitItem : ''
+                    }`}
+                    id={`bait-${bait.id}`}
+                    key={bait.id}
+                    ref={(element) => {
+                      if (element === null) baitElements.current.delete(bait.id);
+                      else baitElements.current.set(bait.id, element);
+                    }}
+                    tabIndex={-1}
+                  >
                     <BaitImage baitName={bait.name} image={bait.image} />
                     <span className={styles.baitName}>{bait.name}</span>
                     <span

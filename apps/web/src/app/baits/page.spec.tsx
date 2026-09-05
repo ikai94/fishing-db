@@ -6,6 +6,11 @@ import styles from './page.module.css';
 
 const mocks = vi.hoisted(() => ({
   listBaits: vi.fn(),
+  search: '',
+}));
+
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => new URLSearchParams(mocks.search),
 }));
 
 vi.mock('@/lib/catalog-api', () => ({
@@ -43,7 +48,26 @@ function visibleBaitNames(): string[] {
 }
 
 describe('BaitsPage', () => {
-  beforeEach(() => mocks.listBaits.mockReset());
+  beforeEach(() => {
+    mocks.listBaits.mockReset();
+    mocks.search = '';
+  });
+
+  test('reveals, scrolls to and focuses a valid baitId deep link', async () => {
+    const scrollIntoView = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+    mocks.search = 'baitId=bait-live';
+    mocks.listBaits.mockResolvedValue(baits);
+    render(<BaitsPage />);
+
+    const target = (await screen.findByText('Живец')).closest('li');
+    expect(target).not.toBeNull();
+    if (target === null) throw new Error('Expected the focused Bait list item');
+    await waitFor(() => expect(target).toHaveFocus());
+    expect(target).toHaveClass(styles.focusedBaitItem);
+    expect(target).toHaveAttribute('id', 'bait-bait-live');
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'center' });
+  });
 
   test('uses the application shell and renders one dense alphabetical non-clickable list', async () => {
     mocks.listBaits.mockResolvedValue(baits);

@@ -4,6 +4,7 @@ import { ShellIcon } from './shell-icon';
 import { SidebarNavigation } from './sidebar-navigation';
 import { SidebarStatistics } from './sidebar-statistics';
 import { UserHeader } from './user-header';
+import { GlobalCatalogSearch } from './global-catalog-search';
 
 type ApplicationShellProps = { children: ReactNode };
 
@@ -26,6 +27,7 @@ export function ApplicationShell({ children }: ApplicationShellProps) {
 
       <div className={styles.workspace}>
         <header className={styles.topbar}>
+          <GlobalCatalogSearch />
           <div className={styles.userDock}>
             <UserHeader />
           </div>
