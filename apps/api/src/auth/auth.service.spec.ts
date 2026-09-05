@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict';
-import { ConflictException, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { describe, it } from 'node:test';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AuthService } from './auth.service.js';
-import type { PreparedSession, SafeUser } from './auth.types.js';
+import type { PreparedAuthToken } from './auth-token.service.js';
+import { AuthTokenService } from './auth-token.service.js';
+import type { SafeUser } from './auth.types.js';
+import { AuthEmailTokenCipher } from './email/auth-email-token-cipher.service.js';
 import { PasswordService } from './password.service.js';
 import { SessionService } from './session.service.js';
 
@@ -16,15 +19,33 @@ const safeUser: SafeUser = {
   createdAt: new Date('2026-08-08T12:00:00.000Z'),
 };
 
-const preparedSession: PreparedSession = {
+const preparedToken: PreparedAuthToken = {
   rawToken: Buffer.alloc(32, 3).toString('base64url'),
   tokenHash: 'a'.repeat(64),
+  purpose: 'EMAIL_VERIFICATION',
   createdAt: new Date('2026-08-08T12:00:00.000Z'),
-  expiresAt: new Date('2026-09-07T12:00:00.000Z'),
+  expiresAt: new Date('2026-08-09T12:00:00.000Z'),
 };
 
+function service(
+  prisma: PrismaService,
+  passwordService: PasswordService,
+  sessionService = {} as SessionService,
+  tokenService = {
+    prepareToken: () => preparedToken,
+  } as unknown as AuthTokenService,
+): AuthService {
+  return new AuthService(prisma, passwordService, sessionService, tokenService, {
+    encrypt: () => 'encrypted-token',
+  } as unknown as AuthEmailTokenCipher);
+}
+
 function exceptionCode(error: unknown): string | undefined {
-  if (!(error instanceof ConflictException || error instanceof UnauthorizedException)) {
+  if (!(
+    error instanceof ConflictException ||
+    error instanceof UnauthorizedException ||
+    error instanceof ForbiddenException
+  )) {
     return undefined;
   }
 
@@ -35,90 +56,86 @@ function exceptionCode(error: unknown): string | undefined {
 }
 
 void describe('AuthService', () => {
-  void it('transactionally creates explicitly mapped user and session fields', async () => {
+  void it('transactionally creates an unverified user, verification token, and encrypted outbox record', async () => {
     let userData: unknown;
-    let sessionData: unknown;
+    let tokenData: unknown;
+    let outboxData: unknown;
     const transaction = {
       user: {
         create: (arguments_: { data: unknown }) => {
           userData = arguments_.data;
-          return Promise.resolve(safeUser);
+          return Promise.resolve({ id: safeUser.id });
         },
       },
-      session: {
+      authToken: {
         create: (arguments_: { data: unknown }) => {
-          sessionData = arguments_.data;
-          return Promise.resolve({ id: 'session-id' });
+          tokenData = arguments_.data;
+          return Promise.resolve({ id: 'token-id' });
+        },
+      },
+      authEmailOutbox: {
+        create: (arguments_: { data: unknown }) => {
+          outboxData = arguments_.data;
+          return Promise.resolve({ id: 'outbox-id' });
         },
       },
     };
-    const prisma = {
-      $transaction: (callback: (client: typeof transaction) => Promise<unknown>) =>
-        callback(transaction),
-    } as unknown as PrismaService;
-    const passwordService = {
-      hashPassword: () => Promise.resolve('stored-password-hash'),
-    } as unknown as PasswordService;
-    const sessionService = {
-      prepareSession: () => preparedSession,
-    } as unknown as SessionService;
-    const service = new AuthService(prisma, passwordService, sessionService);
+    const authService = service(
+      {
+        $transaction: (callback: (client: typeof transaction) => Promise<unknown>) =>
+          callback(transaction),
+      } as unknown as PrismaService,
+      { hashPassword: () => Promise.resolve('stored-password-hash') } as unknown as PasswordService,
+    );
 
-    const result = await service.register({
+    const result = await authService.register({
       email: ' Angler@Example.RU ',
       nickname: ' BigFish ',
       password: 'correct horse 🐟',
     });
 
+    assert.equal(result, undefined);
     assert.deepEqual(userData, {
       email: 'angler@example.ru',
       nickname: 'BigFish',
       nicknameNormalized: 'bigfish',
       passwordHash: 'stored-password-hash',
+      emailVerifiedAt: null,
     });
-    assert.deepEqual(sessionData, {
+    assert.deepEqual(tokenData, {
       userId: 'user-id',
-      tokenHash: preparedSession.tokenHash,
-      createdAt: preparedSession.createdAt,
-      expiresAt: preparedSession.expiresAt,
+      purpose: 'EMAIL_VERIFICATION',
+      tokenHash: preparedToken.tokenHash,
+      createdAt: preparedToken.createdAt,
+      expiresAt: preparedToken.expiresAt,
     });
-    assert.deepEqual(result, {
-      user: safeUser,
-      session: {
-        sessionId: 'session-id',
-        rawToken: preparedSession.rawToken,
-        expiresAt: preparedSession.expiresAt,
-      },
+    assert.deepEqual(outboxData, {
+      authTokenId: 'token-id',
+      recipientEmail: 'angler@example.ru',
+      encryptedToken: 'encrypted-token',
+      createdAt: preparedToken.createdAt,
+      availableAt: preparedToken.createdAt,
     });
   });
 
-  void it('maps a Prisma email uniqueness race to EMAIL_ALREADY_EXISTS', async () => {
-    const prisma = {
-      $transaction: () => {
-        const error = new Error('Unique constraint failed') as Error & {
-          code: string;
-          meta: { target: string[] };
-        };
-        error.code = 'P2002';
-        error.meta = { target: ['email'] };
-        return Promise.reject(error);
-      },
-    } as unknown as PrismaService;
-    const passwordService = {
-      hashPassword: () => Promise.resolve('stored-password-hash'),
-    } as unknown as PasswordService;
-    const sessionService = {
-      prepareSession: () => preparedSession,
-    } as unknown as SessionService;
-    const service = new AuthService(prisma, passwordService, sessionService);
+  void it('maps an email uniqueness race to EMAIL_ALREADY_EXISTS', async () => {
+    const prismaError = new Error('Unique constraint failed') as Error & {
+      code: string;
+      meta: { target: string[] };
+    };
+    prismaError.code = 'P2002';
+    prismaError.meta = { target: ['email'] };
+    const authService = service(
+      { $transaction: () => Promise.reject(prismaError) } as unknown as PrismaService,
+      { hashPassword: () => Promise.resolve('stored-password-hash') } as unknown as PasswordService,
+    );
 
     await assert.rejects(
-      () =>
-        service.register({
-          email: 'angler@example.ru',
-          nickname: 'BigFish',
-          password: 'correct horse 🐟',
-        }),
+      authService.register({
+        email: 'angler@example.ru',
+        nickname: 'BigFish',
+        password: 'correct horse 🐟',
+      }),
       (error: unknown) => exceptionCode(error) === 'EMAIL_ALREADY_EXISTS',
     );
   });
@@ -127,32 +144,30 @@ void describe('AuthService', () => {
     const passwordService = {
       verifyPasswordOrDummy: () => Promise.resolve(false),
     } as unknown as PasswordService;
-    const sessionService = {} as SessionService;
-
-    const unknownService = new AuthService(
-      {
-        user: { findUnique: () => Promise.resolve(null) },
-      } as unknown as PrismaService,
+    const unknownService = service(
+      { user: { findUnique: () => Promise.resolve(null) } } as unknown as PrismaService,
       passwordService,
-      sessionService,
     );
-    const wrongPasswordService = new AuthService(
+    const wrongPasswordService = service(
       {
         user: {
-          findUnique: () => Promise.resolve({ ...safeUser, passwordHash: 'stored-password-hash' }),
+          findUnique: () =>
+            Promise.resolve({
+              ...safeUser,
+              passwordHash: 'stored-password-hash',
+              emailVerifiedAt: new Date(),
+            }),
         },
       } as unknown as PrismaService,
       passwordService,
-      sessionService,
     );
 
-    const getLoginError = async (service: AuthService): Promise<unknown> => {
+    const getLoginError = async (authService: AuthService): Promise<unknown> => {
       try {
-        await service.login({ email: 'angler@example.ru', password: 'wrong password value' });
+        await authService.login({ email: 'angler@example.ru', password: 'wrong password value' });
       } catch (error: unknown) {
         return error;
       }
-
       assert.fail('Login should have failed');
     };
     const unknownError = await getLoginError(unknownService);
@@ -164,5 +179,34 @@ void describe('AuthService', () => {
       (unknownError as UnauthorizedException).getResponse(),
       (wrongPasswordError as UnauthorizedException).getResponse(),
     );
+  });
+
+  void it('rejects correct credentials for an unverified user without creating a session', async () => {
+    let sessionCreated = false;
+    const authService = service(
+      {
+        user: {
+          findUnique: () =>
+            Promise.resolve({
+              ...safeUser,
+              passwordHash: 'stored-password-hash',
+              emailVerifiedAt: null,
+            }),
+        },
+      } as unknown as PrismaService,
+      { verifyPasswordOrDummy: () => Promise.resolve(true) } as unknown as PasswordService,
+      {
+        createSession: () => {
+          sessionCreated = true;
+          return Promise.reject(new Error('must not run'));
+        },
+      } as unknown as SessionService,
+    );
+
+    await assert.rejects(
+      authService.login({ email: safeUser.email, password: 'correct horse 🐟' }),
+      (error: unknown) => exceptionCode(error) === 'EMAIL_NOT_VERIFIED',
+    );
+    assert.equal(sessionCreated, false);
   });
 });

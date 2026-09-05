@@ -48,16 +48,50 @@ function adminNicknameConflictError(): Error {
 
 async function promoteExistingAdmin(
   prisma: PrismaClient,
-  user: { id: string; role: UserRole },
+  user: { id: string; role: UserRole; emailVerifiedAt: Date | null },
 ): Promise<Exclude<AdminSeedResult, 'created'>> {
-  if (user.role === UserRole.ADMIN) {
+  if (user.role === UserRole.ADMIN && user.emailVerifiedAt !== null) {
     return 'unchanged';
   }
 
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { role: UserRole.ADMIN },
-    select: { id: true },
+  const verifiedAt = new Date();
+  await prisma.$transaction(async (transaction) => {
+    await transaction.user.update({
+      where: { id: user.id },
+      data: {
+        role: UserRole.ADMIN,
+        ...(user.emailVerifiedAt === null ? { emailVerifiedAt: verifiedAt } : {}),
+      },
+      select: { id: true },
+    });
+
+    if (user.emailVerifiedAt !== null) {
+      return;
+    }
+
+    const verificationTokens = await transaction.authToken.findMany({
+      where: {
+        userId: user.id,
+        purpose: 'EMAIL_VERIFICATION',
+        consumedAt: null,
+        invalidatedAt: null,
+      },
+      select: { id: true },
+    });
+    const tokenIds = verificationTokens.map(({ id }) => id);
+
+    if (tokenIds.length === 0) {
+      return;
+    }
+
+    await transaction.authToken.updateMany({
+      where: { id: { in: tokenIds }, consumedAt: null, invalidatedAt: null },
+      data: { invalidatedAt: verifiedAt },
+    });
+    await transaction.authEmailOutbox.updateMany({
+      where: { authTokenId: { in: tokenIds }, sentAt: null, cancelledAt: null },
+      data: { cancelledAt: verifiedAt, leaseUntil: null },
+    });
   });
 
   return 'promoted';
@@ -81,7 +115,7 @@ export async function seedAdmin(
   const email = normalizeEmail(input.email);
   const existingUser = await prisma.user.findUnique({
     where: { email },
-    select: { id: true, role: true },
+    select: { id: true, role: true, emailVerifiedAt: true },
   });
 
   if (existingUser !== null) {
@@ -111,6 +145,7 @@ export async function seedAdmin(
         nicknameNormalized,
         passwordHash,
         role: UserRole.ADMIN,
+        emailVerifiedAt: new Date(),
       },
       select: { id: true },
     });
@@ -125,7 +160,7 @@ export async function seedAdmin(
     // Promote only the role so that credentials, profile, ban state, and sessions are preserved.
     const concurrentUser = await prisma.user.findUnique({
       where: { email },
-      select: { id: true, role: true },
+      select: { id: true, role: true, emailVerifiedAt: true },
     });
 
     if (concurrentUser !== null) {

@@ -62,10 +62,18 @@ function cookie(response: { headers: Record<string, unknown> }): string {
 }
 
 async function register(email: string, nickname: string) {
-  const response = await mutation(api().post('/api/v1/auth/register'))
+  await mutation(api().post('/api/v1/auth/register'))
     .send({ email, nickname, password: PASSWORD })
     .expect(201);
-  return { cookie: cookie(response), userId: asString(asObject(asObject(response.body).user).id) };
+  const user = await prisma.user.update({
+    where: { email },
+    data: { emailVerifiedAt: new Date() },
+    select: { id: true },
+  });
+  const login = await mutation(api().post('/api/v1/auth/login'))
+    .send({ email, password: PASSWORD })
+    .expect(200);
+  return { cookie: cookie(login), userId: user.id };
 }
 
 async function clearDatabase(): Promise<void> {

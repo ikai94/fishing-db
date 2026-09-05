@@ -24,6 +24,7 @@ const RELAX_OBSERVATIONS_MIGRATION = '20260826120000_relax_catch_report_observat
 const FISH_IMAGE_METADATA_MIGRATION = '20260828190000_add_fish_image_metadata';
 const BASE_FISH_WEIGHT_MIGRATION = '20260901120000_add_fishing_base_fish_weights';
 const ACTIVITY_EVENT_MIGRATION = '20260904120000_add_activity_events';
+const EMAIL_AUTH_MIGRATION = '20260904160000_add_email_auth_foundation';
 
 loadEnvironmentFile({ path: `${API_DIRECTORY}/.env`, quiet: true });
 loadEnvironmentFile({ path: `${API_DIRECTORY}/test/.env`, quiet: true });
@@ -1032,6 +1033,140 @@ void describe('ActivityEvent migration semantics', () => {
         `DROP SCHEMA IF EXISTS ${quotedIdentifier(activitySchema)} CASCADE`,
       );
       await activityClient.end();
+    }
+  });
+});
+
+void describe('Email auth migration semantics', () => {
+  void test('backfills existing users and enforces distinct token terminal states', async () => {
+    const configuration = getTestDatabaseConfiguration(process.env);
+    const emailAuthSchema = `email_auth_${randomUUID().replaceAll('-', '')}`;
+    const emailAuthClient = new Client({ connectionString: configuration.testDatabaseUrl });
+    await emailAuthClient.connect();
+
+    try {
+      await emailAuthClient.query(`CREATE SCHEMA ${quotedIdentifier(emailAuthSchema)}`);
+      await emailAuthClient.query(`SET search_path TO ${quotedIdentifier(emailAuthSchema)}`);
+      for (const migration of PHASE_FOUR_MIGRATIONS) {
+        await applyMigration(migration, emailAuthClient);
+      }
+      for (const migration of PHASE_FIVE_COMPATIBILITY_MIGRATIONS) {
+        await applyMigration(migration, emailAuthClient);
+      }
+      await applyMigration(PHASE_FIVE_INVARIANT_MIGRATION, emailAuthClient);
+      await applyMigration(CONTRIBUTOR_IDENTITY_MIGRATION, emailAuthClient);
+      await applyMigration(RELAX_OBSERVATIONS_MIGRATION, emailAuthClient);
+      await applyMigration(FISH_IMAGE_METADATA_MIGRATION, emailAuthClient);
+      await applyMigration(BASE_FISH_WEIGHT_MIGRATION, emailAuthClient);
+      await applyMigration(ACTIVITY_EVENT_MIGRATION, emailAuthClient);
+      await emailAuthClient.query(`
+        INSERT INTO "User" (
+          "id", "email", "nickname", "nicknameNormalized", "passwordHash"
+        ) VALUES (
+          '70000000-0000-4000-8000-000000000001',
+          'existing-email-auth@example.ru',
+          'Existing Email Auth',
+          'existing email auth',
+          'not-a-real-password-hash'
+        )
+      `);
+
+      await applyMigration(EMAIL_AUTH_MIGRATION, emailAuthClient);
+      const existing = await emailAuthClient.query<{ emailVerifiedAt: Date | null }>(`
+        SELECT "emailVerifiedAt"
+        FROM "User"
+        WHERE "id" = '70000000-0000-4000-8000-000000000001'
+      `);
+      assert.ok(existing.rows[0]?.emailVerifiedAt instanceof Date);
+
+      await emailAuthClient.query(`
+        INSERT INTO "User" (
+          "id", "email", "nickname", "nicknameNormalized", "passwordHash"
+        ) VALUES (
+          '70000000-0000-4000-8000-000000000002',
+          'pending-email-auth@example.ru',
+          'Pending Email Auth',
+          'pending email auth',
+          'not-a-real-password-hash'
+        );
+        INSERT INTO "AuthToken" (
+          "id", "userId", "purpose", "tokenHash", "expiresAt"
+        ) VALUES (
+          '71000000-0000-4000-8000-000000000001',
+          '70000000-0000-4000-8000-000000000002',
+          'EMAIL_VERIFICATION',
+          '${'a'.repeat(64)}',
+          CURRENT_TIMESTAMP + INTERVAL '1 day'
+        );
+        INSERT INTO "AuthEmailOutbox" (
+          "id", "authTokenId", "recipientEmail", "encryptedToken"
+        ) VALUES (
+          '72000000-0000-4000-8000-000000000001',
+          '71000000-0000-4000-8000-000000000001',
+          'pending-email-auth@example.ru',
+          'encrypted-value'
+        )
+      `);
+      const pending = await emailAuthClient.query<{ emailVerifiedAt: Date | null }>(`
+        SELECT "emailVerifiedAt"
+        FROM "User"
+        WHERE "id" = '70000000-0000-4000-8000-000000000002'
+      `);
+      assert.equal(pending.rows[0]?.emailVerifiedAt, null);
+
+      await assert.rejects(
+        emailAuthClient.query(`
+          INSERT INTO "AuthToken" (
+            "id", "userId", "purpose", "tokenHash", "expiresAt"
+          ) VALUES (
+            '71000000-0000-4000-8000-000000000002',
+            '70000000-0000-4000-8000-000000000002',
+            'EMAIL_VERIFICATION',
+            '${'b'.repeat(64)}',
+            CURRENT_TIMESTAMP + INTERVAL '1 day'
+          )
+        `),
+        /AuthToken_active_user_purpose_key/u,
+      );
+
+      await emailAuthClient.query(`
+        UPDATE "AuthToken"
+        SET "invalidatedAt" = CURRENT_TIMESTAMP
+        WHERE "id" = '71000000-0000-4000-8000-000000000001';
+        INSERT INTO "AuthToken" (
+          "id", "userId", "purpose", "tokenHash", "expiresAt", "consumedAt"
+        ) VALUES (
+          '71000000-0000-4000-8000-000000000003',
+          '70000000-0000-4000-8000-000000000002',
+          'EMAIL_VERIFICATION',
+          '${'c'.repeat(64)}',
+          CURRENT_TIMESTAMP + INTERVAL '1 day',
+          CURRENT_TIMESTAMP
+        )
+      `);
+      await assert.rejects(
+        emailAuthClient.query(`
+          UPDATE "AuthToken"
+          SET "invalidatedAt" = CURRENT_TIMESTAMP
+          WHERE "id" = '71000000-0000-4000-8000-000000000003'
+        `),
+        /AuthToken_terminal_state_check/u,
+      );
+
+      await emailAuthClient.query(`
+        DELETE FROM "User" WHERE "id" = '70000000-0000-4000-8000-000000000002'
+      `);
+      const cascaded = await emailAuthClient.query<{ tokens: string; outbox: string }>(`
+        SELECT
+          (SELECT COUNT(*)::text FROM "AuthToken") AS "tokens",
+          (SELECT COUNT(*)::text FROM "AuthEmailOutbox") AS "outbox"
+      `);
+      assert.deepEqual(cascaded.rows[0], { tokens: '0', outbox: '0' });
+    } finally {
+      await emailAuthClient.query(
+        `DROP SCHEMA IF EXISTS ${quotedIdentifier(emailAuthSchema)} CASCADE`,
+      );
+      await emailAuthClient.end();
     }
   });
 });

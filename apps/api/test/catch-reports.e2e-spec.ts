@@ -703,20 +703,23 @@ async function createActor(
   actorSequence += 1;
   const email = `catch-actor-${actorSequence}@example.ru`;
   const nickname = `Catch Actor ${actorSequence}`;
-  const registration = await mutation(api().post('/api/v1/auth/register'))
+  await mutation(api().post('/api/v1/auth/register'))
     .send({ email, nickname, password: PASSWORD })
     .expect(201);
   const user = await prisma.user.findUniqueOrThrow({ where: { email } });
 
-  if (role !== user.role || isBanned !== user.isBanned) {
+  if (role !== user.role || isBanned !== user.isBanned || user.emailVerifiedAt === null) {
     await prisma.user.update({
       where: { id: user.id },
-      data: { role, isBanned },
+      data: { role, isBanned, emailVerifiedAt: new Date() },
     });
   }
+  const authenticated = await mutation(api().post('/api/v1/auth/login'))
+    .send({ email, password: PASSWORD })
+    .expect(200);
 
   return {
-    cookie: requireSessionCookie(registration),
+    cookie: requireSessionCookie(authenticated),
     email,
     nickname,
     userId: user.id,

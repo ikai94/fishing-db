@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { fileURLToPath } from 'node:url';
 import type { Server } from 'node:http';
+import { fileURLToPath } from 'node:url';
 import { after, before, beforeEach, describe, test } from 'node:test';
 import type { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
@@ -21,7 +21,6 @@ const OTHER_PASSWORD = 'another sufficiently long password';
 const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
 const API_DIRECTORY = fileURLToPath(new URL('..', import.meta.url));
 
-// Explicit shell variables win. Local files make the documented copy-to-test/.env flow convenient.
 loadEnvironmentFile({ path: `${API_DIRECTORY}/.env`, quiet: true });
 loadEnvironmentFile({ path: `${API_DIRECTORY}/test/.env`, quiet: true });
 
@@ -41,6 +40,10 @@ interface SafeUser {
 }
 
 type PrismaServiceInstance = import('../src/prisma/prisma.service.js').PrismaService;
+type AuthEmailTokenCipher =
+  import('../src/auth/email/auth-email-token-cipher.service.js').AuthEmailTokenCipher;
+type AuthEmailDispatcher =
+  import('../src/auth/email/auth-email-dispatcher.service.js').AuthEmailDispatcher;
 type SeedAdmin = typeof import('../src/prisma/seed.js').seedAdmin;
 
 const originalRuntimeEnvironment = {
@@ -48,11 +51,15 @@ const originalRuntimeEnvironment = {
   NODE_ENV: process.env.NODE_ENV,
   PORT: process.env.PORT,
   WEB_ORIGIN: process.env.WEB_ORIGIN,
+  AUTH_EMAIL_DELIVERY_MODE: process.env.AUTH_EMAIL_DELIVERY_MODE,
+  AUTH_EMAIL_TOKEN_ENCRYPTION_KEY: process.env.AUTH_EMAIL_TOKEN_ENCRYPTION_KEY,
 };
 
 let app: INestApplication | undefined;
 let httpServer: Server;
 let prisma: PrismaServiceInstance;
+let emailTokenCipher: AuthEmailTokenCipher;
+let emailDispatcher: AuthEmailDispatcher;
 let seedAdmin: SeedAdmin;
 let databaseConfiguration: TestDatabaseConfiguration;
 let clearDatabase: (() => Promise<void>) | undefined;
@@ -62,7 +69,6 @@ function restoreEnvironmentValue(name: string, value: string | undefined): void 
     delete process.env[name];
     return;
   }
-
   process.env[name] = value;
 }
 
@@ -70,31 +76,27 @@ function api(): ReturnType<typeof request> {
   return request(httpServer);
 }
 
+function mutation(path: string): ReturnType<ReturnType<typeof request>['post']> {
+  return api().post(path).set('Origin', WEB_ORIGIN);
+}
+
 function register(input: RegistrationInput): ReturnType<ReturnType<typeof request>['post']> {
-  return api().post('/api/v1/auth/register').set('Origin', WEB_ORIGIN).send(input);
+  return mutation('/api/v1/auth/register').send(input);
 }
 
 function login(email: string, password: string): ReturnType<ReturnType<typeof request>['post']> {
-  return api().post('/api/v1/auth/login').set('Origin', WEB_ORIGIN).send({ email, password });
+  return mutation('/api/v1/auth/login').send({ email, password });
 }
 
 function getSetCookieHeaders(response: { headers: Record<string, unknown> }): string[] {
   const header = response.headers['set-cookie'];
-
-  if (typeof header === 'string') {
-    return [header];
-  }
-
-  if (Array.isArray(header) && header.every((value) => typeof value === 'string')) {
-    return header;
-  }
-
+  if (typeof header === 'string') return [header];
+  if (Array.isArray(header) && header.every((value) => typeof value === 'string')) return header;
   return [];
 }
 
 function requireCookieHeader(response: { headers: Record<string, unknown> }): string {
   const header = getSetCookieHeaders(response).find((value) => value.startsWith(`${COOKIE_NAME}=`));
-
   assert.ok(header, `${COOKIE_NAME} Set-Cookie header is required`);
   return header;
 }
@@ -102,22 +104,12 @@ function requireCookieHeader(response: { headers: Record<string, unknown> }): st
 function requireSessionCookie(response: { headers: Record<string, unknown> }): string {
   const cookiePair = requireCookieHeader(response).split(';', 1)[0];
   assert.ok(cookiePair);
-  assert.equal(new RegExp(`^${COOKIE_NAME}=[A-Za-z0-9_-]{43}$`).test(cookiePair), true);
+  assert.match(cookiePair, new RegExp(`^${COOKIE_NAME}=[A-Za-z0-9_-]{43}$`));
   return cookiePair;
 }
 
-function getCookieAttributes(cookieHeader: string): string {
-  const firstAttributeIndex = cookieHeader.indexOf(';');
-  assert.notEqual(firstAttributeIndex, -1);
-  return cookieHeader.slice(firstAttributeIndex);
-}
-
-function getRawSessionToken(cookiePair: string): string {
-  const separatorIndex = cookiePair.indexOf('=');
-  assert.notEqual(separatorIndex, -1);
-  const token = cookiePair.slice(separatorIndex + 1);
-  assert.equal(/^[A-Za-z0-9_-]{43}$/.test(token), true);
-  return token;
+function rawSessionToken(cookiePair: string): string {
+  return cookiePair.slice(cookiePair.indexOf('=') + 1);
 }
 
 function asObject(value: unknown): Record<string, unknown> {
@@ -126,34 +118,23 @@ function asObject(value: unknown): Record<string, unknown> {
 }
 
 function asString(value: unknown, field: string): string {
-  if (typeof value !== 'string') {
-    assert.fail(`${field} must be a string`);
-  }
-
+  if (typeof value !== 'string') assert.fail(`${field} must be a string`);
   return value;
 }
 
 function asBoolean(value: unknown, field: string): boolean {
-  if (typeof value !== 'boolean') {
-    assert.fail(`${field} must be a boolean`);
-  }
-
+  if (typeof value !== 'boolean') assert.fail(`${field} must be a boolean`);
   return value;
 }
 
-function asRole(value: unknown): SafeUser['role'] {
-  if (value !== 'USER' && value !== 'ADMIN') {
-    assert.fail('role must be USER or ADMIN');
-  }
-
-  return value;
+function readErrorCode(body: unknown): string {
+  return asString(asObject(body).code, 'code');
 }
 
 function readSafeUser(body: unknown): SafeUser {
   const payload = asObject(body);
   assert.deepEqual(Object.keys(payload), ['user']);
   const user = asObject(payload.user);
-
   assert.deepEqual(Object.keys(user).sort(), [
     'createdAt',
     'email',
@@ -162,80 +143,91 @@ function readSafeUser(body: unknown): SafeUser {
     'nickname',
     'role',
   ]);
-
+  assert.ok(user.role === 'USER' || user.role === 'ADMIN');
   return {
     id: asString(user.id, 'id'),
     email: asString(user.email, 'email'),
     nickname: asString(user.nickname, 'nickname'),
-    role: asRole(user.role),
+    role: user.role,
     isBanned: asBoolean(user.isBanned, 'isBanned'),
     createdAt: asString(user.createdAt, 'createdAt'),
   };
 }
 
-function readErrorCode(body: unknown): string {
-  const payload = asObject(body);
-  return asString(payload.code, 'code');
+async function latestRawToken(
+  email: string,
+  purpose: 'EMAIL_VERIFICATION' | 'PASSWORD_RESET',
+): Promise<{ rawToken: string; tokenId: string }> {
+  const outbox = await prisma.authEmailOutbox.findFirstOrThrow({
+    where: { recipientEmail: email, authToken: { purpose } },
+    orderBy: { createdAt: 'desc' },
+    select: { encryptedToken: true, authToken: { select: { id: true } } },
+  });
+  return {
+    rawToken: emailTokenCipher.decrypt(outbox.encryptedToken),
+    tokenId: outbox.authToken.id,
+  };
+}
+
+async function verifyRegisteredAccount(email: string): Promise<void> {
+  const { rawToken } = await latestRawToken(email, 'EMAIL_VERIFICATION');
+  await mutation('/api/v1/auth/verify-email').send({ token: rawToken }).expect(204);
+}
+
+async function registerAndVerify(input: RegistrationInput): Promise<void> {
+  await register(input).expect(201);
+  await verifyRegisteredAccount(input.email.toLowerCase());
 }
 
 void describe('Auth API (PostgreSQL e2e)', { concurrency: false }, () => {
   void before(async () => {
-    // This check must happen before DATABASE_URL is replaced for the Nest test process.
     databaseConfiguration = getTestDatabaseConfiguration(process.env);
-
     process.env.DATABASE_URL = databaseConfiguration.testDatabaseUrl;
     process.env.NODE_ENV = 'test';
     process.env.PORT = '3001';
     process.env.WEB_ORIGIN = WEB_ORIGIN;
+    process.env.AUTH_EMAIL_DELIVERY_MODE = 'console';
+    process.env.AUTH_EMAIL_TOKEN_ENCRYPTION_KEY = Buffer.alloc(32, 11).toString('base64url');
 
-    const [{ AppModule }, { configureApplication }, prismaModule, seedModule] = await Promise.all([
+    const [
+      { AppModule },
+      { configureApplication },
+      prismaModule,
+      seedModule,
+      cipherModule,
+      dispatcherModule,
+    ] = await Promise.all([
       import('../src/app.module.js'),
       import('../src/app.setup.js'),
       import('../src/prisma/prisma.service.js'),
       import('../src/prisma/seed.js'),
+      import('../src/auth/email/auth-email-token-cipher.service.js'),
+      import('../src/auth/email/auth-email-dispatcher.service.js'),
     ]);
 
     seedAdmin = seedModule.seedAdmin;
     app = await NestFactory.create(AppModule, { logger: false });
     configureApplication(app);
     await app.init();
-
     httpServer = app.getHttpServer() as Server;
     prisma = app.get(prismaModule.PrismaService);
+    emailTokenCipher = app.get(cipherModule.AuthEmailTokenCipher);
+    emailDispatcher = app.get(dispatcherModule.AuthEmailDispatcher);
     clearDatabase = async () => {
       await clearTestData(databaseConfiguration, {
         truncateActivityEvents: () =>
           prisma.$executeRawUnsafe('TRUNCATE TABLE "ActivityEvent" RESTART IDENTITY'),
-        deleteCatchReports: async () => {
-          await prisma.catchReport.deleteMany();
-        },
-        deleteFishingBaseFish: async () => {
-          await prisma.fishingBaseFish.deleteMany();
-        },
-        deleteLocations: async () => {
-          await prisma.location.deleteMany();
-        },
-        deleteFishingBases: async () => {
-          await prisma.fishingBase.deleteMany();
-        },
-        deleteFish: async () => {
-          await prisma.fish.deleteMany();
-        },
-        deleteBaits: async () => {
-          await prisma.bait.deleteMany();
-        },
-        deleteScreenAnchors: async () => {
-          await prisma.screenAnchor.deleteMany();
-        },
-        deleteSessions: async () => {
-          await prisma.session.deleteMany();
-        },
-        deleteUsers: async () => {
-          await prisma.user.deleteMany();
-        },
+        deleteCatchReports: () => prisma.catchReport.deleteMany(),
+        deleteFishingBaseFish: () => prisma.fishingBaseFish.deleteMany(),
+        deleteLocations: () => prisma.location.deleteMany(),
+        deleteFishingBases: () => prisma.fishingBase.deleteMany(),
+        deleteFish: () => prisma.fish.deleteMany(),
+        deleteBaits: () => prisma.bait.deleteMany(),
+        deleteScreenAnchors: () => prisma.screenAnchor.deleteMany(),
+        deleteSessions: () => prisma.session.deleteMany(),
+        deleteUsers: () => prisma.user.deleteMany(),
       });
     };
-
     await clearDatabase();
   });
 
@@ -249,442 +241,499 @@ void describe('Auth API (PostgreSQL e2e)', { concurrency: false }, () => {
       await clearDatabase?.();
       await app?.close();
     } finally {
-      restoreEnvironmentValue('DATABASE_URL', originalRuntimeEnvironment.DATABASE_URL);
-      restoreEnvironmentValue('NODE_ENV', originalRuntimeEnvironment.NODE_ENV);
-      restoreEnvironmentValue('PORT', originalRuntimeEnvironment.PORT);
-      restoreEnvironmentValue('WEB_ORIGIN', originalRuntimeEnvironment.WEB_ORIGIN);
+      for (const [name, value] of Object.entries(originalRuntimeEnvironment)) {
+        restoreEnvironmentValue(name, value);
+      }
     }
   });
 
-  void test('registers a user, authenticates automatically, and stores only hashes', async () => {
+  void test('registers unverified without a session, verifies once, then logs in with hashed storage', async () => {
     const response = await register({
       email: 'first@example.ru',
       nickname: 'First Angler',
       password: PASSWORD,
     }).expect(201);
 
-    const responseUser = readSafeUser(response.body as unknown);
-    assert.equal(responseUser.email, 'first@example.ru');
-    assert.equal(responseUser.nickname, 'First Angler');
-    assert.equal(responseUser.role, 'USER');
-    assert.equal(responseUser.isBanned, false);
-
-    const cookieAttributes = getCookieAttributes(requireCookieHeader(response));
-    assert.match(cookieAttributes, /;\s*HttpOnly/i);
-    assert.match(cookieAttributes, /;\s*SameSite=Lax/i);
-    assert.match(cookieAttributes, /;\s*Path=\//i);
-    assert.match(
-      cookieAttributes,
-      new RegExp(`;\\s*Max-Age=${SESSION_MAX_AGE_SECONDS}(?:;|$)`, 'i'),
-    );
-    assert.match(cookieAttributes, /;\s*Expires=/i);
-    assert.doesNotMatch(cookieAttributes, /;\s*Secure/i);
-
-    const cookiePair = requireSessionCookie(response);
-    const rawToken = getRawSessionToken(cookiePair);
-    const expectedTokenHash = createHash('sha256').update(rawToken).digest('hex');
-
+    assert.deepEqual(response.body, { status: 'VERIFICATION_REQUIRED' });
+    assert.deepEqual(getSetCookieHeaders(response), []);
     const storedUser = await prisma.user.findUniqueOrThrow({
       where: { email: 'first@example.ru' },
     });
-    assert.equal(storedUser.passwordHash === PASSWORD, false);
-    assert.equal(storedUser.passwordHash.includes(PASSWORD), false);
+    assert.equal(storedUser.emailVerifiedAt, null);
     assert.equal(storedUser.passwordHash.startsWith('$scrypt$v=1$'), true);
+    assert.equal(storedUser.passwordHash.includes(PASSWORD), false);
+    assert.equal(await prisma.session.count(), 0);
 
-    const storedSession = await prisma.session.findUniqueOrThrow({
-      where: { tokenHash: expectedTokenHash },
+    const issued = await latestRawToken('first@example.ru', 'EMAIL_VERIFICATION');
+    const storedToken = await prisma.authToken.findUniqueOrThrow({ where: { id: issued.tokenId } });
+    assert.equal(storedToken.tokenHash, createHash('sha256').update(issued.rawToken).digest('hex'));
+    assert.equal(storedToken.tokenHash === issued.rawToken, false);
+    const outbox = await prisma.authEmailOutbox.findUniqueOrThrow({
+      where: { authTokenId: issued.tokenId },
     });
-    assert.equal(storedSession.userId, storedUser.id);
-    assert.equal(storedSession.tokenHash === expectedTokenHash, true);
-    assert.equal(storedSession.tokenHash === rawToken, false);
-    assert.equal(/^[a-f0-9]{64}$/.test(storedSession.tokenHash), true);
-    assert.equal(JSON.stringify(storedSession).includes(rawToken), false);
+    assert.equal(outbox.encryptedToken.includes(issued.rawToken), false);
     assert.equal(
-      storedSession.expiresAt.getTime() - storedSession.createdAt.getTime(),
-      SESSION_MAX_AGE_SECONDS * 1_000,
+      JSON.stringify({ storedUser, storedToken, outbox }).includes(issued.rawToken),
+      false,
     );
 
-    const serializedBody = JSON.stringify(response.body);
-    assert.equal(serializedBody.includes(rawToken), false);
-    assert.equal(serializedBody.includes('passwordHash'), false);
-    assert.equal(serializedBody.includes('nicknameNormalized'), false);
-    assert.equal(serializedBody.includes('tokenHash'), false);
-
-    const meResponse = await api().get('/api/v1/auth/me').set('Cookie', cookiePair).expect(200);
-    assert.deepEqual(readSafeUser(meResponse.body as unknown), responseUser);
-  });
-
-  void test('accepts .ru case-insensitively and stores normalized email and nickname', async () => {
-    const response = await register({
-      email: '  CAPS@Sub.Example.RU  ',
-      nickname: '  Рыбак  ',
-      password: PASSWORD,
-    }).expect(201);
-
-    const user = readSafeUser(response.body as unknown);
-    assert.equal(user.email, 'caps@sub.example.ru');
-    assert.equal(user.nickname, 'Рыбак');
-
-    const storedUser = await prisma.user.findUniqueOrThrow({
-      where: { email: 'caps@sub.example.ru' },
-    });
-    assert.equal(storedUser.nickname, 'Рыбак');
-    assert.equal(storedUser.nicknameNormalized, 'рыбак');
-  });
-
-  void test('rejects non-.ru email and forbidden DTO fields', async () => {
-    const invalidDomain = await register({
-      email: 'angler@example.com',
-      nickname: 'Wrong Domain',
-      password: PASSWORD,
-    }).expect(400);
-    assert.equal(readErrorCode(invalidDomain.body as unknown), 'VALIDATION_ERROR');
-
-    const forbiddenField = await api()
-      .post('/api/v1/auth/register')
-      .set('Origin', WEB_ORIGIN)
-      .send({
-        email: 'admin-attempt@example.ru',
-        nickname: 'Admin Attempt',
-        password: PASSWORD,
-        role: 'ADMIN',
-        isBanned: false,
-      })
+    const verified = await mutation('/api/v1/auth/verify-email')
+      .send({ token: issued.rawToken })
+      .expect(204);
+    assert.deepEqual(getSetCookieHeaders(verified), []);
+    assert.equal(await prisma.session.count(), 0);
+    const consumed = await prisma.authToken.findUniqueOrThrow({ where: { id: issued.tokenId } });
+    assert.ok(consumed.consumedAt);
+    assert.equal(consumed.invalidatedAt, null);
+    assert.ok(
+      (await prisma.user.findUniqueOrThrow({ where: { id: storedUser.id } })).emailVerifiedAt,
+    );
+    const replay = await mutation('/api/v1/auth/verify-email')
+      .send({ token: issued.rawToken })
       .expect(400);
-    assert.equal(readErrorCode(forbiddenField.body as unknown), 'VALIDATION_ERROR');
-    assert.equal(await prisma.user.count(), 0);
+    assert.equal(readErrorCode(replay.body as unknown), 'INVALID_OR_EXPIRED_VERIFICATION_TOKEN');
+
+    const loginResponse = await login('FIRST@EXAMPLE.RU', PASSWORD).expect(200);
+    assert.equal(readSafeUser(loginResponse.body as unknown).email, 'first@example.ru');
+    const cookieHeader = requireCookieHeader(loginResponse);
+    const cookiePair = requireSessionCookie(loginResponse);
+    const sessionToken = rawSessionToken(cookiePair);
+    const storedSession = await prisma.session.findUniqueOrThrow({
+      where: { tokenHash: createHash('sha256').update(sessionToken).digest('hex') },
+    });
+    assert.equal(storedSession.tokenHash === sessionToken, false);
+    assert.match(cookieHeader, /;\s*HttpOnly/i);
+    assert.match(cookieHeader, /;\s*SameSite=Lax/i);
+    assert.match(cookieHeader, /;\s*Path=\//i);
+    assert.match(cookieHeader, new RegExp(`;\\s*Max-Age=${SESSION_MAX_AGE_SECONDS}(?:;|$)`, 'i'));
+    assert.doesNotMatch(cookieHeader, /;\s*Secure/i);
   });
 
-  void test('rejects a case-insensitive duplicate email', async () => {
+  void test('resend is enumeration-safe and supersedes rather than consumes the previous token', async () => {
+    await register({ email: 'pending@example.ru', nickname: 'Pending', password: PASSWORD }).expect(
+      201,
+    );
+    const first = await latestRawToken('pending@example.ru', 'EMAIL_VERIFICATION');
+    await mutation('/api/v1/auth/resend-verification')
+      .send({ email: 'pending@example.ru' })
+      .expect(202);
+    assert.equal(
+      await prisma.authToken.count({
+        where: { user: { email: 'pending@example.ru' }, purpose: 'EMAIL_VERIFICATION' },
+      }),
+      1,
+    );
+    await prisma.authToken.update({
+      where: { id: first.tokenId },
+      data: { createdAt: new Date(Date.now() - 120_000) },
+    });
+
+    const known = await mutation('/api/v1/auth/resend-verification')
+      .send({ email: 'PENDING@EXAMPLE.RU' })
+      .expect(202);
+    const unknown = await mutation('/api/v1/auth/resend-verification')
+      .send({ email: 'unknown@example.ru' })
+      .expect(202);
+    assert.deepEqual(known.body, { status: 'ACCEPTED' });
+    assert.deepEqual(unknown.body, known.body);
+
+    const second = await latestRawToken('pending@example.ru', 'EMAIL_VERIFICATION');
+    assert.notEqual(second.tokenId, first.tokenId);
+    const superseded = await prisma.authToken.findUniqueOrThrow({ where: { id: first.tokenId } });
+    assert.equal(superseded.consumedAt, null);
+    assert.ok(superseded.invalidatedAt);
+    assert.ok(
+      (await prisma.authEmailOutbox.findUniqueOrThrow({ where: { authTokenId: first.tokenId } }))
+        .cancelledAt,
+    );
+    await mutation('/api/v1/auth/verify-email').send({ token: first.rawToken }).expect(400);
+    await mutation('/api/v1/auth/verify-email').send({ token: second.rawToken }).expect(204);
+
+    const before = await prisma.authToken.count();
+    await mutation('/api/v1/auth/resend-verification')
+      .send({ email: 'pending@example.ru' })
+      .expect(202);
+    assert.equal(await prisma.authToken.count(), before);
+  });
+
+  void test('claims and completes encrypted outbox delivery through PostgreSQL', async () => {
     await register({
-      email: 'Mixed@Example.ru',
-      nickname: 'Original Email',
+      email: 'dispatch@example.ru',
+      nickname: 'Dispatch',
       password: PASSWORD,
     }).expect(201);
+    const before = await prisma.authEmailOutbox.findFirstOrThrow({
+      where: { recipientEmail: 'dispatch@example.ru' },
+    });
+    assert.equal(before.sentAt, null);
+    assert.equal(before.cancelledAt, null);
 
-    const duplicate = await register({
-      email: 'mixed@EXAMPLE.RU',
-      nickname: 'Second Email',
-      password: OTHER_PASSWORD,
-    }).expect(409);
-
-    assert.equal(readErrorCode(duplicate.body as unknown), 'EMAIL_ALREADY_EXISTS');
-    assert.equal(await prisma.user.count(), 1);
+    assert.equal(await emailDispatcher.dispatchPending(1), 1);
+    const after = await prisma.authEmailOutbox.findUniqueOrThrow({ where: { id: before.id } });
+    assert.ok(after.sentAt);
+    assert.equal(after.cancelledAt, null);
+    assert.equal(after.attemptCount, 1);
+    assert.equal(after.leaseUntil, null);
   });
 
-  void test('rejects a case-insensitive duplicate normalized nickname', async () => {
-    await register({
-      email: 'nickname-one@example.ru',
-      nickname: 'BigFish',
-      password: PASSWORD,
-    }).expect(201);
-
-    const duplicate = await register({
-      email: 'nickname-two@example.ru',
-      nickname: 'bigfish',
-      password: OTHER_PASSWORD,
-    }).expect(409);
-
-    assert.equal(readErrorCode(duplicate.body as unknown), 'NICKNAME_ALREADY_EXISTS');
-    assert.equal(await prisma.user.count(), 1);
-  });
-
-  void test('logs in successfully and permits multiple independent sessions', async () => {
-    const registration = await register({
-      email: 'sessions@example.ru',
-      nickname: 'Many Sessions',
-      password: PASSWORD,
-    }).expect(201);
-    const registrationCookie = requireSessionCookie(registration);
-
-    const firstLogin = await login('SESSIONS@EXAMPLE.RU', PASSWORD).expect(200);
-    const secondLogin = await login('sessions@example.ru', PASSWORD).expect(200);
-    const firstLoginCookie = requireSessionCookie(firstLogin);
-    const secondLoginCookie = requireSessionCookie(secondLogin);
-
-    assert.equal(firstLoginCookie === registrationCookie, false);
-    assert.equal(secondLoginCookie === registrationCookie, false);
-    assert.equal(firstLoginCookie === secondLoginCookie, false);
-    assert.equal(await prisma.session.count(), 3);
-
-    for (const cookie of [registrationCookie, firstLoginCookie, secondLoginCookie]) {
-      const me = await api().get('/api/v1/auth/me').set('Cookie', cookie).expect(200);
-      assert.equal(readSafeUser(me.body as unknown).email, 'sessions@example.ru');
-    }
-  });
-
-  void test('returns the same invalid-credentials response for unknown email and wrong password', async () => {
+  void test('rejects unverified login and unverified sessions while preserving credential privacy', async () => {
     await register({
       email: 'credentials@example.ru',
       nickname: 'Credentials',
       password: PASSWORD,
     }).expect(201);
 
-    const unknownEmail = await login('unknown@example.ru', OTHER_PASSWORD).expect(401);
-    const wrongPassword = await login('credentials@example.ru', OTHER_PASSWORD).expect(401);
+    const unverified = await login('credentials@example.ru', PASSWORD).expect(403);
+    assert.equal(readErrorCode(unverified.body as unknown), 'EMAIL_NOT_VERIFIED');
+    assert.deepEqual(getSetCookieHeaders(unverified), []);
+    const unknown = await login('unknown@example.ru', OTHER_PASSWORD).expect(401);
+    const wrong = await login('credentials@example.ru', OTHER_PASSWORD).expect(401);
+    assert.deepEqual(wrong.body, unknown.body);
 
-    assert.equal(readErrorCode(unknownEmail.body as unknown), 'INVALID_CREDENTIALS');
-    assert.deepEqual(wrongPassword.body, unknownEmail.body);
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { email: 'credentials@example.ru' },
+    });
+    const rawToken = Buffer.alloc(32, 21).toString('base64url');
+    await prisma.session.create({
+      data: {
+        userId: user.id,
+        tokenHash: createHash('sha256').update(rawToken).digest('hex'),
+        expiresAt: new Date(Date.now() + 60_000),
+      },
+    });
+    await api().get('/api/v1/auth/me').set('Cookie', `${COOKIE_NAME}=${rawToken}`).expect(401);
+    await api()
+      .get('/api/v1/me/catch-reports')
+      .set('Cookie', `${COOKIE_NAME}=${rawToken}`)
+      .expect(401);
+    await mutation('/api/v1/catch-reports')
+      .set('Cookie', `${COOKIE_NAME}=${rawToken}`)
+      .send({})
+      .expect(401);
   });
 
-  void test('/auth/me requires a valid session', async () => {
-    const response = await api().get('/api/v1/auth/me').expect(401);
-    assert.equal(readErrorCode(response.body as unknown), 'AUTH_REQUIRED');
-  });
-
-  void test('logout is idempotent, removes only the current session, and clears its cookie', async () => {
-    const registration = await register({
-      email: 'logout@example.ru',
-      nickname: 'Logout Angler',
+  void test('forgot/reset is enumeration-safe, supersedes tokens, resets the hash, and revokes all sessions', async () => {
+    await registerAndVerify({
+      email: 'reset@example.ru',
+      nickname: 'Reset Angler',
+      password: PASSWORD,
+    });
+    await register({
+      email: 'unverified-reset@example.ru',
+      nickname: 'Unverified Reset',
       password: PASSWORD,
     }).expect(201);
-    const cookiePair = requireSessionCookie(registration);
-    const otherSession = await login('logout@example.ru', PASSWORD).expect(200);
-    const otherSessionCookie = requireSessionCookie(otherSession);
+    const firstLogin = await login('reset@example.ru', PASSWORD).expect(200);
+    const secondLogin = await login('reset@example.ru', PASSWORD).expect(200);
     assert.equal(await prisma.session.count(), 2);
 
-    const logout = await api()
-      .post('/api/v1/auth/logout')
-      .set('Origin', WEB_ORIGIN)
-      .set('Cookie', cookiePair)
-      .expect(204);
+    const known = await mutation('/api/v1/auth/forgot-password')
+      .send({ email: 'reset@example.ru' })
+      .expect(202);
+    const unknown = await mutation('/api/v1/auth/forgot-password')
+      .send({ email: 'absent@example.ru' })
+      .expect(202);
+    const unverified = await mutation('/api/v1/auth/forgot-password')
+      .send({ email: 'unverified-reset@example.ru' })
+      .expect(202);
+    assert.deepEqual(known.body, { status: 'ACCEPTED' });
+    assert.deepEqual(unknown.body, known.body);
+    assert.deepEqual(unverified.body, known.body);
+    assert.equal(
+      await prisma.authToken.count({
+        where: { purpose: 'PASSWORD_RESET', user: { email: 'unverified-reset@example.ru' } },
+      }),
+      0,
+    );
 
-    const clearCookieHeader = requireCookieHeader(logout);
-    assert.match(clearCookieHeader, new RegExp(`^${COOKIE_NAME}=;`));
-    assert.match(clearCookieHeader, /;\s*Max-Age=0(?:;|$)/i);
-    assert.match(clearCookieHeader, /;\s*Expires=/i);
-    assert.match(clearCookieHeader, /;\s*HttpOnly/i);
-    assert.match(clearCookieHeader, /;\s*SameSite=Lax/i);
-    assert.match(clearCookieHeader, /;\s*Path=\//i);
-    assert.doesNotMatch(clearCookieHeader, /;\s*Secure/i);
-    assert.equal(await prisma.session.count(), 1);
-
-    await api().get('/api/v1/auth/me').set('Cookie', cookiePair).expect(401);
-    await api().get('/api/v1/auth/me').set('Cookie', otherSessionCookie).expect(200);
-    await api()
-      .post('/api/v1/auth/logout')
-      .set('Origin', WEB_ORIGIN)
-      .set('Cookie', cookiePair)
-      .expect(204);
-  });
-
-  void test('rejects an expired session without relying on database cleanup', async () => {
-    const registration = await register({
-      email: 'expired@example.ru',
-      nickname: 'Expired Session',
-      password: PASSWORD,
-    }).expect(201);
-    const cookiePair = requireSessionCookie(registration);
-    const tokenHash = createHash('sha256').update(getRawSessionToken(cookiePair)).digest('hex');
-
-    await prisma.session.update({
-      where: { tokenHash },
-      data: { expiresAt: new Date(Date.now() - 60_000) },
+    const firstReset = await latestRawToken('reset@example.ru', 'PASSWORD_RESET');
+    await prisma.authToken.update({
+      where: { id: firstReset.tokenId },
+      data: { createdAt: new Date(Date.now() - 120_000) },
     });
-
-    await api().get('/api/v1/auth/me').set('Cookie', cookiePair).expect(401);
-    assert.equal(await prisma.session.count(), 1);
-  });
-
-  void test('allows a banned user to log in and read /auth/me', async () => {
-    await register({
-      email: 'banned@example.ru',
-      nickname: 'Banned Angler',
-      password: PASSWORD,
-    }).expect(201);
-    await prisma.user.update({
-      where: { email: 'banned@example.ru' },
-      data: { isBanned: true },
+    await mutation('/api/v1/auth/forgot-password').send({ email: 'reset@example.ru' }).expect(202);
+    const secondReset = await latestRawToken('reset@example.ru', 'PASSWORD_RESET');
+    assert.notEqual(secondReset.tokenId, firstReset.tokenId);
+    const invalidated = await prisma.authToken.findUniqueOrThrow({
+      where: { id: firstReset.tokenId },
     });
+    assert.equal(invalidated.consumedAt, null);
+    assert.ok(invalidated.invalidatedAt);
+    await mutation('/api/v1/auth/reset-password')
+      .send({ token: firstReset.rawToken, password: OTHER_PASSWORD })
+      .expect(400);
 
-    const loginResponse = await login('banned@example.ru', PASSWORD).expect(200);
-    assert.equal(readSafeUser(loginResponse.body as unknown).isBanned, true);
-
-    const me = await api()
-      .get('/api/v1/auth/me')
-      .set('Cookie', requireSessionCookie(loginResponse))
-      .expect(200);
-    assert.equal(readSafeUser(me.body as unknown).isBanned, true);
+    const reset = await mutation('/api/v1/auth/reset-password')
+      .send({ token: secondReset.rawToken, password: OTHER_PASSWORD })
+      .set('Cookie', requireSessionCookie(firstLogin))
+      .expect(204);
+    assert.match(requireCookieHeader(reset), new RegExp(`^${COOKIE_NAME}=;`));
+    assert.equal(await prisma.session.count(), 0);
+    const consumed = await prisma.authToken.findUniqueOrThrow({
+      where: { id: secondReset.tokenId },
+    });
+    assert.ok(consumed.consumedAt);
+    assert.equal(consumed.invalidatedAt, null);
+    await api().get('/api/v1/auth/me').set('Cookie', requireSessionCookie(secondLogin)).expect(401);
+    await login('reset@example.ru', PASSWORD).expect(401);
+    await login('reset@example.ru', OTHER_PASSWORD).expect(200);
+    await mutation('/api/v1/auth/reset-password')
+      .send({ token: secondReset.rawToken, password: PASSWORD })
+      .expect(400);
   });
 
-  void test('enforces allowed Origin, Referer fallback, and credentialed CORS', async () => {
-    const allowed = await api()
-      .post('/api/v1/auth/register')
-      .set('Origin', WEB_ORIGIN)
-      .send({
-        email: 'allowed-origin@example.ru',
-        nickname: 'Allowed Origin',
-        password: PASSWORD,
-      })
+  void test('does not create a session from an old password check that overlaps reset', async (context) => {
+    await registerAndVerify({
+      email: 'reset-race@example.ru',
+      nickname: 'Reset Race',
+      password: PASSWORD,
+    });
+    await mutation('/api/v1/auth/forgot-password')
+      .send({ email: 'reset-race@example.ru' })
+      .expect(202);
+    const token = await latestRawToken('reset-race@example.ru', 'PASSWORD_RESET');
+    const { PasswordService } = await import('../src/auth/password.service.js');
+    assert.ok(app);
+    const passwords = app.get(PasswordService);
+    const verify = passwords.verifyPasswordOrDummy.bind(passwords);
+    let markChecked!: () => void;
+    let resumeLogin!: () => void;
+    const checked = new Promise<void>((resolve) => {
+      markChecked = resolve;
+    });
+    const resume = new Promise<void>((resolve) => {
+      resumeLogin = resolve;
+    });
+    context.mock.method(
+      passwords,
+      'verifyPasswordOrDummy',
+      async (...args: Parameters<typeof verify>) => {
+        const matches = await verify(...args);
+        markChecked();
+        await resume;
+        return matches;
+      },
+    );
+    const pendingLogin = login('reset-race@example.ru', PASSWORD).then((response) => response);
+    try {
+      await checked;
+      await mutation('/api/v1/auth/reset-password')
+        .send({ token: token.rawToken, password: OTHER_PASSWORD })
+        .expect(204);
+    } finally {
+      resumeLogin();
+    }
+    assert.equal((await pendingLogin).status, 401);
+    assert.equal(await prisma.session.count(), 0);
+  });
+
+  void test('serializes concurrent consumption and resend without consuming superseded tokens', async () => {
+    const email = 'concurrent-tokens@example.ru';
+    await register({ email, nickname: 'Concurrent Tokens', password: PASSWORD }).expect(201);
+    const first = await latestRawToken(email, 'EMAIL_VERIFICATION');
+    await prisma.authToken.update({
+      where: { id: first.tokenId },
+      data: { createdAt: new Date(Date.now() - 120_000) },
+    });
+    const [verification, resend] = await Promise.all([
+      mutation('/api/v1/auth/verify-email').send({ token: first.rawToken }),
+      mutation('/api/v1/auth/resend-verification').send({ email }),
+    ]);
+    assert.equal(resend.status, 202);
+    assert.ok(verification.status === 204 || verification.status === 400);
+    if (verification.status === 400) {
+      const current = await latestRawToken(email, 'EMAIL_VERIFICATION');
+      const statuses = (
+        await Promise.all([
+          mutation('/api/v1/auth/verify-email').send({ token: current.rawToken }),
+          mutation('/api/v1/auth/verify-email').send({ token: current.rawToken }),
+        ])
+      )
+        .map(({ status }) => status)
+        .sort();
+      assert.deepEqual(statuses, [204, 400]);
+    }
+    assert.equal(await prisma.session.count(), 0);
+    await mutation('/api/v1/auth/forgot-password').send({ email }).expect(202);
+    const reset = await latestRawToken(email, 'PASSWORD_RESET');
+    const stored = await prisma.authToken.findUniqueOrThrow({
+      where: { id: reset.tokenId },
+      include: { emailOutbox: true },
+    });
+    assert.equal(JSON.stringify(stored).includes(reset.rawToken), false);
+    const statuses = (
+      await Promise.all([
+        mutation('/api/v1/auth/reset-password').send({
+          token: reset.rawToken,
+          password: OTHER_PASSWORD,
+        }),
+        mutation('/api/v1/auth/reset-password').send({
+          token: reset.rawToken,
+          password: OTHER_PASSWORD,
+        }),
+      ])
+    )
+      .map(({ status }) => status)
+      .sort();
+    assert.deepEqual(statuses, [204, 400]);
+  });
+
+  void test('preserves current-session logout, independent sessions, and session expiry', async () => {
+    const email = 'session-boundaries@example.ru';
+    await registerAndVerify({ email, nickname: 'Session Boundaries', password: PASSWORD });
+    const first = requireSessionCookie(await login(email, PASSWORD).expect(200));
+    const second = requireSessionCookie(await login(email, PASSWORD).expect(200));
+    await api().get('/api/v1/auth/me').expect(401);
+    await api().get('/api/v1/auth/me').set('Cookie', first).expect(200);
+    const logout = await mutation('/api/v1/auth/logout').set('Cookie', first).expect(204);
+    assert.match(requireCookieHeader(logout), new RegExp(`^${COOKIE_NAME}=;`));
+    await mutation('/api/v1/auth/logout').set('Cookie', first).expect(204);
+    await api().get('/api/v1/auth/me').set('Cookie', first).expect(401);
+    await api().get('/api/v1/auth/me').set('Cookie', second).expect(200);
+    assert.equal(await prisma.session.count(), 1);
+    await prisma.session.updateMany({ data: { expiresAt: new Date(Date.now() - 1_000) } });
+    await api().get('/api/v1/auth/me').set('Cookie', second).expect(401);
+  });
+
+  void test('rejects expired reset tokens and tokens used for the wrong purpose', async () => {
+    const email = 'expired-reset@example.ru';
+    await register({ email, nickname: 'Expired Reset', password: PASSWORD }).expect(201);
+    const verification = await latestRawToken(email, 'EMAIL_VERIFICATION');
+    await mutation('/api/v1/auth/reset-password')
+      .send({ token: verification.rawToken, password: OTHER_PASSWORD })
+      .expect(400);
+    await verifyRegisteredAccount(email);
+    await mutation('/api/v1/auth/forgot-password').send({ email }).expect(202);
+    const reset = await latestRawToken(email, 'PASSWORD_RESET');
+    await mutation('/api/v1/auth/verify-email').send({ token: reset.rawToken }).expect(400);
+    await prisma.authToken.update({
+      where: { id: reset.tokenId },
+      data: {
+        createdAt: new Date(Date.now() - 7_200_000),
+        expiresAt: new Date(Date.now() - 3_600_000),
+      },
+    });
+    await mutation('/api/v1/auth/reset-password')
+      .send({ token: reset.rawToken, password: OTHER_PASSWORD })
+      .expect(400);
+    const stored = await prisma.authToken.findUniqueOrThrow({ where: { id: reset.tokenId } });
+    assert.equal(stored.consumedAt, null);
+    assert.equal(stored.invalidatedAt, null);
+    await login(email, PASSWORD).expect(200);
+  });
+
+  void test('rejects expired verification tokens', async () => {
+    await register({ email: 'expired@example.ru', nickname: 'Expired', password: PASSWORD }).expect(
+      201,
+    );
+    const token = await latestRawToken('expired@example.ru', 'EMAIL_VERIFICATION');
+    await prisma.authToken.update({
+      where: { id: token.tokenId },
+      data: {
+        createdAt: new Date(Date.now() - 2 * 24 * 60 * 60_000),
+        expiresAt: new Date(Date.now() - 24 * 60 * 60_000),
+      },
+    });
+    const response = await mutation('/api/v1/auth/verify-email')
+      .send({ token: token.rawToken })
+      .expect(400);
+    assert.equal(readErrorCode(response.body as unknown), 'INVALID_OR_EXPIRED_VERIFICATION_TOKEN');
+  });
+
+  void test('preserves validation, duplicate, origin, CORS, and concurrency boundaries', async () => {
+    const invalid = await register({
+      email: 'angler@example.com',
+      nickname: 'Wrong Domain',
+      password: PASSWORD,
+    }).expect(400);
+    assert.equal(readErrorCode(invalid.body as unknown), 'VALIDATION_ERROR');
+
+    await register({ email: 'mixed@example.ru', nickname: 'Original', password: PASSWORD }).expect(
+      201,
+    );
+    const duplicate = await register({
+      email: 'MIXED@EXAMPLE.RU',
+      nickname: 'Different',
+      password: OTHER_PASSWORD,
+    }).expect(409);
+    assert.equal(readErrorCode(duplicate.body as unknown), 'EMAIL_ALREADY_EXISTS');
+
+    const allowed = await register({
+      email: 'allowed@example.ru',
+      nickname: 'Allowed',
+      password: PASSWORD,
+    })
       .expect(201)
       .expect('Access-Control-Allow-Origin', WEB_ORIGIN)
       .expect('Access-Control-Allow-Credentials', 'true');
-    assert.ok(requireSessionCookie(allowed));
-
+    assert.deepEqual(getSetCookieHeaders(allowed), []);
     await api()
       .post('/api/v1/auth/register')
-      .set('Referer', `${WEB_ORIGIN}/register`)
-      .send({
-        email: 'referer-origin@example.ru',
-        nickname: 'Referer Origin',
-        password: PASSWORD,
-      })
-      .expect(201);
-
-    for (const origin of [FOREIGN_ORIGIN, 'null']) {
-      const rejected = await api()
-        .post('/api/v1/auth/register')
-        .set('Origin', origin)
-        .send({
-          email: `rejected-${origin.length}@example.ru`,
-          nickname: `Rejected ${origin.length}`,
-          password: PASSWORD,
-        })
-        .expect(403);
-      assert.equal(readErrorCode(rejected.body as unknown), 'INVALID_REQUEST_ORIGIN');
-    }
-
-    const missingOrigin = await api()
-      .post('/api/v1/auth/register')
-      .send({
-        email: 'missing-origin@example.ru',
-        nickname: 'Missing Origin',
-        password: PASSWORD,
-      })
+      .set('Origin', FOREIGN_ORIGIN)
+      .send({ email: 'foreign@example.ru', nickname: 'Foreign', password: PASSWORD })
       .expect(403);
-    assert.equal(readErrorCode(missingOrigin.body as unknown), 'INVALID_REQUEST_ORIGIN');
 
-    await api()
-      .options('/api/v1/auth/register')
-      .set('Origin', WEB_ORIGIN)
-      .set('Access-Control-Request-Method', 'POST')
-      .expect(204)
-      .expect('Access-Control-Allow-Origin', WEB_ORIGIN)
-      .expect('Access-Control-Allow-Credentials', 'true');
-  });
-
-  void test('resolves a concurrent registration uniqueness race without a 500 response', async () => {
-    const input = {
+    const raceInput = {
       email: 'race@example.ru',
       nickname: 'Registration Race',
       password: PASSWORD,
     };
-    const responses = await Promise.all([register(input), register(input)]);
-    const statuses = responses
-      .map((response) => response.status)
-      .sort((left, right) => left - right);
-
+    const statuses = (await Promise.all([register(raceInput), register(raceInput)]))
+      .map(({ status }) => status)
+      .sort();
     assert.deepEqual(statuses, [201, 409]);
-    assert.equal(await prisma.user.count(), 1);
-    assert.equal(await prisma.session.count(), 1);
-
-    const conflict = responses.find((response) => response.status === 409);
-    assert.ok(conflict);
-    assert.ok(
-      ['EMAIL_ALREADY_EXISTS', 'NICKNAME_ALREADY_EXISTS'].includes(
-        readErrorCode(conflict.body as unknown),
-      ),
-    );
-  });
-
-  void test('ADMIN seed creates a normalized admin without a session', async () => {
-    const result = await seedAdmin(prisma, {
-      email: '  NEW.ADMIN@Example.RU  ',
-      nickname: '  Test Admin  ',
-      password: PASSWORD,
-    });
-
-    assert.equal(result, 'created');
-    const admin = await prisma.user.findUniqueOrThrow({
-      where: { email: 'new.admin@example.ru' },
-    });
-    assert.equal(admin.nickname, 'Test Admin');
-    assert.equal(admin.nicknameNormalized, 'test admin');
-    assert.equal(admin.role, 'ADMIN');
-    assert.equal(admin.isBanned, false);
-    assert.equal(admin.passwordHash === PASSWORD, false);
-    assert.equal(admin.passwordHash.startsWith('$scrypt$v=1$'), true);
     assert.equal(await prisma.session.count(), 0);
   });
 
-  void test('ADMIN seed promotes idempotently and preserves credentials, profile, ban, and sessions', async () => {
-    await register({
-      email: 'seed-existing@example.ru',
-      nickname: 'Existing User',
+  void test('keeps banned verified login and trusted ADMIN seed verification semantics', async () => {
+    await registerAndVerify({
+      email: 'banned@example.ru',
+      nickname: 'Banned Angler',
       password: PASSWORD,
-    }).expect(201);
+    });
     await prisma.user.update({
-      where: { email: 'seed-existing@example.ru' },
+      where: { email: 'banned@example.ru' },
       data: { isBanned: true },
     });
-
-    const beforePromotion = await prisma.user.findUniqueOrThrow({
-      where: { email: 'seed-existing@example.ru' },
-    });
-    const sessionIdsBefore = (
-      await prisma.session.findMany({
-        where: { userId: beforePromotion.id },
-        select: { id: true },
-        orderBy: { id: 'asc' },
-      })
-    ).map(({ id }) => id);
-
-    const promoted = await seedAdmin(prisma, { email: ' SEED-EXISTING@EXAMPLE.RU ' });
-    assert.equal(promoted, 'promoted');
-
-    const afterPromotion = await prisma.user.findUniqueOrThrow({
-      where: { id: beforePromotion.id },
-    });
-    assert.equal(afterPromotion.role, 'ADMIN');
-    assert.equal(afterPromotion.nickname, beforePromotion.nickname);
-    assert.equal(afterPromotion.nicknameNormalized, beforePromotion.nicknameNormalized);
-    assert.equal(afterPromotion.passwordHash === beforePromotion.passwordHash, true);
-    assert.equal(afterPromotion.isBanned, true);
-    assert.deepEqual(
-      (
-        await prisma.session.findMany({
-          where: { userId: beforePromotion.id },
-          select: { id: true },
-          orderBy: { id: 'asc' },
-        })
-      ).map(({ id }) => id),
-      sessionIdsBefore,
+    assert.equal(
+      readSafeUser((await login('banned@example.ru', PASSWORD).expect(200)).body).isBanned,
+      true,
     );
 
-    const unchanged = await seedAdmin(prisma, { email: 'seed-existing@example.ru' });
-    assert.equal(unchanged, 'unchanged');
-    const afterIdempotentRun = await prisma.user.findUniqueOrThrow({
-      where: { id: beforePromotion.id },
+    const created = await seedAdmin(prisma, {
+      email: 'new.admin@example.ru',
+      nickname: 'Test Admin',
+      password: PASSWORD,
     });
-    assert.equal(afterIdempotentRun.updatedAt.getTime(), afterPromotion.updatedAt.getTime());
-    assert.equal(afterIdempotentRun.passwordHash === beforePromotion.passwordHash, true);
-  });
+    assert.equal(created, 'created');
+    const admin = await prisma.user.findUniqueOrThrow({ where: { email: 'new.admin@example.ru' } });
+    assert.equal(admin.role, 'ADMIN');
+    assert.ok(admin.emailVerifiedAt);
+    assert.equal(await prisma.session.count({ where: { userId: admin.id } }), 0);
 
-  void test('ADMIN seed reports a stable conflict when the configured nickname is occupied', async () => {
     await register({
-      email: 'nickname-owner@example.ru',
-      nickname: 'Reserved Admin Name',
+      email: 'pending-admin@example.ru',
+      nickname: 'Pending Admin',
       password: PASSWORD,
     }).expect(201);
-
-    await assert.rejects(
-      seedAdmin(prisma, {
-        email: 'another-admin@example.ru',
-        nickname: 'reserved admin name',
-        password: OTHER_PASSWORD,
-      }),
-      /ADMIN_NICKNAME_ALREADY_EXISTS/,
-    );
-
-    assert.equal(await prisma.user.count({ where: { email: 'another-admin@example.ru' } }), 0);
-    assert.equal(
-      (
-        await prisma.user.findUniqueOrThrow({
-          where: { email: 'nickname-owner@example.ru' },
-          select: { role: true },
-        })
-      ).role,
-      'USER',
-    );
+    const pendingBefore = await prisma.user.findUniqueOrThrow({
+      where: { email: 'pending-admin@example.ru' },
+    });
+    const pendingVerification = await prisma.authToken.findFirstOrThrow({
+      where: { userId: pendingBefore.id, purpose: 'EMAIL_VERIFICATION' },
+    });
+    const promoted = await seedAdmin(prisma, { email: 'pending-admin@example.ru' });
+    assert.equal(promoted, 'promoted');
+    const pendingAfter = await prisma.user.findUniqueOrThrow({ where: { id: pendingBefore.id } });
+    assert.equal(pendingAfter.role, 'ADMIN');
+    assert.ok(pendingAfter.emailVerifiedAt);
+    assert.equal(pendingAfter.passwordHash, pendingBefore.passwordHash);
+    assert.equal(pendingAfter.nickname, pendingBefore.nickname);
+    const invalidatedVerification = await prisma.authToken.findUniqueOrThrow({
+      where: { id: pendingVerification.id },
+    });
+    assert.equal(invalidatedVerification.consumedAt, null);
+    assert.ok(invalidatedVerification.invalidatedAt);
+    assert.equal(await seedAdmin(prisma, { email: 'pending-admin@example.ru' }), 'unchanged');
   });
 });

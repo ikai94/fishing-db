@@ -21,10 +21,20 @@ import {
 } from './auth.constants.js';
 import { AuthGuard } from './auth.guard.js';
 import { AuthService } from './auth.service.js';
-import type { AuthResponse, AuthenticatedRequest, IssuedSession, SafeUser } from './auth.types.js';
+import type {
+  AcceptedAuthRequestResponse,
+  AuthResponse,
+  AuthenticatedRequest,
+  IssuedSession,
+  PendingVerificationResponse,
+  SafeUser,
+} from './auth.types.js';
 import { CurrentUser } from './current-user.decorator.js';
+import { AuthEmailRequestDto } from './dto/auth-email-request.dto.js';
 import { LoginDto } from './dto/login.dto.js';
 import { RegisterDto } from './dto/register.dto.js';
+import { ResetPasswordDto } from './dto/reset-password.dto.js';
+import { VerifyEmailDto } from './dto/verify-email.dto.js';
 
 @Controller('auth')
 export class AuthController {
@@ -42,11 +52,28 @@ export class AuthController {
   @Header('Cache-Control', 'no-store')
   async register(
     @Body(createApplicationValidationPipe(RegisterDto)) dto: RegisterDto,
-    @Res({ passthrough: true }) response: Response,
-  ): Promise<AuthResponse> {
-    const result = await this.authService.register(dto);
-    this.setSessionCookie(response, result.session);
-    return { user: result.user };
+  ): Promise<PendingVerificationResponse> {
+    await this.authService.register(dto);
+    return { status: 'VERIFICATION_REQUIRED' };
+  }
+
+  @Post('verify-email')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Header('Cache-Control', 'no-store')
+  async verifyEmail(
+    @Body(createApplicationValidationPipe(VerifyEmailDto)) dto: VerifyEmailDto,
+  ): Promise<void> {
+    await this.authService.verifyEmail(dto.token);
+  }
+
+  @Post('resend-verification')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @Header('Cache-Control', 'no-store')
+  async resendVerification(
+    @Body(createApplicationValidationPipe(AuthEmailRequestDto)) dto: AuthEmailRequestDto,
+  ): Promise<AcceptedAuthRequestResponse> {
+    await this.authService.resendVerification(dto.email);
+    return { status: 'ACCEPTED' };
   }
 
   @Post('login')
@@ -59,6 +86,27 @@ export class AuthController {
     const result = await this.authService.login(dto);
     this.setSessionCookie(response, result.session);
     return { user: result.user };
+  }
+
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @Header('Cache-Control', 'no-store')
+  async forgotPassword(
+    @Body(createApplicationValidationPipe(AuthEmailRequestDto)) dto: AuthEmailRequestDto,
+  ): Promise<AcceptedAuthRequestResponse> {
+    await this.authService.forgotPassword(dto.email);
+    return { status: 'ACCEPTED' };
+  }
+
+  @Post('reset-password')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Header('Cache-Control', 'no-store')
+  async resetPassword(
+    @Body(createApplicationValidationPipe(ResetPasswordDto)) dto: ResetPasswordDto,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<void> {
+    await this.authService.resetPassword(dto.token, dto.password);
+    response.cookie(SESSION_COOKIE_NAME, '', expiredSessionCookieOptions(this.nodeEnv));
   }
 
   @Post('logout')

@@ -18,6 +18,7 @@ interface FindSessionArguments {
   where: {
     tokenHash: string;
     expiresAt: { gt: Date };
+    user: { emailVerifiedAt: { not: null } };
   };
   select: unknown;
 }
@@ -102,6 +103,7 @@ void describe('SessionService', () => {
     const typedQuery = query as FindSessionArguments;
     assert.equal(typedQuery.where.tokenHash, hashSessionToken(rawToken));
     assert.equal(typedQuery.where.expiresAt.gt instanceof Date, true);
+    assert.deepEqual(typedQuery.where.user, { emailVerifiedAt: { not: null } });
     assert.deepEqual(typedQuery.select, {
       id: true,
       user: {

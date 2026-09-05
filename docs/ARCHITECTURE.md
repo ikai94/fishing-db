@@ -27,7 +27,8 @@ Browser
 | Composition      | `apps/api/src/app.module.ts`                            | Wires modules and the global origin guard               |
 | HTTP setup       | `apps/api/src/app.setup.ts`                             | Prefix, cookies, validation, CORS, shutdown             |
 | Activity         | `apps/api/src/activity`                                 | Append-only writes, public projection, cursor feed      |
-| Auth             | `apps/api/src/auth`                                     | Register/login/logout, sessions, roles, ban guards      |
+| Auth             | `apps/api/src/auth`                                     | Verified email, login/reset, sessions, roles, bans      |
+| Auth email       | `apps/api/src/auth/email`                               | Encrypted outbox dispatch and console/SMTP transports   |
 | Catalog          | `apps/api/src/catalog`                                  | Public queries and guarded ADMIN catalog changes        |
 | CatchReports     | `apps/api/src/catch-reports`                            | Feed/detail/archive, mutations, projections, pagination |
 | Parser           | `apps/api/src/catch-reports/parser`                     | Notebook text to non-persistent editable Draft          |
@@ -52,7 +53,7 @@ Controller entry points:
 | Area            | Route path                           | Look first in                                           |
 | --------------- | ------------------------------------ | ------------------------------------------------------- |
 | Home/activity   | `/`                                  | `src/app/_components/home-dashboard.tsx`                |
-| Auth/account    | `/login`, `/register`, `/account`    | matching `src/app/*/page.tsx`, `src/lib/auth-api.ts`    |
+| Auth/account    | `/login`, `/register`, `/verify-email/**`, `/forgot-password`, `/reset-password`, `/account` | matching `src/app/*/page.tsx`, `src/lib/auth-api.ts` |
 | Bases           | `/bases`, `/bases/[id]`              | `src/app/bases`, `src/lib/catalog-api.ts`               |
 | Locations       | `/locations/[id]`                    | `src/app/locations/[id]`                                |
 | Fish            | `/fish`, `/fish/[id]`                | `src/app/fish`, Fish Explorer `_components`             |
@@ -65,12 +66,35 @@ Controller entry points:
 Shared frontend navigation points:
 
 - `src/lib/api-client.ts` — timeout, cookie credentials, no-store transport, API errors.
+- `src/lib/auth-api.ts`, `src/lib/auth-token-fragment.ts` — auth contracts and immediate capture
+  and removal of verification/reset fragment tokens.
 - `src/lib/activity-api.ts` — strict public activity union and cursor-page decoder.
 - `src/lib/catalog-api.ts` — public catalog requests and strict decoders.
 - `src/lib/catch-reports-api.ts` — public/owner projections and CatchReport commands.
 - `src/lib/hole-statistics-api.ts` — common-hole request and response decoder.
 - `src/lib/fish-base-selection.ts` — URL-backed Fish Explorer Base scope.
 - `src/lib/use-api-resource.ts`, `src/lib/use-required-user.ts` — resource/auth hooks.
+
+## Email auth flow
+
+Registration writes the unverified User, hashed verification token, and encrypted
+`AuthEmailOutbox` row in one transaction and returns `VERIFICATION_REQUIRED` without a Session.
+The dispatcher leases eligible outbox rows, decrypts the token only for delivery, builds a
+`WEB_ORIGIN` link with the token in the URL fragment, and sends it through the configured console
+or SMTP transport. Successful verification consumes the token and marks the User verified without
+logging them in; resend atomically invalidates the active token and cancels its undelivered outbox
+row before issuing a replacement.
+
+Login verifies the password but creates a Session only for a verified User. Session lookup also
+requires the current User to remain verified. Forgot-password and resend return the same accepted
+response for eligible and ineligible addresses. Reset issuance supersedes the prior active reset
+token; successful reset consumes its token, changes the password, and deletes all User sessions in
+one transaction. `consumedAt` represents successful use, while `invalidatedAt` represents a token
+superseded or cancelled without use.
+
+`/verify-email` and `/reset-password` synchronously capture their fragment token and remove it from
+browser history before calling the API. `/register` and `/login` plus the pending, verification,
+forgot-password, and reset-password screens use `ApplicationShell` and the shared auth UI.
 
 ## CatchReport request flow
 

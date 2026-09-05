@@ -7,6 +7,7 @@ Phase 2 добавляет пользователей и browser-аутенти�
 ADMIN-управление базами, локациями, рыбами и наживками. Phase 4 добавляет публичные
 структурированные отчёты об уловах, ручной ввод и личный список. Phase 5 переносит связь рыбы на уровень
 FishingBase, добавляет экранные ориентиры, каталожный seed Амура и уточнённую модель отчёта.
+Email auth добавляет обязательное подтверждение адреса и безопасное восстановление пароля.
 
 ## Working with Codex
 
@@ -70,6 +71,13 @@ Copy-Item apps/web/.env.example apps/web/.env.local
 Production-сборка требует явно заданный `NEXT_PUBLIC_API_URL`; localhost fallback доступен
 только в development.
 
+Локальная конфигурация из `apps/api/.env.example` использует
+`AUTH_EMAIL_DELIVERY_MODE=console`: API печатает в консоль кликабельные ссылки подтверждения и
+сброса. Для production обязательны `AUTH_EMAIL_DELIVERY_MODE=smtp`, HTTPS-адрес `WEB_ORIGIN`,
+`EMAIL_FROM`, SMTP(S)-адрес `SMTP_URL` без path/query/fragment и уникальный
+`AUTH_EMAIL_TOKEN_ENCRYPTION_KEY` — каноническое base64url-значение из 32 случайных байт.
+Development-ключ из примера запрещён в production.
+
 3. Запустите PostgreSQL и дождитесь статуса `healthy`:
 
 ```powershell
@@ -95,6 +103,8 @@ pnpm dev
 - frontend: http://localhost:3000
 - регистрация: http://localhost:3000/register
 - вход: http://localhost:3000/login
+- повторная отправка подтверждения: http://localhost:3000/verify-email/pending
+- восстановление пароля: http://localhost:3000/forgot-password
 - аккаунт: http://localhost:3000/account
 - базы: http://localhost:3000/bases
 - рыбы: http://localhost:3000/fish
@@ -182,12 +192,32 @@ pnpm db:test:down
 
 ## Аутентификация
 
-API предоставляет только четыре auth endpoint:
+API предоставляет auth endpoints:
 
 - `POST /api/v1/auth/register`;
+- `POST /api/v1/auth/verify-email`;
+- `POST /api/v1/auth/resend-verification`;
 - `POST /api/v1/auth/login`;
+- `POST /api/v1/auth/forgot-password`;
+- `POST /api/v1/auth/reset-password`;
 - `POST /api/v1/auth/logout`;
 - `GET /api/v1/auth/me`.
+
+Регистрация создаёт неподтверждённого пользователя, одноразовый expiring verification token и
+письмо в transactional outbox, но не создаёт сессию. После перехода по ссылке `/verify-email`
+токен используется один раз; подтверждение не выполняет автоматический вход. Повторная отправка
+атомарно помечает предыдущий токен как invalidated и выдаёт новый. Существующие пользователи были
+backfilled как подтверждённые при применении миграции.
+
+Resend и forgot-password всегда возвращают одинаковый принятый ответ независимо от существования
+или состояния аккаунта. Reset token одноразовый и ограничен по времени; успешный сброс меняет
+пароль и отзывает все сессии пользователя. Успешно применённый token получает `consumedAt`, а
+заменённый без применения — отдельный `invalidatedAt`.
+
+В PostgreSQL action tokens хранятся только как SHA-256 hashes. Transactional outbox хранит токен в
+AES-256-GCM ciphertext, чтобы dispatcher мог сформировать письмо; console и SMTP transport не
+меняют auth flow. Ссылки передают token во fragment, а `/verify-email` и `/reset-password`
+захватывают его и сразу очищают URL браузера.
 
 Frontend отправляет auth-запросы с `credentials: 'include'`. Сырой session token хранится только
 в cookie `fishing_session` с `HttpOnly`, `SameSite=Lax`, `Path=/`; в PostgreSQL сохраняется только

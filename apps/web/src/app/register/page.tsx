@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FormEvent, useState } from 'react';
+import { AuthScreen } from '../_components/auth-screen';
 import { getApiErrorMessage, isApiError } from '@/lib/api-client';
 import { register } from '@/lib/auth-api';
 import styles from '../auth.module.css';
@@ -82,8 +83,11 @@ export default function RegisterPage() {
     setIsSubmitting(true);
 
     try {
-      await register({ email: email.trim(), nickname: nickname.trim(), password });
-      router.replace('/account');
+      const result = await register({ email: email.trim(), nickname: nickname.trim(), password });
+
+      if (result.status === 'VERIFICATION_REQUIRED') {
+        router.replace('/verify-email/pending');
+      }
     } catch (error) {
       const nextFieldErrors: RegisterErrors = {
         email: firstServerFieldError(error, 'email'),
@@ -112,158 +116,151 @@ export default function RegisterPage() {
   }
 
   return (
-    <main className={styles.page}>
-      <section className={styles.card}>
-        <Link className={styles.backLink} href="/">
-          ← На главную
-        </Link>
-        <p className={styles.eyebrow}>Личный архив</p>
-        <h1 className={styles.title}>Регистрация</h1>
-        <p className={styles.description}>
-          Создайте аккаунт, чтобы пользоваться личным архивом уловов.
-        </p>
+    <AuthScreen
+      eyebrow="Личный архив"
+      title="Регистрация"
+      description="Создайте аккаунт. Перед входом мы попросим подтвердить email."
+    >
+      <form className={styles.form} onSubmit={handleSubmit} noValidate>
+        {serverError ? (
+          <p className={styles.errorBanner} role="alert">
+            {serverError}
+          </p>
+        ) : null}
 
-        <form className={styles.form} onSubmit={handleSubmit} noValidate>
-          {serverError ? (
-            <p className={styles.errorBanner} role="alert">
-              {serverError}
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor="email">
+            Email
+          </label>
+          <input
+            className={`${styles.input} ${fieldErrors.email ? styles.invalidInput : ''}`}
+            id="email"
+            name="email"
+            type="email"
+            autoComplete="email"
+            value={email}
+            onChange={(event) => {
+              setEmail(event.target.value);
+              setFieldErrors((current) => ({ ...current, email: undefined }));
+            }}
+            aria-invalid={fieldErrors.email ? 'true' : undefined}
+            aria-describedby={fieldErrors.email ? 'email-error' : 'email-hint'}
+            required
+          />
+          <p className={styles.fieldHint} id="email-hint">
+            Адрес должен оканчиваться на .ru.
+          </p>
+          {fieldErrors.email ? (
+            <p className={styles.fieldError} id="email-error">
+              {fieldErrors.email}
             </p>
           ) : null}
+        </div>
 
-          <div className={styles.field}>
-            <label className={styles.label} htmlFor="email">
-              Email
-            </label>
-            <input
-              className={`${styles.input} ${fieldErrors.email ? styles.invalidInput : ''}`}
-              id="email"
-              name="email"
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(event) => {
-                setEmail(event.target.value);
-                setFieldErrors((current) => ({ ...current, email: undefined }));
-              }}
-              aria-invalid={fieldErrors.email ? 'true' : undefined}
-              aria-describedby={fieldErrors.email ? 'email-error' : 'email-hint'}
-              required
-            />
-            <p className={styles.fieldHint} id="email-hint">
-              Адрес должен оканчиваться на .ru.
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor="nickname">
+            Никнейм
+          </label>
+          <input
+            className={`${styles.input} ${fieldErrors.nickname ? styles.invalidInput : ''}`}
+            id="nickname"
+            name="nickname"
+            type="text"
+            autoComplete="nickname"
+            value={nickname}
+            onChange={(event) => {
+              setNickname(event.target.value);
+              setFieldErrors((current) => ({ ...current, nickname: undefined }));
+            }}
+            aria-invalid={fieldErrors.nickname ? 'true' : undefined}
+            aria-describedby={fieldErrors.nickname ? 'nickname-error' : undefined}
+            required
+          />
+          {fieldErrors.nickname ? (
+            <p className={styles.fieldError} id="nickname-error">
+              {fieldErrors.nickname}
             </p>
-            {fieldErrors.email ? (
-              <p className={styles.fieldError} id="email-error">
-                {fieldErrors.email}
-              </p>
-            ) : null}
-          </div>
+          ) : null}
+        </div>
 
-          <div className={styles.field}>
-            <label className={styles.label} htmlFor="nickname">
-              Никнейм
-            </label>
-            <input
-              className={`${styles.input} ${fieldErrors.nickname ? styles.invalidInput : ''}`}
-              id="nickname"
-              name="nickname"
-              type="text"
-              autoComplete="nickname"
-              value={nickname}
-              onChange={(event) => {
-                setNickname(event.target.value);
-                setFieldErrors((current) => ({ ...current, nickname: undefined }));
-              }}
-              aria-invalid={fieldErrors.nickname ? 'true' : undefined}
-              aria-describedby={fieldErrors.nickname ? 'nickname-error' : undefined}
-              required
-            />
-            {fieldErrors.nickname ? (
-              <p className={styles.fieldError} id="nickname-error">
-                {fieldErrors.nickname}
-              </p>
-            ) : null}
-          </div>
-
-          <div className={styles.field}>
-            <label className={styles.label} htmlFor="password">
-              Пароль
-            </label>
-            <input
-              className={`${styles.input} ${fieldErrors.password ? styles.invalidInput : ''}`}
-              id="password"
-              name="password"
-              type="password"
-              autoComplete="new-password"
-              value={password}
-              onChange={(event) => {
-                setPassword(event.target.value);
-                setFieldErrors((current) => ({ ...current, password: undefined }));
-              }}
-              aria-invalid={fieldErrors.password ? 'true' : undefined}
-              aria-describedby={fieldErrors.password ? 'password-error' : 'password-hint'}
-              required
-            />
-            <p className={styles.fieldHint} id="password-hint">
-              От 15 до 128 символов.
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor="password">
+            Пароль
+          </label>
+          <input
+            className={`${styles.input} ${fieldErrors.password ? styles.invalidInput : ''}`}
+            id="password"
+            name="password"
+            type="password"
+            autoComplete="new-password"
+            value={password}
+            onChange={(event) => {
+              setPassword(event.target.value);
+              setFieldErrors((current) => ({ ...current, password: undefined }));
+            }}
+            aria-invalid={fieldErrors.password ? 'true' : undefined}
+            aria-describedby={fieldErrors.password ? 'password-error' : 'password-hint'}
+            required
+          />
+          <p className={styles.fieldHint} id="password-hint">
+            От 15 до 128 символов.
+          </p>
+          {fieldErrors.password ? (
+            <p className={styles.fieldError} id="password-error">
+              {fieldErrors.password}
             </p>
-            {fieldErrors.password ? (
-              <p className={styles.fieldError} id="password-error">
-                {fieldErrors.password}
-              </p>
-            ) : null}
-          </div>
+          ) : null}
+        </div>
 
-          <div className={styles.field}>
-            <label className={styles.label} htmlFor="password-confirmation">
-              Повторите пароль
-            </label>
-            <input
-              className={`${styles.input} ${
-                fieldErrors.passwordConfirmation ? styles.invalidInput : ''
-              }`}
-              id="password-confirmation"
-              name="passwordConfirmation"
-              type="password"
-              autoComplete="new-password"
-              value={passwordConfirmation}
-              onChange={(event) => {
-                setPasswordConfirmation(event.target.value);
-                setFieldErrors((current) => ({
-                  ...current,
-                  passwordConfirmation: undefined,
-                }));
-              }}
-              aria-invalid={fieldErrors.passwordConfirmation ? 'true' : undefined}
-              aria-describedby={
-                fieldErrors.passwordConfirmation ? 'password-confirmation-error' : undefined
-              }
-              required
-            />
-            {fieldErrors.passwordConfirmation ? (
-              <p className={styles.fieldError} id="password-confirmation-error">
-                {fieldErrors.passwordConfirmation}
-              </p>
-            ) : null}
-          </div>
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor="password-confirmation">
+            Повторите пароль
+          </label>
+          <input
+            className={`${styles.input} ${
+              fieldErrors.passwordConfirmation ? styles.invalidInput : ''
+            }`}
+            id="password-confirmation"
+            name="passwordConfirmation"
+            type="password"
+            autoComplete="new-password"
+            value={passwordConfirmation}
+            onChange={(event) => {
+              setPasswordConfirmation(event.target.value);
+              setFieldErrors((current) => ({
+                ...current,
+                passwordConfirmation: undefined,
+              }));
+            }}
+            aria-invalid={fieldErrors.passwordConfirmation ? 'true' : undefined}
+            aria-describedby={
+              fieldErrors.passwordConfirmation ? 'password-confirmation-error' : undefined
+            }
+            required
+          />
+          {fieldErrors.passwordConfirmation ? (
+            <p className={styles.fieldError} id="password-confirmation-error">
+              {fieldErrors.passwordConfirmation}
+            </p>
+          ) : null}
+        </div>
 
-          <button
-            className={styles.submitButton}
-            type="submit"
-            disabled={isSubmitting}
-            aria-busy={isSubmitting}
-          >
-            {isSubmitting ? 'Создаём аккаунт…' : 'Зарегистрироваться'}
-          </button>
-        </form>
+        <button
+          className={styles.submitButton}
+          type="submit"
+          disabled={isSubmitting}
+          aria-busy={isSubmitting}
+        >
+          {isSubmitting ? 'Создаём аккаунт…' : 'Зарегистрироваться'}
+        </button>
+      </form>
 
-        <p className={styles.footer}>
-          Уже есть аккаунт?{' '}
-          <Link className={styles.textLink} href="/login">
-            Войти
-          </Link>
-        </p>
-      </section>
-    </main>
+      <p className={styles.footer}>
+        Уже есть аккаунт?{' '}
+        <Link className={styles.textLink} href="/login">
+          Войти
+        </Link>
+      </p>
+    </AuthScreen>
   );
 }

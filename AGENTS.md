@@ -90,6 +90,12 @@ condition, not a location landmark.
   field names: preserve the accepted visibility of every other field from `PROJECT_STATE.md`.
 - Initial roles remain `USER` and `ADMIN`; catalog administration is ADMIN-only.
 - Only email domains ending in `.ru` are accepted, and passwords must never be stored in plaintext.
+- Self-registration must remain unverified and sessionless until single-use email verification;
+  unverified Users must not log in or pass authenticated guards. Password reset revokes all User
+  sessions.
+- Persist only auth-token hashes and authenticated encrypted outbox payloads, never raw auth
+  tokens. Keep successful consumption separate from invalidation/superseding, and atomically
+  invalidate the active token before issuing its replacement.
 - Banned users may authenticate, read their archive, and preview parser output, but cannot create,
   update, or delete public reports. Banned ADMIN users cannot use ADMIN catalog routes.
 - Do not invent an ADMIN user-management or ban endpoint unless a task explicitly adds one.

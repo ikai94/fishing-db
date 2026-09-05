@@ -165,7 +165,7 @@ function requireSessionCookie(response: { headers: Record<string, unknown> }): s
 async function createActor(role: 'USER' | 'ADMIN', isBanned = false): Promise<AuthenticatedActor> {
   actorSequence += 1;
   const email = `catalog-actor-${actorSequence}@example.ru`;
-  const registration = await unsafe(api().post('/api/v1/auth/register'))
+  await unsafe(api().post('/api/v1/auth/register'))
     .send({
       email,
       nickname: `Catalog Actor ${actorSequence}`,
@@ -174,15 +174,18 @@ async function createActor(role: 'USER' | 'ADMIN', isBanned = false): Promise<Au
     .expect(201);
   const user = await prisma.user.findUniqueOrThrow({ where: { email } });
 
-  if (role !== user.role || isBanned !== user.isBanned) {
+  if (role !== user.role || isBanned !== user.isBanned || user.emailVerifiedAt === null) {
     await prisma.user.update({
       where: { id: user.id },
-      data: { role, isBanned },
+      data: { role, isBanned, emailVerifiedAt: new Date() },
     });
   }
+  const authenticated = await unsafe(api().post('/api/v1/auth/login'))
+    .send({ email, password: PASSWORD })
+    .expect(200);
 
   return {
-    cookie: requireSessionCookie(registration),
+    cookie: requireSessionCookie(authenticated),
     email,
     userId: user.id,
   };

@@ -1,5 +1,11 @@
-import { Inject, Injectable, InternalServerErrorException } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  InternalServerErrorException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { createHash, randomBytes } from 'node:crypto';
+import type { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   SAFE_USER_SELECT,
@@ -68,20 +74,48 @@ export class SessionService {
     };
   }
 
-  async createSession(userId: string): Promise<IssuedSession> {
+  async createSession(userId: string, expectedPasswordHash?: string): Promise<IssuedSession> {
     for (let attempt = 0; attempt < SESSION_CREATION_ATTEMPTS; attempt += 1) {
       const prepared = this.prepareSession();
 
       try {
-        const session = await this.prisma.session.create({
-          data: {
-            userId,
-            tokenHash: prepared.tokenHash,
-            createdAt: prepared.createdAt,
-            expiresAt: prepared.expiresAt,
-          },
-          select: { id: true },
-        });
+        const create = (client: Prisma.TransactionClient) =>
+          client.session.create({
+            data: {
+              userId,
+              tokenHash: prepared.tokenHash,
+              createdAt: prepared.createdAt,
+              expiresAt: prepared.expiresAt,
+            },
+            select: { id: true },
+          });
+        const session =
+          expectedPasswordHash === undefined
+            ? await create(this.prisma)
+            : await this.prisma.$transaction(async (transaction) => {
+                // Serialize issuance with password reset, and reject a stale password check.
+                const [user] = await transaction.$queryRaw<
+                  {
+                    passwordHash: string;
+                    emailVerifiedAt: Date | null;
+                  }[]
+                >`
+                SELECT "passwordHash", "emailVerifiedAt" FROM "User"
+                WHERE "id" = ${userId}::uuid FOR UPDATE
+              `;
+                if (
+                  !user ||
+                  user.emailVerifiedAt === null ||
+                  user.passwordHash !== expectedPasswordHash
+                ) {
+                  throw new UnauthorizedException({
+                    statusCode: 401,
+                    code: 'INVALID_CREDENTIALS',
+                    message: 'Неверный email или пароль',
+                  });
+                }
+                return create(transaction);
+              });
 
         return {
           sessionId: session.id,
@@ -113,6 +147,7 @@ export class SessionService {
       where: {
         tokenHash: hashSessionToken(rawToken),
         expiresAt: { gt: new Date() },
+        user: { emailVerifiedAt: { not: null } },
       },
       select: {
         id: true,

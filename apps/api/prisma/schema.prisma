@@ -14,6 +14,11 @@ enum UserRole {
   ADMIN
 }
 
+enum AuthTokenPurpose {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
+
 enum BaitType {
   BAIT
   LURE
@@ -72,9 +77,11 @@ model User {
   passwordHash       String          @db.VarChar(255)
   role               UserRole        @default(USER)
   isBanned           Boolean         @default(false)
+  emailVerifiedAt    DateTime?       @db.Timestamptz(3)
   createdAt          DateTime        @default(now()) @db.Timestamptz(3)
   updatedAt          DateTime        @default(now()) @updatedAt @db.Timestamptz(3)
   sessions           Session[]
+  authTokens         AuthToken[]
   catchReports       CatchReport[]
   activityEvents     ActivityEvent[]
 }
@@ -89,6 +96,39 @@ model Session {
 
   @@index([userId])
   @@index([expiresAt])
+}
+
+model AuthToken {
+  id            String           @id @default(uuid()) @db.Uuid
+  userId        String           @db.Uuid
+  purpose       AuthTokenPurpose
+  tokenHash     String           @unique @db.Char(64)
+  createdAt     DateTime         @default(now()) @db.Timestamptz(3)
+  expiresAt     DateTime         @db.Timestamptz(3)
+  consumedAt    DateTime?        @db.Timestamptz(3)
+  invalidatedAt DateTime?        @db.Timestamptz(3)
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emailOutbox   AuthEmailOutbox?
+
+  @@index([userId, purpose])
+  @@index([expiresAt])
+}
+
+model AuthEmailOutbox {
+  id             String    @id @default(uuid()) @db.Uuid
+  authTokenId    String    @unique @db.Uuid
+  recipientEmail String    @db.VarChar(254)
+  encryptedToken String    @db.Text
+  createdAt      DateTime  @default(now()) @db.Timestamptz(3)
+  availableAt    DateTime  @default(now()) @db.Timestamptz(3)
+  attemptCount   Int       @default(0)
+  leaseUntil     DateTime? @db.Timestamptz(3)
+  sentAt         DateTime? @db.Timestamptz(3)
+  cancelledAt    DateTime? @db.Timestamptz(3)
+  authToken      AuthToken @relation(fields: [authTokenId], references: [id], onDelete: Cascade)
+
+  @@index([availableAt, createdAt])
+  @@index([leaseUntil])
 }
 
 model FishingBase {

@@ -47,19 +47,30 @@ function configService(nodeEnv: string): ConfigService {
 }
 
 void describe('AuthController', () => {
-  void it('sets only the raw token in the development HttpOnly session cookie', async () => {
+  void it('registers a pending account without setting a session cookie', async () => {
     const authService = {
-      register: () => Promise.resolve(authenticatedResult),
+      register: () => Promise.resolve(),
+    } as unknown as AuthService;
+    const controller = new AuthController(authService, configService('development'));
+
+    const response = await controller.register({
+      email: 'angler@example.ru',
+      nickname: 'Angler',
+      password: 'correct horse 🐟',
+    });
+
+    assert.deepEqual(response, { status: 'VERIFICATION_REQUIRED' });
+  });
+
+  void it('sets only the raw token in the development HttpOnly cookie on login', async () => {
+    const authService = {
+      login: () => Promise.resolve(authenticatedResult),
     } as unknown as AuthService;
     const controller = new AuthController(authService, configService('development'));
     const cookieCalls: CookieCall[] = [];
 
-    const response = await controller.register(
-      {
-        email: 'angler@example.ru',
-        nickname: 'Angler',
-        password: 'correct horse 🐟',
-      },
+    const response = await controller.login(
+      { email: 'angler@example.ru', password: 'correct horse 🐟' },
       responseRecorder(cookieCalls),
     );
 
@@ -79,6 +90,23 @@ void describe('AuthController', () => {
       },
     ]);
     assert.equal(JSON.stringify(response).includes(authenticatedResult.session.rawToken), false);
+  });
+
+  void it('expires the current browser cookie after a successful password reset', async () => {
+    const authService = { resetPassword: () => Promise.resolve() } as unknown as AuthService;
+    const controller = new AuthController(authService, configService('production'));
+    const cookieCalls: CookieCall[] = [];
+
+    await controller.resetPassword(
+      { token: Buffer.alloc(32, 2).toString('base64url'), password: 'new secure password value' },
+      responseRecorder(cookieCalls),
+    );
+
+    assert.equal(cookieCalls.length, 1);
+    assert.equal(cookieCalls[0]?.name, SESSION_COOKIE_NAME);
+    assert.equal(cookieCalls[0]?.value, '');
+    assert.equal(cookieCalls[0]?.options.maxAge, 0);
+    assert.equal(cookieCalls[0]?.options.secure, true);
   });
 
   void it('deletes only the current session and always expires the cookie', async () => {

@@ -2,8 +2,8 @@
 
 ## Accepted functional state
 
-- Current accepted application milestone: ActivityEvent v1.
-- Snapshot date: 2026-09-04 (Europe/Moscow).
+- Current accepted application milestone: Email auth.
+- Snapshot date: 2026-09-05 (Europe/Moscow).
 
 This file records the accepted functional/product state; Git history records commit history.
 
@@ -22,6 +22,7 @@ Exact accepted declarations and dependency pins:
 | React / React DOM   | `19.2.8`    | `apps/web/package.json` |
 | NestJS              | `11.1.28`   | `apps/api/package.json` |
 | Prisma CLI / Client | `7.9.1`     | `apps/api/package.json` |
+| Nodemailer          | `7.0.6`     | `apps/api/package.json` |
 
 Root engines allow Node `>=24.0.0 <25` and pnpm `>=11.0.0 <12`.
 
@@ -82,6 +83,13 @@ The workspace currently includes only `apps/*`; there is no accepted `packages/s
 - Activity history begins when the ActivityEvent migration is applied; existing catalog rows and
   CatchReports are deliberately not backfilled or reconstructed from entity timestamps.
 - Roles are `USER` and `ADMIN`. ADMIN catalog access is enforced by backend guards.
+- Self-registration creates an unverified User, an expiring email-verification token, and an
+  encrypted transactional outbox message without creating a Session. Existing Users were
+  backfilled as verified when email verification was introduced.
+- `AuthToken` stores only a SHA-256 token hash and records successful use in `consumedAt` separately
+  from superseding or administrative invalidation in `invalidatedAt`; the states are mutually
+  exclusive. Raw action tokens exist only transiently and as authenticated ciphertext in the
+  transactional `AuthEmailOutbox` until delivery and retention cleanup.
 - Banned users may authenticate, read their archive, and preview parser output, but cannot create,
   update, or delete public reports. Banned ADMIN users cannot use ADMIN catalog routes.
 - There is no accepted ADMIN user-management or ban HTTP endpoint yet.
@@ -89,8 +97,13 @@ The workspace currently includes only `apps/*`; there is no accepted `packages/s
 ## Accepted product capabilities
 
 - Docker Compose PostgreSQL development/test infrastructure and health endpoint.
-- Email/password/nickname authentication, PostgreSQL sessions, `.ru` email rule, HttpOnly cookie,
-  origin protection, `USER`/`ADMIN` roles, and ban guards.
+- Verified-email/password/nickname authentication, PostgreSQL sessions, `.ru` email rule, HttpOnly
+  cookie, origin protection, verification resend, password recovery, `USER`/`ADMIN` roles, and ban
+  guards. Resend and recovery responses do not disclose account existence; password reset consumes
+  its single-use token and revokes every Session for the User.
+- Transactional encrypted auth-email outbox with clickable fragment-token links, console delivery
+  for local development, replaceable SMTP delivery for production, leases, retries, cancellation,
+  and retention cleanup.
 - Public active-only catalog browsing and guarded ADMIN catalog maintenance.
 - Base-to-Fish membership without per-Location fish duplication.
 - Public CatchReport feed/detail, owner archive/detail, create/edit/delete, and cursor pagination.
@@ -112,7 +125,9 @@ The workspace currently includes only `apps/*`; there is no accepted `packages/s
 Important frontend routes:
 
 - `/` — health, recent catches, and the latest ten activity events; `/login`, `/register`,
-  `/account` — authentication and account.
+  `/verify-email/pending`, `/verify-email`, `/forgot-password`, `/reset-password`, and `/account` —
+  authentication and account. Verification and reset pages capture fragment tokens, clear the
+  browser URL immediately, and then perform the action.
 - `/bases`, `/bases/:id`, `/locations/:id` — public Base and Location catalog.
 - `/fish`, `/fish/:id`, `/baits` — Fish search/explorer and bait catalog.
 - `/catches`, `/catches/:id` — public report feed and detail.
@@ -122,7 +137,7 @@ Important frontend routes:
 Important REST families, all below `/api/v1`:
 
 - `/health` — application/database health.
-- `/auth` — register, login, logout, and current session.
+- `/auth` — register, verify/resend email, login/logout, forgot/reset password, and current session.
 - `/catalog` — public Bases, Locations, Fish, Baits, and ScreenAnchors.
 - `/admin/catalog` — ADMIN catalog reads/mutations and Base–Fish membership.
 - `/catch-reports` — public feed/detail/statistics, parser preview, and guarded mutations.
@@ -131,6 +146,13 @@ Important REST families, all below `/api/v1`:
 
 ## Important accepted decisions
 
+- Only verified Users may log in or pass session authentication. Verification is single-use and
+  does not create a Session; resend atomically invalidates the previous verification token before
+  issuing its replacement. Password-reset issuance follows the same superseding rule, and a
+  successful reset revokes all Sessions.
+- Auth email uses console delivery outside production by default. Production requires SMTP,
+  HTTPS `WEB_ORIGIN`, an explicit sender and SMTP URL, and a unique 32-byte base64url encryption
+  key; development defaults and unsafe SMTP URL overrides are rejected.
 - Fish membership is Base-scoped, not Location-scoped. Do not recreate `LocationFish`.
 - Existing reports are historical records. Catalog deactivation, Base–Fish unlinking, or author ban
   does not hide them from public reads or statistics.

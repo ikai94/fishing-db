@@ -42,3 +42,11 @@ export interface AuthenticatedResult {
   user: SafeUser;
   session: IssuedSession;
 }
+
+export interface PendingVerificationResponse {
+  status: 'VERIFICATION_REQUIRED';
+}
+
+export interface AcceptedAuthRequestResponse {
+  status: 'ACCEPTED';
+}

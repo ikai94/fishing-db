@@ -1,173 +1,163 @@
-.page {
-  min-height: 100vh;
+.screen {
   display: grid;
-  place-items: center;
-  padding: 24px;
+  place-items: start center;
+  padding: 18px 0 32px;
 }
 
-.card {
-  width: min(100%, 520px);
-  padding: 32px;
-  border: 1px solid #d9e2dc;
-  border-radius: 12px;
-  background: #ffffff;
-  box-shadow: 0 12px 32px rgb(34 67 48 / 8%);
+.panel {
+  width: min(100%, 560px);
+  padding: 18px 20px 20px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-md);
+  color: var(--app-text);
+  background: var(--app-surface);
+  box-shadow: var(--app-shadow-subtle);
 }
 
-.wideCard {
-  width: min(100%, 640px);
-}
-
-.backLink {
-  display: inline-block;
-  margin-bottom: 24px;
-  color: #376c4b;
-  font-weight: 700;
-  text-decoration: none;
-}
-
-.backLink:hover {
-  text-decoration: underline;
+.header {
+  padding-bottom: 13px;
+  border-bottom: 1px solid var(--app-border);
 }
 
 .eyebrow {
-  margin: 0 0 6px;
-  color: #376c4b;
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  margin: 0 0 3px;
+  color: var(--app-accent-strong);
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
 }
 
 .title {
   margin: 0;
-  font-size: clamp(2rem, 8vw, 2.75rem);
-  line-height: 1.08;
+  font-size: clamp(1.45rem, 3vw, 1.8rem);
+  line-height: 1.15;
 }
 
 .description {
-  margin: 12px 0 0;
-  color: #536159;
-  line-height: 1.6;
+  margin: 7px 0 0;
+  color: var(--app-text-muted);
+  line-height: 1.5;
 }
 
 .form {
   display: grid;
-  gap: 18px;
-  margin-top: 28px;
+  gap: 14px;
+  margin-top: 16px;
 }
 
 .field {
   display: grid;
-  gap: 7px;
+  gap: 5px;
 }
 
 .label {
+  font-size: 0.82rem;
   font-weight: 700;
 }
 
 .input {
   width: 100%;
-  min-height: 44px;
-  padding: 10px 12px;
-  border: 1px solid #aebcb3;
-  border-radius: 8px;
-  color: #17251d;
-  background: #ffffff;
-}
-
-.input:focus-visible,
-.submitButton:focus-visible,
-.secondaryButton:focus-visible,
-.adminLink:focus-visible,
-.backLink:focus-visible,
-.textLink:focus-visible {
-  outline: 3px solid rgb(55 108 75 / 24%);
-  outline-offset: 2px;
+  min-height: 36px;
+  padding: 7px 9px;
+  border: 1px solid var(--app-border-strong);
+  border-radius: var(--app-radius-sm);
+  color: var(--app-text);
+  background: var(--app-surface);
 }
 
 .invalidInput {
-  border-color: #a52a2a;
+  border-color: var(--app-danger);
 }
 
 .fieldHint,
 .fieldError {
   margin: 0;
-  font-size: 0.875rem;
+  font-size: 0.76rem;
   line-height: 1.4;
 }
 
 .fieldHint {
-  color: #647168;
+  color: var(--app-text-muted);
 }
 
 .fieldError {
-  color: #8f2424;
+  color: var(--app-danger);
 }
 
+.status,
 .errorBanner,
-.bannedNotice {
-  margin: 0;
-  padding: 12px 14px;
-  border-radius: 8px;
+.successBanner,
+.infoBanner {
+  margin: 14px 0 0;
+  padding: 9px 10px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
   line-height: 1.5;
 }
 
-.errorBanner {
-  border: 1px solid #edc3c3;
-  background: #fff1f1;
-  color: #7d2020;
+.status,
+.infoBanner {
+  color: var(--app-text-muted);
+  background: var(--app-sidebar);
 }
 
-.bannedNotice {
-  margin-top: 24px;
-  border: 1px solid #eed099;
-  background: #fff7e8;
-  color: #704d0d;
+.errorBanner {
+  border-color: #ddb4b0;
+  color: var(--app-danger);
+  background: var(--app-danger-soft);
+}
+
+.successBanner {
+  border-color: #a9cbb4;
+  color: #235f38;
+  background: #f0f8f2;
+}
+
+.status p,
+.errorBanner p,
+.successBanner p,
+.infoBanner p {
+  margin: 0;
+}
+
+.status p + p,
+.errorBanner p + p,
+.successBanner p + p,
+.infoBanner p + p {
+  margin-top: 6px;
 }
 
 .submitButton,
-.secondaryButton,
-.adminLink {
-  min-height: 44px;
-  padding: 11px 18px;
-  border-radius: 8px;
+.secondaryButton {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 11px;
+  border-radius: var(--app-radius-sm);
   font-weight: 700;
   cursor: pointer;
 }
 
 .submitButton {
-  border: 1px solid #28573b;
-  color: #ffffff;
-  background: #376c4b;
-}
-
-.submitButton:hover:not(:disabled) {
-  background: #28573b;
+  border: 1px solid var(--app-accent-strong);
+  color: #fff;
+  background: var(--app-accent-strong);
 }
 
 .secondaryButton {
-  border: 1px solid #9aaba0;
-  color: #28573b;
-  background: #ffffff;
+  border: 1px solid var(--app-accent);
+  color: var(--app-accent-strong);
+  background: var(--app-surface);
 }
 
-.adminLink {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid #28573b;
-  color: #ffffff;
-  background: #376c4b;
-  text-decoration: none;
+.submitButton:hover:not(:disabled) {
+  background: #194f70;
 }
 
 .secondaryButton:hover:not(:disabled) {
-  background: #f0f5f2;
-}
-
-.adminLink:hover {
-  background: #28573b;
+  background: var(--app-accent-soft);
 }
 
 .submitButton:disabled,
@@ -176,76 +166,53 @@
   opacity: 0.65;
 }
 
+.buttonRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 14px;
+}
+
 .footer {
-  margin: 24px 0 0;
-  color: #536159;
+  margin: 16px 0 0;
+  padding-top: 13px;
+  border-top: 1px solid var(--app-border);
+  color: var(--app-text-muted);
   line-height: 1.5;
 }
 
-.textLink {
-  color: #28573b;
-  font-weight: 700;
-}
-
-.accountDetails {
-  display: grid;
-  gap: 0;
-  margin: 28px 0 0;
-}
-
-.accountDetails div {
-  display: grid;
-  grid-template-columns: minmax(120px, 1fr) 2fr;
-  gap: 20px;
-  padding: 14px 0;
-  border-bottom: 1px solid #edf1ee;
-}
-
-.accountDetails dt,
-.accountDetails dd {
-  margin: 0;
-}
-
-.accountDetails dt {
-  color: #647168;
-}
-
-.accountDetails dd {
-  overflow-wrap: anywhere;
-  font-weight: 700;
-}
-
-.activeStatus {
-  color: #19713a;
-}
-
-.bannedStatus {
-  color: #a52a2a;
-}
-
-.actions {
+.footerLinks {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 28px;
+  gap: 7px 16px;
+  margin: 16px 0 0;
+  padding-top: 13px;
+  border-top: 1px solid var(--app-border);
 }
 
-.loading {
-  margin: 28px 0 0;
-  color: #536159;
+.textLink {
+  color: var(--app-accent-strong);
+  font-weight: 700;
 }
 
-@media (max-width: 520px) {
-  .card {
-    padding: 24px;
+.input:focus-visible,
+.submitButton:focus-visible,
+.secondaryButton:focus-visible,
+.textLink:focus-visible {
+  outline: 3px solid rgb(102 173 216 / 45%);
+  outline-offset: 2px;
+}
+
+@media (max-width: 560px) {
+  .screen {
+    padding-top: 0;
   }
 
-  .accountDetails div {
-    grid-template-columns: 1fr;
-    gap: 6px;
+  .panel {
+    padding: 14px;
   }
 
-  .actions > * {
+  .buttonRow > * {
     width: 100%;
   }
 }
