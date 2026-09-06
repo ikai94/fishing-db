@@ -50,7 +50,7 @@ import type { PublicCatchReportListQueryDto } from './dto/public-catch-report-li
 import type { OwnerCatchReportListQueryDto } from './dto/owner-catch-report-list-query.dto.js';
 import type { UpdateCatchReportDto } from './dto/update-catch-report.dto.js';
 
-const PUBLIC_CATCH_REPORT_SELECT = {
+export const PUBLIC_CATCH_REPORT_SELECT = {
   id: true,
   weightGrams: true,
   fishingMethod: true,
@@ -229,7 +229,7 @@ function appendBatchRowErrors(result: BatchFieldErrors, rowIndex: number, error:
   return appended;
 }
 
-interface PublicCatchReportRecord {
+export interface PublicCatchReportRecord {
   id: string;
   weightGrams: number;
   fishingMethod: CatchReportFishingMethod;
@@ -317,7 +317,7 @@ function baseFishWeightKey(fishingBaseId: string, fishId: string): string {
   return `${fishingBaseId}:${fishId}`;
 }
 
-async function resolveBaseFishWeightBounds(
+export async function resolveBaseFishWeightBounds(
   database: WeightBoundsDatabase,
   records: readonly PublicCatchReportRecord[],
 ): Promise<Map<string, BaseFishWeightBounds>> {
@@ -359,7 +359,7 @@ function weightAssessment(
   return assessBaseFishWeight(record.weightGrams, bounds);
 }
 
-function toPublicCatchReport(
+export function toPublicCatchReport(
   record: PublicCatchReportRecord,
   boundsByBaseFish: ReadonlyMap<string, BaseFishWeightBounds>,
 ) {

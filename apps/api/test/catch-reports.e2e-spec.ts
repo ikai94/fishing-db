@@ -102,6 +102,23 @@ interface HoleStatisticsItem {
   latestReportCreatedAt: string;
 }
 
+interface SpotStatisticsItem {
+  groupKey: string;
+  fishingBase: { id: string; name: string; isActive: boolean };
+  location: { id: string; number: number; name: string; isActive: boolean };
+  holeDepthCm: number | null;
+  spotPosition: string | null;
+  contributorCount: number;
+  reportsCount: number;
+  fishCount: number;
+  topBaits: Array<{
+    bait: { id: string; name: string; isActive: boolean };
+    contributorCount: number;
+    reportsCount: number;
+  }>;
+  latestReportCreatedAt: string;
+}
+
 interface BaitStatisticsItem {
   bait: { id: string; name: string; isActive: boolean };
   reportsCount: number;
@@ -305,6 +322,85 @@ function readHoleStatistics(body: unknown): HoleStatisticsItem[] {
 
     return result;
   });
+}
+
+function readSpotStatistics(body: unknown): {
+  items: SpotStatisticsItem[];
+  totalGroups: number;
+  scopedReportsCount: number;
+  unlocatedReportsCount: number;
+} {
+  const payload = asObject(body);
+  assert.deepEqual(Object.keys(payload).sort(), [
+    'items',
+    'scopedReportsCount',
+    'totalGroups',
+    'unlocatedReportsCount',
+  ]);
+  const items = asArray(payload.items).map((value) => {
+    const item = asObject(value);
+    assert.deepEqual(Object.keys(item).sort(), [
+      'contributorCount',
+      'fishCount',
+      'fishingBase',
+      'groupKey',
+      'holeDepthCm',
+      'latestReportCreatedAt',
+      'location',
+      'reportsCount',
+      'spotPosition',
+      'topBaits',
+    ]);
+    const fishingBase = asObject(item.fishingBase);
+    const location = asObject(item.location);
+    const topBaits = asArray(item.topBaits).map((value) => {
+      const topBait = asObject(value);
+      assert.deepEqual(Object.keys(topBait).sort(), ['bait', 'contributorCount', 'reportsCount']);
+      const bait = asObject(topBait.bait);
+      assert.deepEqual(Object.keys(bait).sort(), ['id', 'isActive', 'name']);
+      return {
+        bait: {
+          id: asString(bait.id, 'bait.id'),
+          name: asString(bait.name, 'bait.name'),
+          isActive: bait.isActive as boolean,
+        },
+        contributorCount: asNumber(topBait.contributorCount, 'topBait.contributorCount'),
+        reportsCount: asNumber(topBait.reportsCount, 'topBait.reportsCount'),
+      };
+    });
+    const result: SpotStatisticsItem = {
+      groupKey: asString(item.groupKey, 'groupKey'),
+      fishingBase: {
+        id: asString(fishingBase.id, 'fishingBase.id'),
+        name: asString(fishingBase.name, 'fishingBase.name'),
+        isActive: fishingBase.isActive as boolean,
+      },
+      location: {
+        id: asString(location.id, 'location.id'),
+        number: asNumber(location.number, 'location.number'),
+        name: asString(location.name, 'location.name'),
+        isActive: location.isActive as boolean,
+      },
+      holeDepthCm: item.holeDepthCm as number | null,
+      spotPosition: item.spotPosition as string | null,
+      contributorCount: asNumber(item.contributorCount, 'contributorCount'),
+      reportsCount: asNumber(item.reportsCount, 'reportsCount'),
+      fishCount: asNumber(item.fishCount, 'fishCount'),
+      topBaits,
+      latestReportCreatedAt: asString(item.latestReportCreatedAt, 'latestReportCreatedAt'),
+    };
+    assert.ok(result.holeDepthCm !== null || result.spotPosition !== null);
+    assert.equal(JSON.stringify(result).includes('normalizedSpotKey'), false);
+    assert.equal(JSON.stringify(result).includes('contributorKey'), false);
+    return result;
+  });
+
+  return {
+    items,
+    totalGroups: asNumber(payload.totalGroups, 'totalGroups'),
+    scopedReportsCount: asNumber(payload.scopedReportsCount, 'scopedReportsCount'),
+    unlocatedReportsCount: asNumber(payload.unlocatedReportsCount, 'unlocatedReportsCount'),
+  };
 }
 
 function readBaitStatistics(body: unknown): BaitStatisticsItem[] {
@@ -4117,6 +4213,167 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
     );
     assert.ok(lowerDepthIndex >= 0);
     assert.equal(higherDepthIndex, lowerDepthIndex + 1);
+  });
+
+  void test('serves nullable Fish and Location spot analytics with evidence and public scope visibility', async () => {
+    const catalog = await createCatalog();
+    const otherCatalog = await createCatalog();
+    const secondBait = await createBait('BAIT');
+    const [first, second, third] = await Promise.all([createActor(), createActor(), createActor()]);
+    const at = (second: number) =>
+      new Date(`2026-09-02T00:00:${String(second).padStart(2, '0')}.000Z`);
+
+    await createStatisticsReport(first, catalog, {
+      spotPositionRaw: 'У\u00a0БЛОКНОТА',
+      createdAt: at(1),
+    });
+    await createStatisticsReport(second, catalog, {
+      baitId: secondBait.id,
+      spotPositionRaw: '  у   блокнота ',
+      createdAt: at(2),
+    });
+    await createStatisticsReport(first, catalog, {
+      baitId: secondBait.id,
+      spotPositionRaw: 'у блокнота',
+      createdAt: at(3),
+    });
+    await createStatisticsReport(third, catalog, {
+      fishId: otherCatalog.fish.id,
+      spotPositionRaw: 'у блокнота',
+      createdAt: at(4),
+    });
+    await createStatisticsReport(first, catalog, {
+      holeDepthCm: 700,
+      spotPositionRaw: null,
+      createdAt: at(5),
+    });
+    await createStatisticsReport(first, catalog, {
+      holeDepthCm: null,
+      spotPositionRaw: 'левый край',
+      createdAt: at(6),
+    });
+    await createStatisticsReport(first, catalog, {
+      holeDepthCm: null,
+      spotPositionRaw: null,
+      createdAt: at(7),
+    });
+
+    await prisma.bait.update({ where: { id: secondBait.id }, data: { isActive: false } });
+    await prisma.fishingBaseFish.delete({
+      where: {
+        fishingBaseId_fishId: { fishingBaseId: catalog.base.id, fishId: catalog.fish.id },
+      },
+    });
+
+    const endpoint = '/api/v1/catch-reports/statistics/spots';
+    const fishPage = readSpotStatistics(
+      (await api().get(endpoint).query({ fishId: catalog.fish.id, limit: 2 }).expect(200))
+        .body as unknown,
+    );
+    assert.equal(fishPage.totalGroups, 3);
+    assert.equal(fishPage.items.length, 2);
+    assert.equal(fishPage.scopedReportsCount, 6);
+    assert.equal(fishPage.unlocatedReportsCount, 1);
+    const mainFishGroup = fishPage.items[0];
+    assert.ok(mainFishGroup);
+    assert.equal(mainFishGroup.holeDepthCm, 600);
+    assert.equal(mainFishGroup.spotPosition, 'у блокнота');
+    assert.equal(mainFishGroup.contributorCount, 2);
+    assert.equal(mainFishGroup.reportsCount, 3);
+    assert.equal(mainFishGroup.fishCount, 1);
+    assert.deepEqual(
+      mainFishGroup.topBaits.map((item) => [item.bait.id, item.bait.isActive, item.reportsCount]),
+      [
+        [secondBait.id, false, 2],
+        [catalog.bait.id, true, 1],
+      ],
+    );
+
+    const secondPage = readSpotStatistics(
+      (
+        await api()
+          .get(endpoint)
+          .query({ fishId: catalog.fish.id, limit: 2, offset: 2 })
+          .expect(200)
+      ).body as unknown,
+    );
+    assert.equal(secondPage.items.length, 1);
+    assert.equal(secondPage.totalGroups, 3);
+
+    const locationPage = readSpotStatistics(
+      (await api().get(endpoint).query({ locationId: catalog.location.id }).expect(200))
+        .body as unknown,
+    );
+    const locationMainGroup = locationPage.items.find(
+      (item) => item.holeDepthCm === 600 && item.spotPosition === 'у блокнота',
+    );
+    assert.ok(locationMainGroup);
+    assert.equal(locationMainGroup.contributorCount, 3);
+    assert.equal(locationMainGroup.reportsCount, 4);
+    assert.equal(locationMainGroup.fishCount, 2);
+
+    const filteredLocation = readSpotStatistics(
+      (
+        await api()
+          .get(endpoint)
+          .query({ locationId: catalog.location.id, fishIds: otherCatalog.fish.id })
+          .expect(200)
+      ).body as unknown,
+    );
+    assert.equal(filteredLocation.totalGroups, 1);
+    assert.equal(filteredLocation.items[0]?.reportsCount, 1);
+
+    const evidence = readReportList(
+      (
+        await api()
+          .get('/api/v1/catch-reports/statistics/spots/reports')
+          .query({ fishId: catalog.fish.id, groupKey: mainFishGroup.groupKey, limit: 2 })
+          .expect(200)
+      ).body as unknown,
+    );
+    assert.equal(evidence.items.length, 2);
+    assert.ok(evidence.nextCursor);
+    evidence.items.forEach(assertPublicReportProjection);
+    assert.equal(JSON.stringify(evidence).includes('rawSourceText'), false);
+    const remainingEvidence = readReportList(
+      (
+        await api()
+          .get('/api/v1/catch-reports/statistics/spots/reports')
+          .query({
+            fishId: catalog.fish.id,
+            groupKey: mainFishGroup.groupKey,
+            limit: 2,
+            cursor: evidence.nextCursor,
+          })
+          .expect(200)
+      ).body as unknown,
+    );
+    assert.equal(remainingEvidence.items.length, 1);
+    assert.equal(remainingEvidence.nextCursor, null);
+
+    const removedMembershipScope = readSpotStatistics(
+      (
+        await api()
+          .get(endpoint)
+          .query({ fishId: catalog.fish.id, baseIds: catalog.base.id })
+          .expect(200)
+      ).body as unknown,
+    );
+    assert.equal(removedMembershipScope.totalGroups, 0);
+
+    await prisma.fish.update({ where: { id: catalog.fish.id }, data: { isActive: false } });
+    await api().get(endpoint).query({ fishId: catalog.fish.id }).expect(404);
+    await prisma.fishingBase.update({ where: { id: catalog.base.id }, data: { isActive: false } });
+    await api().get(endpoint).query({ locationId: catalog.location.id }).expect(404);
+
+    for (const invalidQuery of [
+      {},
+      { fishId: otherCatalog.fish.id, locationId: catalog.location.id },
+      { fishId: otherCatalog.fish.id, fishIds: catalog.fish.id },
+      { locationId: catalog.location.id, baseIds: catalog.base.id },
+    ]) {
+      await api().get(endpoint).query(invalidQuery).expect(400);
+    }
   });
 
   void test('keeps historical inactive, removed-membership and banned-user reports while edits and deletes move counts', async () => {

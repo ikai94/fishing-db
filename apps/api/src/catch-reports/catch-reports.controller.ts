@@ -30,9 +30,11 @@ import { ParseCatchReportDto } from './dto/parse-catch-report.dto.js';
 import { ParseCatchReportBatchDto } from './dto/parse-catch-report-batch.dto.js';
 import { PublicCatchReportListQueryDto } from './dto/public-catch-report-list-query.dto.js';
 import { UpdateCatchReportDto } from './dto/update-catch-report.dto.js';
+import { SpotEvidenceQueryDto, SpotStatisticsQueryDto } from './dto/spot-statistics-query.dto.js';
 import { FishingConditionStatisticsService } from './fishing-condition-statistics.service.js';
 import { FishCatchAggregatesService } from './fish-catch-aggregates.service.js';
 import { HoleStatisticsService } from './hole-statistics.service.js';
+import { SpotAnalyticsService } from './spot-analytics.service.js';
 import { CatchReportParserService } from './parser/catch-report-parser.service.js';
 
 @Controller('catch-reports')
@@ -45,6 +47,7 @@ export class CatchReportsController {
     @Inject(FishingConditionStatisticsService)
     private readonly fishingConditionStatistics: FishingConditionStatisticsService,
     @Inject(HoleStatisticsService) private readonly holeStatistics: HoleStatisticsService,
+    @Inject(SpotAnalyticsService) private readonly spotAnalytics: SpotAnalyticsService,
     @Inject(CatchReportParserService) private readonly parser: CatchReportParserService,
   ) {}
 
@@ -86,6 +89,21 @@ export class CatchReportsController {
     query: HoleStatisticsQueryDto,
   ) {
     return this.holeStatistics.list(query);
+  }
+
+  @Get('statistics/spots')
+  listSpotStatistics(
+    @Query(createApplicationValidationPipe(SpotStatisticsQueryDto))
+    query: SpotStatisticsQueryDto,
+  ) {
+    return this.spotAnalytics.list(query);
+  }
+
+  @Get('statistics/spots/reports')
+  listSpotEvidence(
+    @Query(createApplicationValidationPipe(SpotEvidenceQueryDto)) query: SpotEvidenceQueryDto,
+  ) {
+    return this.spotAnalytics.listEvidence(query);
   }
 
   @Get('locations/:locationId/observations')

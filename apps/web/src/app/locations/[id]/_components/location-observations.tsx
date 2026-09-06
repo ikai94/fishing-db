@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useId, useMemo, useState } from 'react';
 import styles from '../../../bases-locations.module.css';
+import { SpotAnalytics } from '@/components/spot-analytics/spot-analytics';
 import type {
   CatchReport,
   LocationObservations as LocationObservationsData,
@@ -19,9 +20,10 @@ import {
 type LocationObservationsProps = {
   baseId: string;
   data: LocationObservationsData;
+  locationId: string;
 };
 
-export function LocationObservations({ baseId, data }: LocationObservationsProps) {
+export function LocationObservations({ baseId, data, locationId }: LocationObservationsProps) {
   const [selectedFishIds, setSelectedFishIds] = useState(
     () => new Set(data.observedFish.map((item) => item.fish.id)),
   );
@@ -62,14 +64,21 @@ export function LocationObservations({ baseId, data }: LocationObservationsProps
 
   if (data.observedFish.length === 0) {
     return (
-      <section className={styles.resultsRegion} aria-labelledby="location-observed-fish-heading">
-        <h2 className={styles.sectionTitle} id="location-observed-fish-heading">
-          Пойманные рыбы
-        </h2>
-        <p className={styles.statusMessage}>На этой локации пока нет опубликованных уловов.</p>
-      </section>
+      <>
+        <section className={styles.resultsRegion} aria-labelledby="location-observed-fish-heading">
+          <h2 className={styles.sectionTitle} id="location-observed-fish-heading">
+            Пойманные рыбы
+          </h2>
+          <p className={styles.statusMessage}>На этой локации пока нет опубликованных уловов.</p>
+        </section>
+        <SpotAnalytics scope={{ kind: 'location', locationId }} showFishCount showPlace={false} />
+      </>
     );
   }
+
+  const analyticsFishIds =
+    selectedFishIds.size === data.observedFish.length ? undefined : [...selectedFishIds].sort();
+  const analyticsKey = analyticsFishIds === undefined ? 'all' : analyticsFishIds.join(',');
 
   return (
     <>
@@ -93,6 +102,14 @@ export function LocationObservations({ baseId, data }: LocationObservationsProps
           <ObservedFishTable baseId={baseId} items={visibleFish} />
         )}
       </section>
+
+      <SpotAnalytics
+        disabled={selectedFishIds.size === 0}
+        key={`location-spots:${analyticsKey}`}
+        scope={{ kind: 'location', locationId, fishIds: analyticsFishIds }}
+        showFishCount
+        showPlace={false}
+      />
 
       <section className={styles.resultsRegion} aria-labelledby="location-catches-heading">
         <div className={styles.sectionHeader}>

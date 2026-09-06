@@ -1,11 +1,24 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import type {
   CatchReport,
   LocationObservations as LocationObservationsData,
 } from '@/lib/catch-reports-api';
 import { LocationObservations } from './location-observations';
+
+const mocks = vi.hoisted(() => ({ renderSpotAnalytics: vi.fn() }));
+
+vi.mock('@/components/spot-analytics/spot-analytics', () => ({
+  SpotAnalytics: (props: unknown) => {
+    mocks.renderSpotAnalytics(props);
+    return (
+      <section>
+        <h2>Ямы и точки</h2>
+      </section>
+    );
+  },
+}));
 
 const baseReport: CatchReport = {
   id: 'report-beluga',
@@ -70,7 +83,7 @@ function sectionNamed(name: string): HTMLElement {
 describe('LocationObservations', () => {
   test('renders ranked observed Fish and the exact dense Location catch columns', async () => {
     const user = userEvent.setup();
-    render(<LocationObservations baseId="base-1" data={observations} />);
+    render(<LocationObservations baseId="base-1" data={observations} locationId="location-1" />);
 
     const rankedTable = within(sectionNamed('Пойманные рыбы')).getByRole('table');
     const rankedRows = within(rankedTable).getAllByRole('row');
@@ -117,11 +130,18 @@ describe('LocationObservations', () => {
     expect(within(catchTable).getByText('Комментарий:')).toBeVisible();
     expect(within(catchTable).getByText('Мутант')).toBeVisible();
     expect(within(catchTable).queryByText('Обычный')).not.toBeInTheDocument();
+    expect(mocks.renderSpotAnalytics).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        scope: { kind: 'location', locationId: 'location-1', fishIds: undefined },
+        showFishCount: true,
+        showPlace: false,
+      }),
+    );
   });
 
   test('filters both sections while keeping unchecked caught Fish selectable', async () => {
     const user = userEvent.setup();
-    render(<LocationObservations baseId="base-1" data={observations} />);
+    render(<LocationObservations baseId="base-1" data={observations} locationId="location-1" />);
     await user.click(screen.getByText('Рыбы: 2 из 2'));
 
     const somCheckbox = screen.getByRole('checkbox', { name: 'Сом' });
@@ -145,10 +165,19 @@ describe('LocationObservations', () => {
       ),
     ).toBeVisible();
     expect(screen.getAllByRole('checkbox')).toHaveLength(2);
+    expect(mocks.renderSpotAnalytics).toHaveBeenLastCalledWith(
+      expect.objectContaining({ disabled: true }),
+    );
   });
 
   test('renders a quiet empty state without inventing selector Fish', () => {
-    render(<LocationObservations baseId="base-1" data={{ observedFish: [], reports: [] }} />);
+    render(
+      <LocationObservations
+        baseId="base-1"
+        data={{ observedFish: [], reports: [] }}
+        locationId="location-1"
+      />,
+    );
 
     expect(screen.getByText('На этой локации пока нет опубликованных уловов.')).toBeVisible();
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();

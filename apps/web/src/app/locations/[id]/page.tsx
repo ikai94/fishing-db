@@ -115,6 +115,7 @@ export default function LocationPage() {
             <LocationObservations
               baseId={state.data.location.fishingBase.id}
               data={state.data.observations}
+              locationId={state.data.location.id}
               key={state.data.location.id}
             />
           </>

@@ -23,6 +23,16 @@ export const catchReportErrors = {
       ...response(400, 'VALIDATION_ERROR', 'Проверьте введённые данные'),
       errors: { cursor: ['Некорректный курсор пагинации'] },
     }),
+  invalidSpotScope: (): BadRequestException =>
+    new BadRequestException({
+      ...response(400, 'VALIDATION_ERROR', 'Проверьте введённые данные'),
+      errors: { scope: ['Укажите либо рыбу, либо локацию и совместимые с ними фильтры'] },
+    }),
+  invalidSpotGroupKey: (): BadRequestException =>
+    new BadRequestException({
+      ...response(400, 'VALIDATION_ERROR', 'Проверьте введённые данные'),
+      errors: { groupKey: ['Некорректный ключ группы ямы или точки'] },
+    }),
   batchLimitExceeded: (): BadRequestException =>
     new BadRequestException({
       ...response(400, 'VALIDATION_ERROR', 'Проверьте введённые данные'),

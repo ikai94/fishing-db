@@ -7,6 +7,7 @@ import styles from '../../../public-catalog.module.css';
 import { getApiErrorMessage } from '@/lib/api-client';
 import { type BaitStatistic, listBaitStatistics } from '@/lib/bait-statistics-api';
 import { formatBaseFishWeightBounds } from '@/lib/base-fish-weight';
+import { SpotAnalytics } from '@/components/spot-analytics/spot-analytics';
 import type { PublicFishDetail } from '@/lib/catalog-api';
 import { type FishCatchAggregate, listFishCatchAggregates } from '@/lib/fish-catch-aggregates-api';
 import { readFishBaseSelection, writeFishBaseSelection } from '@/lib/fish-base-selection';
@@ -14,9 +15,7 @@ import {
   type FishingConditionStatistic,
   listFishingConditionStatistics,
 } from '@/lib/fishing-condition-statistics-api';
-import { type HoleStatistic, listHoleStatistics } from '@/lib/hole-statistics-api';
 import { BaitStatisticsList } from './bait-statistics-list';
-import { CommonHoleTable } from './common-hole-table';
 import { FishingConditionStatisticsTable } from './fishing-condition-statistics-table';
 import { PublicFishCatchTable } from './public-fish-catch-table';
 
@@ -31,12 +30,6 @@ type FeedState =
       items: FishCatchAggregate[];
       nextCursor: string | null;
     }
-  | { kind: 'error'; scopeKey: string; message: string };
-
-type HoleStatisticsState =
-  | { kind: 'idle'; scopeKey: string }
-  | { kind: 'loading'; scopeKey: string }
-  | { kind: 'ready'; scopeKey: string; items: HoleStatistic[] }
   | { kind: 'error'; scopeKey: string; message: string };
 
 type BaitStatisticsState =
@@ -163,12 +156,11 @@ function FishExplorerState({
           }
         />
 
-        <FishHoleStatistics
-          key={`statistics:${scopeKey}`}
-          fishId={fish.id}
-          selectedBaseIds={canonicalSelectedBaseIds}
-          scopeKey={scopeKey}
-          loadingMessage={hasChangedScope ? 'Обновляем статистику…' : 'Загружаем статистику…'}
+        <SpotAnalytics
+          key={`spots:${scopeKey}`}
+          scope={{ kind: 'fish', fishId: fish.id, baseIds: canonicalSelectedBaseIds }}
+          showFishCount={false}
+          showPlace
         />
 
         <FishReportFeed
@@ -494,126 +486,6 @@ export function FishBaitStatistics({
       {currentState?.kind === 'ready' && currentState.items.length > 0 ? (
         <BaitStatisticsList items={currentState.items} />
       ) : null}
-    </section>
-  );
-}
-
-export function FishHoleStatistics({
-  fishId,
-  selectedBaseIds,
-  scopeKey,
-  loadingMessage = 'Загружаем статистику…',
-}: {
-  fishId: string;
-  selectedBaseIds: readonly string[];
-  scopeKey: string;
-  loadingMessage?: string;
-}) {
-  const revisionRef = useRef(0);
-  const requestRef = useRef<ActiveRequest | null>(null);
-  const [attempt, setAttempt] = useState(0);
-  const [state, setState] = useState<HoleStatisticsState>(() => ({
-    kind: 'loading',
-    scopeKey,
-  }));
-
-  useEffect(() => {
-    const revision = revisionRef.current + 1;
-    revisionRef.current = revision;
-    requestRef.current?.controller.abort();
-    requestRef.current = null;
-
-    const controller = new AbortController();
-    const request = { controller, revision, scopeKey };
-    requestRef.current = request;
-
-    async function loadStatistics() {
-      try {
-        const items = await listHoleStatistics({
-          fishId,
-          baseIds: selectedBaseIds,
-          signal: controller.signal,
-        });
-        if (!isCurrentRequest(requestRef.current, request, scopeKey, revisionRef.current)) return;
-        setState({ kind: 'ready', scopeKey, items });
-      } catch (error) {
-        if (!isCurrentRequest(requestRef.current, request, scopeKey, revisionRef.current)) return;
-        setState({
-          kind: 'error',
-          scopeKey,
-          message: getApiErrorMessage(
-            error,
-            'Не удалось загрузить статистику точек. Попробуйте ещё раз.',
-          ),
-        });
-      } finally {
-        if (isCurrentRequest(requestRef.current, request, scopeKey, revisionRef.current)) {
-          requestRef.current = null;
-        }
-      }
-    }
-
-    void loadStatistics();
-    return () => {
-      controller.abort();
-      if (requestRef.current === request) requestRef.current = null;
-    };
-  }, [attempt, fishId, scopeKey, selectedBaseIds]);
-
-  useEffect(
-    () => () => {
-      revisionRef.current += 1;
-      requestRef.current?.controller.abort();
-      requestRef.current = null;
-    },
-    [],
-  );
-
-  function retry() {
-    setState({ kind: 'loading', scopeKey });
-    setAttempt((current) => current + 1);
-  }
-
-  const currentState = state.scopeKey === scopeKey ? state : null;
-  const isLoading = currentState === null || currentState.kind === 'loading';
-
-  return (
-    <section
-      className={styles.resultsRegion}
-      aria-labelledby="fish-hole-statistics-heading"
-      aria-busy={isLoading}
-    >
-      <details className={styles.conditionDisclosure}>
-        <summary className={styles.conditionDisclosureSummary}>
-          <span className={styles.sectionTitle} id="fish-hole-statistics-heading">
-            Общие ямы и точки
-          </span>
-        </summary>
-        <div className={styles.conditionDisclosureContent}>
-          {isLoading ? (
-            <p className={styles.statusMessage} role="status">
-              {loadingMessage}
-            </p>
-          ) : null}
-
-          {currentState?.kind === 'error' ? (
-            <div className={`${styles.statusMessage} ${styles.errorMessage}`} role="alert">
-              <p>{currentState.message}</p>
-              <button className={styles.secondaryButton} type="button" onClick={retry}>
-                Повторить загрузку статистики
-              </button>
-            </div>
-          ) : null}
-
-          {currentState?.kind === 'ready' && currentState.items.length === 0 ? (
-            <p className={styles.statusMessage}>Для выбранных баз пока недостаточно данных.</p>
-          ) : null}
-
-          {currentState?.kind === 'ready' && currentState.items.length > 0 ? (
-            <CommonHoleTable items={currentState.items} />
-          ) : null}
-        </div>
-      </details>
     </section>
   );
 }

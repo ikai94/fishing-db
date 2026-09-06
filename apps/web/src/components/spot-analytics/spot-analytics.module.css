@@ -1,0 +1,207 @@
+.section {
+  margin-top: 18px;
+  padding-top: 10px;
+  border-top: 1px solid var(--app-border);
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.summary {
+  cursor: pointer;
+}
+
+.summary::marker {
+  color: var(--app-accent-strong);
+}
+
+.title {
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.pageCount {
+  float: right;
+  margin-top: 0.18rem;
+}
+
+.content {
+  margin-top: 7px;
+}
+
+.pageCount,
+.coverage,
+.muted,
+.evidenceStatus {
+  color: var(--app-text-muted);
+  font-size: 0.78rem;
+}
+
+.coverage {
+  margin: 5px 0 7px;
+}
+
+.status {
+  margin: 7px 0 0;
+  padding: 8px 10px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+  color: var(--app-text-muted);
+  background: var(--app-surface);
+}
+
+.status p {
+  margin: 0 0 7px;
+}
+
+.error,
+.evidenceError {
+  color: var(--app-danger);
+}
+
+.tableRegion {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+  background: var(--app-surface);
+}
+
+.table,
+.evidenceTable {
+  width: 100%;
+  min-width: 940px;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.table th,
+.table td,
+.evidenceTable th,
+.evidenceTable td {
+  padding: 5px 7px;
+  border-right: 1px solid var(--app-border);
+  border-bottom: 1px solid var(--app-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.table th:last-child,
+.table td:last-child,
+.evidenceTable th:last-child,
+.evidenceTable td:last-child {
+  border-right: 0;
+}
+
+.table thead th,
+.evidenceTable thead th {
+  color: #34515f;
+  background: rgb(220 238 248 / 62%);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.number,
+.numeric,
+.date {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.number {
+  width: 4ch;
+  text-align: center !important;
+}
+
+.numeric {
+  text-align: right !important;
+}
+
+.date {
+  color: var(--app-text-muted);
+}
+
+.evidenceButton {
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.tableLink,
+.tableLink:visited {
+  color: inherit;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.tableLink:hover,
+.tableLink:focus-visible,
+.evidenceButton:hover,
+.evidenceButton:focus-visible {
+  color: var(--app-accent-strong);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.16em;
+}
+
+.evidenceRow > td {
+  padding: 8px 10px;
+  background: rgb(248 251 252 / 92%);
+}
+
+.evidence {
+  display: grid;
+  gap: 7px;
+}
+
+.evidenceTable {
+  min-width: 700px;
+  background: var(--app-surface);
+}
+
+.evidenceStatus,
+.evidenceError {
+  margin: 0;
+}
+
+.button {
+  width: fit-content;
+  min-height: 31px;
+  padding: 4px 9px;
+  border: 1px solid var(--app-accent);
+  border-radius: var(--app-radius-sm);
+  color: var(--app-accent-strong);
+  background: var(--app-surface);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.pagination {
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.tableRegion:focus-visible,
+.summary:focus-visible,
+.button:focus-visible,
+.evidenceButton:focus-visible,
+.table a:focus-visible,
+.evidenceTable a:focus-visible {
+  outline: 3px solid rgb(102 173 216 / 45%);
+  outline-offset: 2px;
+}
