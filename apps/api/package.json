@@ -45,6 +45,10 @@
     "forum83:review": "tsx src/forum-import/forum83/cli.ts review",
     "forum83:import-complete": "tsx src/forum-import/forum83/cli.ts import-complete",
     "forum83:reconcile-base-fish": "tsx src/forum-import/forum83/base-fish-reconciliation.ts",
+    "klevalka:generate-catches": "tsx src/klevalka-catch-generator/generate-klevalka-catches.ts",
+    "klevalka:crawl-fish": "tsx src/klevalka-catch-generator/crawl-klevalka-fish-snapshots.ts",
+    "klevalka:review-snapshots": "tsx src/klevalka-catch-generator/review-klevalka-snapshots.ts",
+    "klevalka:release-catches": "tsx src/klevalka-catch-generator/release-klevalka-catches.ts",
     "prisma:studio": "prisma studio"
   },
   "dependencies": {
