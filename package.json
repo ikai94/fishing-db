@@ -54,6 +54,7 @@
     "klevalka:crawl-fish": "pnpm --filter @fishing-db/api run klevalka:crawl-fish",
     "klevalka:review-snapshots": "pnpm db:generate && pnpm --filter @fishing-db/api run klevalka:review-snapshots",
     "klevalka:release-catches": "pnpm db:generate && pnpm --filter @fishing-db/api run klevalka:release-catches",
+    "klevalka:import-catches": "pnpm db:generate && pnpm --filter @fishing-db/api run klevalka:import-catches",
     "db:test:up": "docker compose --profile test up -d --wait postgres-test",
     "db:test:down": "docker compose --profile test stop postgres-test",
     "db:test:logs": "docker compose --profile test logs -f postgres-test",

@@ -156,8 +156,13 @@ async function assertExternalWorkspace(workspacePath: string): Promise<string> {
   return workspaceRoot;
 }
 
+type KlevalkaCatalogDatabase = Pick<
+  PrismaClient,
+  'fishingBase' | 'fish' | 'bait' | 'fishingBaseFish'
+>;
+
 export async function loadCurrentKlevalkaCatalog(
-  prisma: PrismaClient,
+  prisma: KlevalkaCatalogDatabase,
 ): Promise<KlevalkaCatalogSnapshot> {
   const [fishingBases, fish, baits, memberships] = await Promise.all([
     prisma.fishingBase.findMany({

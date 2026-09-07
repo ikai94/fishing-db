@@ -49,6 +49,7 @@
     "klevalka:crawl-fish": "tsx src/klevalka-catch-generator/crawl-klevalka-fish-snapshots.ts",
     "klevalka:review-snapshots": "tsx src/klevalka-catch-generator/review-klevalka-snapshots.ts",
     "klevalka:release-catches": "tsx src/klevalka-catch-generator/release-klevalka-catches.ts",
+    "klevalka:import-catches": "tsx src/klevalka-catch-import/import-klevalka-catches.ts",
     "prisma:studio": "prisma studio"
   },
   "dependencies": {

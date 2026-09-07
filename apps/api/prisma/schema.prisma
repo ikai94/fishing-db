@@ -83,6 +83,7 @@ model User {
   sessions           Session[]
   authTokens         AuthToken[]
   catchReports       CatchReport[]
+  catchImportRuns    CatchImportRun[]
   activityEvents     ActivityEvent[]
 }
 
@@ -230,6 +231,28 @@ model CatchReport {
 
   @@index([createdAt(sort: Desc), id(sort: Desc)])
   @@index([userId, createdAt(sort: Desc), id(sort: Desc)])
+}
+
+model CatchImportRun {
+  id                  String    @id @default(uuid()) @db.Uuid
+  releaseSha256       String    @unique @db.Char(64)
+  manifestSha256      String    @db.Char(64)
+  targetUserId        String    @db.Uuid
+  catalogSha256       String    @db.Char(64)
+  nextFileIndex       Int       @default(0)
+  nextLineNumber      Int       @default(1)
+  committedReports    Int       @default(0)
+  status              String    @db.VarChar(16)
+  lastErrorCode       String?   @db.VarChar(128)
+  lastErrorFile       String?   @db.VarChar(1000)
+  lastErrorLineNumber Int?
+  lastErrorMessage    String?   @db.Text
+  createdAt           DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime  @default(now()) @updatedAt @db.Timestamptz(3)
+  completedAt         DateTime? @db.Timestamptz(3)
+  targetUser          User      @relation(fields: [targetUserId], references: [id], onDelete: Restrict)
+
+  @@index([targetUserId])
 }
 
 model ActivityEvent {
