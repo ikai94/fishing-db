@@ -10,6 +10,7 @@ import {
   type LiveBaseFishWeightMembership,
 } from './base-fish-weight-materialization.js';
 import {
+  ACCEPTED_BASE_FISH_MAX_WEIGHT_PATCH_SHA256,
   ACCEPTED_BASE_FISH_WEIGHT_MANIFEST_SHA256,
   parseBaseFishWeightMaterializationCommand,
 } from './materialize-base-fish-weights.js';
@@ -136,6 +137,10 @@ void describe('BaseFish weight materialization', () => {
     assert.equal(
       ACCEPTED_BASE_FISH_WEIGHT_MANIFEST_SHA256,
       'c36b13cb186632a5017f9d63e7f3a1b082539d7323c4b423f267f42598ad161a',
+    );
+    assert.equal(
+      ACCEPTED_BASE_FISH_MAX_WEIGHT_PATCH_SHA256,
+      '435d81d96297f5bed64d37d6fdc0a3e8d1e3388e8ae8ef7e03ceb3d0c439e388',
     );
   });
 

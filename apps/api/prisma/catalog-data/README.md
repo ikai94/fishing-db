@@ -130,9 +130,20 @@ the exact integer comparison `weightGrams * 20 <= maxWeightGrams * 21` for the 1
 After the nullable `FishingBaseFish` weight migration is deployed, preview the exact reviewed
 manifest against existing memberships with
 `pnpm db:materialize:base-fish-weights --dry-run`. Apply is separately guarded by the unchanged
-manifest SHA-256 and `--apply --expected-plan-fingerprint=<dry-run fingerprint>`. The command only
-updates weight fields on matched memberships; it never creates or deletes Base, Fish, or membership
-rows and does not read CatchReports.
+manifest SHA-256, the pinned versioned `base-fish-max-weight-patch-20260909.json`, and
+`--apply --expected-plan-fingerprint=<dry-run fingerprint>`. The patch records 150 approved
+maximum-weight corrections over the workbook manifest plus 10 supplemental existing membership
+targets. It is sourced from the approved current database state and changes only
+`FishingBaseFish.maxWeightGrams`; the materializer remains idempotent, never creates or deletes
+Base, Fish, or membership rows, and does not read CatchReports.
+
+Klevalka max-weight audit and boundary-refinement commands accept only explicit frozen inputs and
+write their generated TSV evidence outside the repository:
+
+```bash
+pnpm klevalka:audit-max-weights -- --snapshots <absolute release> --review-manifest <absolute JSON> --output <absolute external TSV>
+pnpm klevalka:refine-max-weights -- --audit <absolute TSV> --snapshots <absolute release> --review-manifest <absolute JSON> --output <absolute external TSV>
+```
 
 Normal catalog seeding preserves existing membership weight bounds. ADMIN edits are runtime data,
 but a later explicitly approved `db:materialize:base-fish-weights --apply` synchronizes matched

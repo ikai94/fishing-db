@@ -1,0 +1,1142 @@
+{
+  "schemaVersion": 1,
+  "mode": "APPLY_READY",
+  "version": "2026-09-09-klevalka-max-weight-corrections-v1",
+  "target": "FishingBaseFish.maxWeightGrams",
+  "source": {
+    "authority": "CURRENT_APPROVED_DATABASE_STATE",
+    "baseManifestSha256": "c36b13cb186632a5017f9d63e7f3a1b082539d7323c4b423f267f42598ad161a"
+  },
+  "policy": {
+    "changesOnlyMaxWeightGrams": true,
+    "requiresExistingMembership": true,
+    "catchReportsRead": false
+  },
+  "counts": {
+    "entries": 160,
+    "overrides": 150,
+    "supplementalTargets": 10
+  },
+  "entries": [
+    {
+      "baseName": "Акадия",
+      "canonicalFish": "Большеротый окунь",
+      "forumTopicId": "251",
+      "previousMaxWeightGrams": 8800,
+      "maxWeightGrams": 7700
+    },
+    {
+      "baseName": "Акадия",
+      "canonicalFish": "Голец-кристивомер",
+      "forumTopicId": "32773",
+      "previousMaxWeightGrams": 49500,
+      "maxWeightGrams": 44000
+    },
+    {
+      "baseName": "Амазония",
+      "canonicalFish": "Кашорро краснохвостый",
+      "forumTopicId": "32387",
+      "previousMaxWeightGrams": 228,
+      "maxWeightGrams": 220
+    },
+    {
+      "baseName": "Амазония",
+      "canonicalFish": "Павлиний окунь-бабочка",
+      "forumTopicId": "32388",
+      "previousMaxWeightGrams": 3365,
+      "maxWeightGrams": 3300
+    },
+    {
+      "baseName": "Амазония",
+      "canonicalFish": "Лепоринус зебровый",
+      "forumTopicId": "32392",
+      "previousMaxWeightGrams": 681,
+      "maxWeightGrams": 660
+    },
+    {
+      "baseName": "Амазония",
+      "canonicalFish": "Попока",
+      "forumTopicId": "32396",
+      "previousMaxWeightGrams": 13350,
+      "maxWeightGrams": 13200
+    },
+    {
+      "baseName": "Амазония",
+      "canonicalFish": "Дискус зеленый",
+      "forumTopicId": "32402",
+      "previousMaxWeightGrams": 396,
+      "maxWeightGrams": 385
+    },
+    {
+      "baseName": "Амазония",
+      "canonicalFish": "Цихлазома мезонаута",
+      "forumTopicId": "32407",
+      "previousMaxWeightGrams": 449,
+      "maxWeightGrams": 440
+    },
+    {
+      "baseName": "Амазония",
+      "canonicalFish": "Сомик леопардовый",
+      "forumTopicId": "32408",
+      "previousMaxWeightGrams": 115,
+      "maxWeightGrams": 110
+    },
+    {
+      "baseName": "Амазония",
+      "canonicalFish": "Метиннис пятнистый",
+      "forumTopicId": "32409",
+      "previousMaxWeightGrams": 168,
+      "maxWeightGrams": 165
+    },
+    {
+      "baseName": "Амазония",
+      "canonicalFish": "Пиранья ромбовидная",
+      "forumTopicId": "32416",
+      "previousMaxWeightGrams": 3390,
+      "maxWeightGrams": 3300
+    },
+    {
+      "baseName": "Амазония",
+      "canonicalFish": "Хемиодопсис",
+      "forumTopicId": "32418",
+      "previousMaxWeightGrams": 338,
+      "maxWeightGrams": 330
+    },
+    {
+      "baseName": "Амазония",
+      "canonicalFish": "Пирапутанга",
+      "forumTopicId": "32420",
+      "previousMaxWeightGrams": 3390,
+      "maxWeightGrams": 3300
+    },
+    {
+      "baseName": "Амазония",
+      "canonicalFish": "Тракакса",
+      "forumTopicId": "32436",
+      "previousMaxWeightGrams": 11400,
+      "maxWeightGrams": 11000
+    },
+    {
+      "baseName": "Амазония",
+      "canonicalFish": "Нанностом Бекфорда",
+      "forumTopicId": "32445",
+      "previousMaxWeightGrams": 115,
+      "maxWeightGrams": 110
+    },
+    {
+      "baseName": "Амазония",
+      "canonicalFish": "Багре гури",
+      "forumTopicId": "32454",
+      "previousMaxWeightGrams": 6920,
+      "maxWeightGrams": 6600
+    },
+    {
+      "baseName": "Амазония",
+      "canonicalFish": "Скалярия Леопольда",
+      "forumTopicId": "32461",
+      "previousMaxWeightGrams": 115,
+      "maxWeightGrams": 110
+    },
+    {
+      "baseName": "Амазония",
+      "canonicalFish": "Лягушка",
+      "forumTopicId": "342",
+      "previousMaxWeightGrams": 268,
+      "maxWeightGrams": 275
+    },
+    {
+      "baseName": "Амга",
+      "canonicalFish": "Голец арктический",
+      "forumTopicId": "271",
+      "previousMaxWeightGrams": 16000,
+      "maxWeightGrams": 15950
+    },
+    {
+      "baseName": "Антарктика",
+      "canonicalFish": "Криль подледный",
+      "forumTopicId": "33773",
+      "previousMaxWeightGrams": 33,
+      "maxWeightGrams": 38
+    },
+    {
+      "baseName": "Байкал",
+      "canonicalFish": "Сиг",
+      "forumTopicId": "112",
+      "previousMaxWeightGrams": 7700,
+      "maxWeightGrams": 7370
+    },
+    {
+      "baseName": "Байкал",
+      "canonicalFish": "Сом амурский",
+      "forumTopicId": "124",
+      "previousMaxWeightGrams": 13860,
+      "maxWeightGrams": 13200
+    },
+    {
+      "baseName": "Байкал",
+      "canonicalFish": "Рак",
+      "forumTopicId": "179",
+      "previousMaxWeightGrams": 572,
+      "maxWeightGrams": 550
+    },
+    {
+      "baseName": "Байкал",
+      "canonicalFish": "Пелядь",
+      "forumTopicId": "190",
+      "previousMaxWeightGrams": 3080,
+      "maxWeightGrams": 2970
+    },
+    {
+      "baseName": "Байкал",
+      "canonicalFish": "Плотва",
+      "forumTopicId": "204",
+      "previousMaxWeightGrams": 2310,
+      "maxWeightGrams": 2200
+    },
+    {
+      "baseName": "Байкал",
+      "canonicalFish": "Голец арктический",
+      "forumTopicId": "271",
+      "previousMaxWeightGrams": 18700,
+      "maxWeightGrams": 18150
+    },
+    {
+      "baseName": "Байкал",
+      "canonicalFish": "Елец сибирский",
+      "forumTopicId": "287",
+      "previousMaxWeightGrams": 473,
+      "maxWeightGrams": 440
+    },
+    {
+      "baseName": "Байкал",
+      "canonicalFish": "Карась серебряный",
+      "forumTopicId": "303",
+      "previousMaxWeightGrams": 5390,
+      "maxWeightGrams": 4950
+    },
+    {
+      "baseName": "Байкал",
+      "canonicalFish": "Ленок",
+      "forumTopicId": "326",
+      "previousMaxWeightGrams": 7260,
+      "maxWeightGrams": 6600
+    },
+    {
+      "baseName": "Байкал",
+      "canonicalFish": "Голомянка",
+      "forumTopicId": "32978",
+      "previousMaxWeightGrams": 220,
+      "maxWeightGrams": 242
+    },
+    {
+      "baseName": "Байкал",
+      "canonicalFish": "Желтокрылка",
+      "forumTopicId": "32979",
+      "previousMaxWeightGrams": 220,
+      "maxWeightGrams": 242
+    },
+    {
+      "baseName": "Байкал",
+      "canonicalFish": "Налим",
+      "forumTopicId": "330",
+      "previousMaxWeightGrams": 17820,
+      "maxWeightGrams": 17600
+    },
+    {
+      "baseName": "Байкал",
+      "canonicalFish": "Озёрный гольян",
+      "forumTopicId": "337",
+      "previousMaxWeightGrams": 220,
+      "maxWeightGrams": 159
+    },
+    {
+      "baseName": "Байкал",
+      "canonicalFish": "Моллюск",
+      "forumTopicId": "350",
+      "previousMaxWeightGrams": 330,
+      "maxWeightGrams": 312
+    },
+    {
+      "baseName": "Балаганнах",
+      "canonicalFish": "Омуль Байкальский",
+      "forumTopicId": "343",
+      "previousMaxWeightGrams": 1870,
+      "maxWeightGrams": 1815
+    },
+    {
+      "baseName": "Большой Барьерный Риф",
+      "canonicalFish": "Синеполосый луциан",
+      "forumTopicId": "117",
+      "previousMaxWeightGrams": 4400,
+      "maxWeightGrams": 4070
+    },
+    {
+      "baseName": "Большой Барьерный Риф",
+      "canonicalFish": "Павлиний группер",
+      "forumTopicId": "180",
+      "previousMaxWeightGrams": 8800,
+      "maxWeightGrams": 8250
+    },
+    {
+      "baseName": "Большой Барьерный Риф",
+      "canonicalFish": "Рыба-лиса",
+      "forumTopicId": "200",
+      "previousMaxWeightGrams": 550,
+      "maxWeightGrams": 495
+    },
+    {
+      "baseName": "Большой Барьерный Риф",
+      "canonicalFish": "Барракуда",
+      "forumTopicId": "249",
+      "previousMaxWeightGrams": 132000,
+      "maxWeightGrams": 121000
+    },
+    {
+      "baseName": "Большой Барьерный Риф",
+      "canonicalFish": "Гитарный скат",
+      "forumTopicId": "267",
+      "previousMaxWeightGrams": 14300,
+      "maxWeightGrams": 13200
+    },
+    {
+      "baseName": "Большой Барьерный Риф",
+      "canonicalFish": "Картофельный группер",
+      "forumTopicId": "307",
+      "previousMaxWeightGrams": 126500,
+      "maxWeightGrams": 115500
+    },
+    {
+      "baseName": "Большой Барьерный Риф",
+      "canonicalFish": "Мидия",
+      "forumTopicId": "31388",
+      "previousMaxWeightGrams": 121,
+      "maxWeightGrams": 110
+    },
+    {
+      "baseName": "Большой Барьерный Риф",
+      "canonicalFish": "Австралийский анчоус",
+      "forumTopicId": "31971",
+      "previousMaxWeightGrams": 93,
+      "maxWeightGrams": 77
+    },
+    {
+      "baseName": "Большой Барьерный Риф",
+      "canonicalFish": "Акула пепельная",
+      "forumTopicId": "31979",
+      "previousMaxWeightGrams": 24200,
+      "maxWeightGrams": 23200
+    },
+    {
+      "baseName": "Большой Барьерный Риф",
+      "canonicalFish": "Акула суповая",
+      "forumTopicId": "31981",
+      "previousMaxWeightGrams": 23100,
+      "maxWeightGrams": 17600
+    },
+    {
+      "baseName": "Большой Барьерный Риф",
+      "canonicalFish": "Камбала зеленая",
+      "forumTopicId": "31994",
+      "previousMaxWeightGrams": 792,
+      "maxWeightGrams": 715
+    },
+    {
+      "baseName": "Большой Барьерный Риф",
+      "canonicalFish": "Мавританский клоун",
+      "forumTopicId": "344",
+      "previousMaxWeightGrams": 330,
+      "maxWeightGrams": 297
+    },
+    {
+      "baseName": "Большой Шантар",
+      "canonicalFish": "Керчак-яок",
+      "forumTopicId": "31603",
+      "previousMaxWeightGrams": 8910,
+      "maxWeightGrams": 8900
+    },
+    {
+      "baseName": "Большой Шантар",
+      "canonicalFish": "Полосатая камбала",
+      "forumTopicId": "31628",
+      "previousMaxWeightGrams": 990,
+      "maxWeightGrams": 989
+    },
+    {
+      "baseName": "Буор-Юрях",
+      "canonicalFish": "Хариус Сибирский",
+      "forumTopicId": "140",
+      "previousMaxWeightGrams": 1210,
+      "maxWeightGrams": 1045
+    },
+    {
+      "baseName": "Верхняя Тунгуска",
+      "canonicalFish": "Нельма",
+      "forumTopicId": "333",
+      "previousMaxWeightGrams": 23000,
+      "maxWeightGrams": 22550
+    },
+    {
+      "baseName": "Влтава",
+      "canonicalFish": "Моллюск",
+      "forumTopicId": "350",
+      "previousMaxWeightGrams": 275,
+      "maxWeightGrams": 270
+    },
+    {
+      "baseName": "Волга",
+      "canonicalFish": "Рак",
+      "forumTopicId": "179",
+      "previousMaxWeightGrams": 505,
+      "maxWeightGrams": 506
+    },
+    {
+      "baseName": "Волга",
+      "canonicalFish": "Берш",
+      "forumTopicId": "247",
+      "previousMaxWeightGrams": 1620,
+      "maxWeightGrams": 1595
+    },
+    {
+      "baseName": "Волга",
+      "canonicalFish": "Вобла",
+      "forumTopicId": "260",
+      "previousMaxWeightGrams": 850,
+      "maxWeightGrams": 825
+    },
+    {
+      "baseName": "Волга",
+      "canonicalFish": "Жерех",
+      "forumTopicId": "295",
+      "previousMaxWeightGrams": 18700,
+      "maxWeightGrams": 18200
+    },
+    {
+      "baseName": "Волга",
+      "canonicalFish": "Лягушка",
+      "forumTopicId": "342",
+      "previousMaxWeightGrams": 310,
+      "maxWeightGrams": 308
+    },
+    {
+      "baseName": "Волга",
+      "canonicalFish": "Ёрш носарь",
+      "forumTopicId": "94",
+      "previousMaxWeightGrams": 495,
+      "maxWeightGrams": 517
+    },
+    {
+      "baseName": "Гавайские острова",
+      "canonicalFish": "Бонито",
+      "forumTopicId": "253",
+      "previousMaxWeightGrams": 15400,
+      "maxWeightGrams": 14300
+    },
+    {
+      "baseName": "Гавайские острова",
+      "canonicalFish": "Гитарный скат",
+      "forumTopicId": "267",
+      "previousMaxWeightGrams": 14300,
+      "maxWeightGrams": 13200
+    },
+    {
+      "baseName": "Гавайские острова",
+      "canonicalFish": "Зеленый луциан",
+      "forumTopicId": "297",
+      "previousMaxWeightGrams": 17600,
+      "maxWeightGrams": 16500
+    },
+    {
+      "baseName": "Гренландия",
+      "canonicalFish": "Мидия",
+      "forumTopicId": "31388",
+      "previousMaxWeightGrams": 132,
+      "maxWeightGrams": 121
+    },
+    {
+      "baseName": "Гренландия",
+      "canonicalFish": "Катран",
+      "forumTopicId": "31399",
+      "previousMaxWeightGrams": 16500,
+      "maxWeightGrams": 15400
+    },
+    {
+      "baseName": "Гренландия",
+      "canonicalFish": "Финта",
+      "forumTopicId": "32210",
+      "previousMaxWeightGrams": 1650,
+      "maxWeightGrams": 1545
+    },
+    {
+      "baseName": "Гренландия",
+      "canonicalFish": "Пеламида атлантическая",
+      "forumTopicId": "32229",
+      "previousMaxWeightGrams": 9900,
+      "maxWeightGrams": 9350
+    },
+    {
+      "baseName": "Гренландия",
+      "canonicalFish": "Химера европейская",
+      "forumTopicId": "32247",
+      "previousMaxWeightGrams": 78000,
+      "maxWeightGrams": 71500
+    },
+    {
+      "baseName": "Гренландия",
+      "canonicalFish": "Камбала морская",
+      "forumTopicId": "32373",
+      "previousMaxWeightGrams": 7700,
+      "maxWeightGrams": 7150
+    },
+    {
+      "baseName": "Дема",
+      "canonicalFish": "Рваный сапог",
+      "forumTopicId": "181",
+      "previousMaxWeightGrams": null,
+      "maxWeightGrams": 7700
+    },
+    {
+      "baseName": "Днепр-дельта",
+      "canonicalFish": "Калинка",
+      "forumTopicId": "31400",
+      "previousMaxWeightGrams": 297,
+      "maxWeightGrams": 275
+    },
+    {
+      "baseName": "Клязьма",
+      "canonicalFish": "Рваный сапог",
+      "forumTopicId": "181",
+      "previousMaxWeightGrams": null,
+      "maxWeightGrams": 7700
+    },
+    {
+      "baseName": "Красное море",
+      "canonicalFish": "Павлиний группер",
+      "forumTopicId": "180",
+      "previousMaxWeightGrams": 8800,
+      "maxWeightGrams": 8470
+    },
+    {
+      "baseName": "Красное море",
+      "canonicalFish": "Гитарный скат",
+      "forumTopicId": "267",
+      "previousMaxWeightGrams": 14300,
+      "maxWeightGrams": 13900
+    },
+    {
+      "baseName": "Красное море",
+      "canonicalFish": "Акула суповая",
+      "forumTopicId": "31981",
+      "previousMaxWeightGrams": 23100,
+      "maxWeightGrams": 22100
+    },
+    {
+      "baseName": "Красное море",
+      "canonicalFish": "Конус Географический",
+      "forumTopicId": "31998",
+      "previousMaxWeightGrams": 990,
+      "maxWeightGrams": 966
+    },
+    {
+      "baseName": "Красное море",
+      "canonicalFish": "Кузовок-кубик",
+      "forumTopicId": "32149",
+      "previousMaxWeightGrams": 3300,
+      "maxWeightGrams": 3080
+    },
+    {
+      "baseName": "Красное море",
+      "canonicalFish": "Спинорог расписной",
+      "forumTopicId": "32631",
+      "previousMaxWeightGrams": 3300,
+      "maxWeightGrams": 3190
+    },
+    {
+      "baseName": "Красное море",
+      "canonicalFish": "Леопардовый группер",
+      "forumTopicId": "328",
+      "previousMaxWeightGrams": 5500,
+      "maxWeightGrams": 5400
+    },
+    {
+      "baseName": "Красное море",
+      "canonicalFish": "Конус дворцовый",
+      "forumTopicId": "33210",
+      "previousMaxWeightGrams": 330,
+      "maxWeightGrams": 440
+    },
+    {
+      "baseName": "Красное море",
+      "canonicalFish": "Конус полосатый",
+      "forumTopicId": "33211",
+      "previousMaxWeightGrams": 660,
+      "maxWeightGrams": 658
+    },
+    {
+      "baseName": "Кроноцкий залив",
+      "canonicalFish": "Колюшка девятииглая",
+      "forumTopicId": "311",
+      "previousMaxWeightGrams": 71,
+      "maxWeightGrams": 66
+    },
+    {
+      "baseName": "Кроноцкий залив",
+      "canonicalFish": "Кит синий северный",
+      "forumTopicId": "33073",
+      "previousMaxWeightGrams": null,
+      "maxWeightGrams": 78000000
+    },
+    {
+      "baseName": "Кухтуй",
+      "canonicalFish": "Таймень",
+      "forumTopicId": "143",
+      "previousMaxWeightGrams": 92500,
+      "maxWeightGrams": 91200
+    },
+    {
+      "baseName": "Лопасня",
+      "canonicalFish": "Рваный сапог",
+      "forumTopicId": "181",
+      "previousMaxWeightGrams": null,
+      "maxWeightGrams": 5500
+    },
+    {
+      "baseName": "Майгунгна",
+      "canonicalFish": "Сом амурский",
+      "forumTopicId": "124",
+      "previousMaxWeightGrams": 13860,
+      "maxWeightGrams": 13855
+    },
+    {
+      "baseName": "Нева",
+      "canonicalFish": "Белоглазка",
+      "forumTopicId": "244",
+      "previousMaxWeightGrams": 935,
+      "maxWeightGrams": 550
+    },
+    {
+      "baseName": "Озеро",
+      "canonicalFish": "Рваный сапог",
+      "forumTopicId": "181",
+      "previousMaxWeightGrams": null,
+      "maxWeightGrams": 7700
+    },
+    {
+      "baseName": "Пахра",
+      "canonicalFish": "Рваный сапог",
+      "forumTopicId": "181",
+      "previousMaxWeightGrams": null,
+      "maxWeightGrams": 6600
+    },
+    {
+      "baseName": "Пенжина",
+      "canonicalFish": "Ленок",
+      "forumTopicId": "326",
+      "previousMaxWeightGrams": 6160,
+      "maxWeightGrams": 6150
+    },
+    {
+      "baseName": "Переславль-Залесский",
+      "canonicalFish": "Рваный сапог",
+      "forumTopicId": "181",
+      "previousMaxWeightGrams": null,
+      "maxWeightGrams": 5500
+    },
+    {
+      "baseName": "Побережье Камчатки",
+      "canonicalFish": "Мидия",
+      "forumTopicId": "31388",
+      "previousMaxWeightGrams": 110,
+      "maxWeightGrams": 132
+    },
+    {
+      "baseName": "Побережье Камчатки",
+      "canonicalFish": "Японский анчоус",
+      "forumTopicId": "31650",
+      "previousMaxWeightGrams": 110,
+      "maxWeightGrams": 99
+    },
+    {
+      "baseName": "Побережье Танзании",
+      "canonicalFish": "Мидия",
+      "forumTopicId": "31388",
+      "previousMaxWeightGrams": 176,
+      "maxWeightGrams": 132
+    },
+    {
+      "baseName": "Побережье Танзании",
+      "canonicalFish": "Устрица",
+      "forumTopicId": "31408",
+      "previousMaxWeightGrams": 132,
+      "maxWeightGrams": 176
+    },
+    {
+      "baseName": "Побережье Чили",
+      "canonicalFish": "Устрица",
+      "forumTopicId": "31408",
+      "previousMaxWeightGrams": 183,
+      "maxWeightGrams": 176
+    },
+    {
+      "baseName": "Побережье Чили",
+      "canonicalFish": "Кефаль-лобан",
+      "forumTopicId": "31411",
+      "previousMaxWeightGrams": 7980,
+      "maxWeightGrams": 7700
+    },
+    {
+      "baseName": "Побережье Чили",
+      "canonicalFish": "Малый полосатик",
+      "forumTopicId": "31615",
+      "previousMaxWeightGrams": null,
+      "maxWeightGrams": 6600000
+    },
+    {
+      "baseName": "Побережье Чили",
+      "canonicalFish": "Макрель голубая",
+      "forumTopicId": "32023",
+      "previousMaxWeightGrams": 5100,
+      "maxWeightGrams": 4950
+    },
+    {
+      "baseName": "Побережье Чили",
+      "canonicalFish": "Патагонский гребешок",
+      "forumTopicId": "32710",
+      "previousMaxWeightGrams": 338,
+      "maxWeightGrams": 330
+    },
+    {
+      "baseName": "Побережье Чили",
+      "canonicalFish": "Венера воздушная",
+      "forumTopicId": "32711",
+      "previousMaxWeightGrams": 225,
+      "maxWeightGrams": 220
+    },
+    {
+      "baseName": "Побережье Чили",
+      "canonicalFish": "Патагонский лобстер",
+      "forumTopicId": "32713",
+      "previousMaxWeightGrams": 2250,
+      "maxWeightGrams": 2200
+    },
+    {
+      "baseName": "Побережье Чили",
+      "canonicalFish": "Южная путассу",
+      "forumTopicId": "32716",
+      "previousMaxWeightGrams": 2250,
+      "maxWeightGrams": 2200
+    },
+    {
+      "baseName": "Побережье Чили",
+      "canonicalFish": "Шортбилл",
+      "forumTopicId": "32717",
+      "previousMaxWeightGrams": 79700,
+      "maxWeightGrams": 77000
+    },
+    {
+      "baseName": "Побережье Чили",
+      "canonicalFish": "Гонатус",
+      "forumTopicId": "32720",
+      "previousMaxWeightGrams": 1125,
+      "maxWeightGrams": 1100
+    },
+    {
+      "baseName": "Побережье Чили",
+      "canonicalFish": "Бутылконос плоскоголовый",
+      "forumTopicId": "32723",
+      "previousMaxWeightGrams": 5680000,
+      "maxWeightGrams": 5500000
+    },
+    {
+      "baseName": "Побережье Чили",
+      "canonicalFish": "Перуанский анчоус",
+      "forumTopicId": "32724",
+      "previousMaxWeightGrams": 558,
+      "maxWeightGrams": 550
+    },
+    {
+      "baseName": "Побережье Чили",
+      "canonicalFish": "Перуанская ставрида",
+      "forumTopicId": "32725",
+      "previousMaxWeightGrams": 1150,
+      "maxWeightGrams": 1100
+    },
+    {
+      "baseName": "Побережье Чили",
+      "canonicalFish": "Ремнезуб Грея",
+      "forumTopicId": "32726",
+      "previousMaxWeightGrams": 5200000,
+      "maxWeightGrams": 4970000
+    },
+    {
+      "baseName": "Побережье Чили",
+      "canonicalFish": "Перуанская сериолелла",
+      "forumTopicId": "32727",
+      "previousMaxWeightGrams": 3370,
+      "maxWeightGrams": 3300
+    },
+    {
+      "baseName": "Побережье Чили",
+      "canonicalFish": "Перуанская макрель",
+      "forumTopicId": "32732",
+      "previousMaxWeightGrams": 17060,
+      "maxWeightGrams": 16500
+    },
+    {
+      "baseName": "Побережье Чили",
+      "canonicalFish": "Новозеландская мерлуза",
+      "forumTopicId": "32733",
+      "previousMaxWeightGrams": 22500,
+      "maxWeightGrams": 22000
+    },
+    {
+      "baseName": "Побережье Чили",
+      "canonicalFish": "Робало",
+      "forumTopicId": "32745",
+      "previousMaxWeightGrams": 11270,
+      "maxWeightGrams": 11000
+    },
+    {
+      "baseName": "Побережье Чили",
+      "canonicalFish": "Патагонский клыкач",
+      "forumTopicId": "32748",
+      "previousMaxWeightGrams": 165600,
+      "maxWeightGrams": 165000
+    },
+    {
+      "baseName": "Побережье Чили",
+      "canonicalFish": "Ледяная рыба",
+      "forumTopicId": "32753",
+      "previousMaxWeightGrams": 3350,
+      "maxWeightGrams": 3300
+    },
+    {
+      "baseName": "Побережье Чили",
+      "canonicalFish": "Краб королевский",
+      "forumTopicId": "32757",
+      "previousMaxWeightGrams": 3380,
+      "maxWeightGrams": 3300
+    },
+    {
+      "baseName": "Побережье Чили",
+      "canonicalFish": "Лещ морской обыкновенный",
+      "forumTopicId": "32766",
+      "previousMaxWeightGrams": 12700,
+      "maxWeightGrams": 12100
+    },
+    {
+      "baseName": "Побережье Чили",
+      "canonicalFish": "Адамуссиум",
+      "forumTopicId": "32767",
+      "previousMaxWeightGrams": 228,
+      "maxWeightGrams": 220
+    },
+    {
+      "baseName": "Побережье Чили",
+      "canonicalFish": "Нереис",
+      "forumTopicId": "32774",
+      "previousMaxWeightGrams": 1680,
+      "maxWeightGrams": 1650
+    },
+    {
+      "baseName": "Полинезия",
+      "canonicalFish": "Спинорог крупнопятнистый",
+      "forumTopicId": "32011",
+      "previousMaxWeightGrams": 1650,
+      "maxWeightGrams": 1540
+    },
+    {
+      "baseName": "Полинезия",
+      "canonicalFish": "Спинорог заплаточный",
+      "forumTopicId": "32015",
+      "previousMaxWeightGrams": 2200,
+      "maxWeightGrams": 2090
+    },
+    {
+      "baseName": "Полинезия",
+      "canonicalFish": "Спинорог Пикассо",
+      "forumTopicId": "32019",
+      "previousMaxWeightGrams": 1200,
+      "maxWeightGrams": 1145
+    },
+    {
+      "baseName": "Полинезия",
+      "canonicalFish": "Хирург флаговый",
+      "forumTopicId": "32025",
+      "previousMaxWeightGrams": 995,
+      "maxWeightGrams": 878
+    },
+    {
+      "baseName": "Полинезия",
+      "canonicalFish": "Хризиптера сине-желтая",
+      "forumTopicId": "32026",
+      "previousMaxWeightGrams": 121,
+      "maxWeightGrams": 120
+    },
+    {
+      "baseName": "Полинезия",
+      "canonicalFish": "Рыба-бекас",
+      "forumTopicId": "32615",
+      "previousMaxWeightGrams": 290,
+      "maxWeightGrams": 275
+    },
+    {
+      "baseName": "Полинезия",
+      "canonicalFish": "Акула серо-бурая",
+      "forumTopicId": "32620",
+      "previousMaxWeightGrams": 31000,
+      "maxWeightGrams": 30800
+    },
+    {
+      "baseName": "Сара",
+      "canonicalFish": "Рваный сапог",
+      "forumTopicId": "181",
+      "previousMaxWeightGrams": null,
+      "maxWeightGrams": 4400
+    },
+    {
+      "baseName": "Саргассово море",
+      "canonicalFish": "Кит синий северный",
+      "forumTopicId": "33073",
+      "previousMaxWeightGrams": null,
+      "maxWeightGrams": 78000000
+    },
+    {
+      "baseName": "Северная Ладога",
+      "canonicalFish": "Судак",
+      "forumTopicId": "136",
+      "previousMaxWeightGrams": 19430,
+      "maxWeightGrams": 18700
+    },
+    {
+      "baseName": "Сейшельские острова",
+      "canonicalFish": "Синеполосый луциан",
+      "forumTopicId": "117",
+      "previousMaxWeightGrams": 4470,
+      "maxWeightGrams": 4400
+    },
+    {
+      "baseName": "Сейшельские острова",
+      "canonicalFish": "Сомалийская рыба-бабочка",
+      "forumTopicId": "126",
+      "previousMaxWeightGrams": 564,
+      "maxWeightGrams": 550
+    },
+    {
+      "baseName": "Сейшельские острова",
+      "canonicalFish": "Чернохвостый луциан",
+      "forumTopicId": "146",
+      "previousMaxWeightGrams": 5650,
+      "maxWeightGrams": 5500
+    },
+    {
+      "baseName": "Сейшельские острова",
+      "canonicalFish": "Черный макалор",
+      "forumTopicId": "148",
+      "previousMaxWeightGrams": 17050,
+      "maxWeightGrams": 16500
+    },
+    {
+      "baseName": "Сейшельские острова",
+      "canonicalFish": "Томатный группер",
+      "forumTopicId": "157",
+      "previousMaxWeightGrams": 8000,
+      "maxWeightGrams": 7700
+    },
+    {
+      "baseName": "Сейшельские острова",
+      "canonicalFish": "Павлиний группер",
+      "forumTopicId": "180",
+      "previousMaxWeightGrams": 8880,
+      "maxWeightGrams": 8800
+    },
+    {
+      "baseName": "Сейшельские острова",
+      "canonicalFish": "Пальмовый вор",
+      "forumTopicId": "186",
+      "previousMaxWeightGrams": 6850,
+      "maxWeightGrams": 6600
+    },
+    {
+      "baseName": "Сейшельские острова",
+      "canonicalFish": "Рыба-белка",
+      "forumTopicId": "196",
+      "previousMaxWeightGrams": 5530,
+      "maxWeightGrams": 5500
+    },
+    {
+      "baseName": "Сейшельские острова",
+      "canonicalFish": "Рыба-лира",
+      "forumTopicId": "198",
+      "previousMaxWeightGrams": 287,
+      "maxWeightGrams": 275
+    },
+    {
+      "baseName": "Сейшельские острова",
+      "canonicalFish": "Рыба-наполеон",
+      "forumTopicId": "206",
+      "previousMaxWeightGrams": 276000,
+      "maxWeightGrams": 263700
+    },
+    {
+      "baseName": "Сейшельские острова",
+      "canonicalFish": "Альбула",
+      "forumTopicId": "236",
+      "previousMaxWeightGrams": 10000,
+      "maxWeightGrams": 9900
+    },
+    {
+      "baseName": "Сейшельские острова",
+      "canonicalFish": "Бронзовая акула",
+      "forumTopicId": "254",
+      "previousMaxWeightGrams": 225000,
+      "maxWeightGrams": 220000
+    },
+    {
+      "baseName": "Сейшельские острова",
+      "canonicalFish": "Гитарный скат",
+      "forumTopicId": "267",
+      "previousMaxWeightGrams": 14550,
+      "maxWeightGrams": 14300
+    },
+    {
+      "baseName": "Сейшельские острова",
+      "canonicalFish": "Зеленый луциан",
+      "forumTopicId": "297",
+      "previousMaxWeightGrams": 19230,
+      "maxWeightGrams": 18750
+    },
+    {
+      "baseName": "Сейшельские острова",
+      "canonicalFish": "Кошачья акула",
+      "forumTopicId": "315",
+      "previousMaxWeightGrams": 16900,
+      "maxWeightGrams": 16500
+    },
+    {
+      "baseName": "Сейшельские острова",
+      "canonicalFish": "Леопардовый группер",
+      "forumTopicId": "328",
+      "previousMaxWeightGrams": 5550,
+      "maxWeightGrams": 5500
+    },
+    {
+      "baseName": "Селигер",
+      "canonicalFish": "Щука",
+      "forumTopicId": "164",
+      "previousMaxWeightGrams": 25850,
+      "maxWeightGrams": 25800
+    },
+    {
+      "baseName": "Урал",
+      "canonicalFish": "Моллюск",
+      "forumTopicId": "350",
+      "previousMaxWeightGrams": 161,
+      "maxWeightGrams": 154
+    },
+    {
+      "baseName": "Хороту",
+      "canonicalFish": "Хариус Сибирский",
+      "forumTopicId": "140",
+      "previousMaxWeightGrams": 1210,
+      "maxWeightGrams": 990
+    },
+    {
+      "baseName": "Хороту",
+      "canonicalFish": "Сибирский подкаменщик",
+      "forumTopicId": "22718",
+      "previousMaxWeightGrams": 110,
+      "maxWeightGrams": 99
+    },
+    {
+      "baseName": "Хороту",
+      "canonicalFish": "Моллюск",
+      "forumTopicId": "350",
+      "previousMaxWeightGrams": 132,
+      "maxWeightGrams": 176
+    },
+    {
+      "baseName": "ЮАР",
+      "canonicalFish": "Кит синий северный",
+      "forumTopicId": "33073",
+      "previousMaxWeightGrams": null,
+      "maxWeightGrams": 78000000
+    },
+    {
+      "baseName": "Юго-восточное побережье",
+      "canonicalFish": "Барракуда",
+      "forumTopicId": "249",
+      "previousMaxWeightGrams": 132000,
+      "maxWeightGrams": 99000
+    },
+    {
+      "baseName": "Юго-восточное побережье",
+      "canonicalFish": "Гигантская акула-молот",
+      "forumTopicId": "264",
+      "previousMaxWeightGrams": 715000,
+      "maxWeightGrams": 550000
+    },
+    {
+      "baseName": "Юго-восточное побережье",
+      "canonicalFish": "Голубая акула",
+      "forumTopicId": "275",
+      "previousMaxWeightGrams": 500000,
+      "maxWeightGrams": 440000
+    },
+    {
+      "baseName": "Юго-восточное побережье",
+      "canonicalFish": "Мидия",
+      "forumTopicId": "31388",
+      "previousMaxWeightGrams": 121,
+      "maxWeightGrams": 110
+    },
+    {
+      "baseName": "Юго-восточное побережье",
+      "canonicalFish": "Устрица",
+      "forumTopicId": "31408",
+      "previousMaxWeightGrams": 170,
+      "maxWeightGrams": 176
+    },
+    {
+      "baseName": "Юго-восточное побережье",
+      "canonicalFish": "Австралийский анчоус",
+      "forumTopicId": "31971",
+      "previousMaxWeightGrams": 97,
+      "maxWeightGrams": 93
+    },
+    {
+      "baseName": "Юго-восточное побережье",
+      "canonicalFish": "Акула пепельная",
+      "forumTopicId": "31979",
+      "previousMaxWeightGrams": 24700,
+      "maxWeightGrams": 24200
+    },
+    {
+      "baseName": "Юго-восточное побережье",
+      "canonicalFish": "Акула тигровая",
+      "forumTopicId": "31982",
+      "previousMaxWeightGrams": 968500,
+      "maxWeightGrams": 935000
+    },
+    {
+      "baseName": "Юго-восточное побережье",
+      "canonicalFish": "Дасцилл зебровидный",
+      "forumTopicId": "32003",
+      "previousMaxWeightGrams": 102,
+      "maxWeightGrams": 99
+    },
+    {
+      "baseName": "Юго-восточное побережье",
+      "canonicalFish": "Лоцман",
+      "forumTopicId": "32020",
+      "previousMaxWeightGrams": 150,
+      "maxWeightGrams": 990
+    },
+    {
+      "baseName": "Юго-восточное побережье",
+      "canonicalFish": "Макруронус новозеландский",
+      "forumTopicId": "32027",
+      "previousMaxWeightGrams": 9130,
+      "maxWeightGrams": 8800
+    }
+  ]
+}

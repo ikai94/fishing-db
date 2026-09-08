@@ -53,6 +53,8 @@
     "klevalka:generate-catches": "pnpm db:generate && pnpm --filter @fishing-db/api run klevalka:generate-catches",
     "klevalka:crawl-fish": "pnpm --filter @fishing-db/api run klevalka:crawl-fish",
     "klevalka:review-snapshots": "pnpm db:generate && pnpm --filter @fishing-db/api run klevalka:review-snapshots",
+    "klevalka:audit-max-weights": "pnpm db:generate && pnpm --filter @fishing-db/api run klevalka:audit-max-weights",
+    "klevalka:refine-max-weights": "pnpm --filter @fishing-db/api run klevalka:refine-max-weights",
     "klevalka:release-catches": "pnpm db:generate && pnpm --filter @fishing-db/api run klevalka:release-catches",
     "klevalka:import-catches": "pnpm db:generate && pnpm --filter @fishing-db/api run klevalka:import-catches",
     "db:test:up": "docker compose --profile test up -d --wait postgres-test",

@@ -4,6 +4,10 @@ import { pathToFileURL } from 'node:url';
 import { Prisma, PrismaClient } from '../generated/prisma/client.js';
 import type { BaseFishWeightApplyReadyManifest } from './base-fish-weight-apply-ready.js';
 import {
+  applyBaseFishMaxWeightPatch,
+  decodeBaseFishMaxWeightPatch,
+} from './base-fish-max-weight-patch.js';
+import {
   buildBaseFishWeightMaterializationPlan,
   type BaseFishWeightMaterializationPlan,
   type BaseFishWeightProtectedState,
@@ -14,12 +18,15 @@ import { createPrismaAdapter } from './prisma-adapter.js';
 
 export const ACCEPTED_BASE_FISH_WEIGHT_MANIFEST_SHA256 =
   'c36b13cb186632a5017f9d63e7f3a1b082539d7323c4b423f267f42598ad161a';
+export const ACCEPTED_BASE_FISH_MAX_WEIGHT_PATCH_SHA256 =
+  '435d81d96297f5bed64d37d6fdc0a3e8d1e3388e8ae8ef7e03ceb3d0c439e388';
 
 const CATALOG_DATA = new URL('../../prisma/catalog-data/', import.meta.url);
 const MANIFEST = new URL('fishing-base-fish-weights.json', CATALOG_DATA);
+const MAX_WEIGHT_PATCH = new URL('base-fish-max-weight-patch-20260909.json', CATALOG_DATA);
 const MATERIALIZATION_LOCK =
   'LOCK TABLE "FishingBase", "Fish", "FishingBaseFish" IN SHARE ROW EXCLUSIVE MODE';
-const EXPECTED_TARGET_COUNT = 3_596;
+const EXPECTED_TARGET_COUNT = 3_606;
 
 export type BaseFishWeightMaterializationCommand =
   { mode: 'DRY_RUN' } | { mode: 'APPLY'; expectedPlanFingerprint: string };
@@ -75,8 +82,12 @@ function decodeManifest(value: unknown): BaseFishWeightApplyReadyManifest {
 async function readAcceptedManifest(): Promise<{
   manifest: BaseFishWeightApplyReadyManifest;
   hash: string;
+  patch: { version: string; hash: string };
 }> {
-  const content = await readFile(MANIFEST, 'utf8');
+  const [content, patchContent] = await Promise.all([
+    readFile(MANIFEST, 'utf8'),
+    readFile(MAX_WEIGHT_PATCH, 'utf8'),
+  ]);
   const hash = sha256(content);
   if (hash !== ACCEPTED_BASE_FISH_WEIGHT_MANIFEST_SHA256) {
     throw new Error(
@@ -87,7 +98,22 @@ async function readAcceptedManifest(): Promise<{
   if (content !== stableJson(manifest)) {
     throw new Error('BaseFish weight manifest formatting is not deterministic');
   }
-  return { manifest, hash };
+  const patchHash = sha256(patchContent);
+  if (patchHash !== ACCEPTED_BASE_FISH_MAX_WEIGHT_PATCH_SHA256) {
+    throw new Error(
+      `BaseFish max-weight catalog patch SHA-256 is ${patchHash}; expected ${ACCEPTED_BASE_FISH_MAX_WEIGHT_PATCH_SHA256}`,
+    );
+  }
+  const patch = decodeBaseFishMaxWeightPatch(JSON.parse(patchContent) as unknown);
+  if (patchContent !== stableJson(patch)) {
+    throw new Error('BaseFish max-weight catalog patch formatting is not deterministic');
+  }
+  const effectiveManifest = applyBaseFishMaxWeightPatch(manifest, patch, hash);
+  return {
+    manifest: effectiveManifest,
+    hash: sha256(stableJson(effectiveManifest)),
+    patch: { version: patch.version, hash: patchHash },
+  };
 }
 
 async function inspectSchema(
@@ -254,11 +280,13 @@ function outputSummary(
   plan: BaseFishWeightMaterializationPlan,
   schema: BaseFishWeightSchemaInspection,
   writesPerformed: boolean,
+  patch: { version: string; hash: string },
 ): string {
   return stableJson({
     mode: command.mode,
     writesPerformed,
     manifestSha256: plan.manifestSha256,
+    catalogPatch: patch,
     counts: plan.counts,
     planFingerprint: plan.planFingerprint,
     migration: schema,
@@ -289,7 +317,7 @@ async function run(): Promise<void> {
           timeout: 120_000,
         },
       );
-      process.stdout.write(outputSummary(command, plan, state.schema, false));
+      process.stdout.write(outputSummary(command, plan, state.schema, false, accepted.patch));
       return;
     }
 
@@ -361,7 +389,13 @@ async function run(): Promise<void> {
       },
     );
     process.stdout.write(
-      outputSummary(command, result.plan, result.before.schema, result.plan.changes.length > 0),
+      outputSummary(
+        command,
+        result.plan,
+        result.before.schema,
+        result.plan.changes.length > 0,
+        accepted.patch,
+      ),
     );
   } finally {
     await prisma.$disconnect();
