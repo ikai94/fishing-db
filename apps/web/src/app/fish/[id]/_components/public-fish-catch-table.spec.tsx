@@ -1,5 +1,5 @@
-import { render, screen, within } from '@testing-library/react';
-import { describe, expect, test } from 'vitest';
+import { fireEvent, render, screen, within } from '@testing-library/react';
+import { describe, expect, test, vi } from 'vitest';
 import styles from '../../../public-catalog.module.css';
 import type { FishCatchAggregate } from '@/lib/fish-catch-aggregates-api';
 import {
@@ -18,7 +18,12 @@ const aggregate: FishCatchAggregate = {
   fish: { id: 'fish-1', name: 'Сом' },
   fishingBase: { id: 'base-1', name: 'Ахтуба' },
   location: { id: 'location-1', number: 7, name: 'Судачий откос' },
-  bait: { id: 'bait-1', name: 'Мотыль', isActive: false },
+  bait: {
+    id: 'bait-1',
+    name: 'Мотыль',
+    isActive: false,
+    image: { url: `http://localhost:3001/api/v1/bait-images/${'a'.repeat(64)}.png` },
+  },
   spinningCombinations: [
     { spinningSpeed: 'MEDIUM', spinningSize: 'MEDIUM' },
     { spinningSpeed: 'MEDIUM', spinningSize: 'LARGE' },
@@ -110,13 +115,16 @@ describe('public Fish catch formatters', () => {
 
 describe('PublicFishCatchTable', () => {
   test('renders one compact row per aggregate identity with observed/BaseFish maximum wording', () => {
+    const changeOrder = vi.fn();
     render(
       <PublicFishCatchTable
+        intensityOrder="desc"
+        onIntensityOrderChange={changeOrder}
         rows={[
           aggregate,
           {
             ...aggregate,
-            bait: { id: 'bait-2', name: 'Опарыш', isActive: true },
+            bait: { id: 'bait-2', name: 'Опарыш', isActive: true, image: null },
             intensity: 3,
             contributorCount: 2,
           },
@@ -142,26 +150,43 @@ describe('PublicFishCatchTable', () => {
       'На что',
       'Проводка / размер',
       'Комментарий',
-      'Уловов / рыбаков',
+      'Уловы↓',
       'Наблюдаемый / максимальный вес',
     ]);
     const rows = within(table).getAllByRole('row');
     expect(rows).toHaveLength(3);
     expect(rows[1]).toHaveTextContent(
-      '1Ахтуба, 7. Судачий откос6.03 м над лескойМотыльСейчас неактивнаср/ср, ср/бол, ср/-, -/болнесколько (2)18 / 71.25 кг / 2 кг',
+      '1Ахтуба, 7. Судачий откос6.03 м над лескойМотыльСейчас неактивнаср/ср, ср/бол, ср/-, -/болнесколько (2)181.25 кг / 2 кг',
     );
     expect(rows[2]).toHaveTextContent(
-      '2Ахтуба, 7. Судачий откос6.03 м над лескойОпарышср/ср, ср/бол, ср/-, -/болнесколько (2)3 / 21.25 кг / 2 кг',
+      '2Ахтуба, 7. Судачий откос6.03 м над лескойОпарышср/ср, ср/бол, ср/-, -/болнесколько (2)31.25 кг / 2 кг',
     );
     expect(within(rows[1]!).getByTitle('Ахтуба, 7. Судачий откос')).toHaveTextContent(
       'Ахтуба, 7. Судачий откос',
     );
     expect(within(rows[1]!).getByTitle('6.03 м над леской')).toHaveTextContent('6.03 м над леской');
-    expect(screen.getByTitle('18 уловов / 7 разных рыбаков')).toHaveTextContent('18 / 7');
+    expect(screen.getByTitle('18 уловов')).toHaveTextContent('18');
+    expect(within(table).queryByText(/рыбак/i)).not.toBeInTheDocument();
+
+    const baitImage = within(rows[1]!).getByTitle('Мотыль');
+    const baitName = within(rows[1]!).getByText('Мотыль');
+    expect(baitImage).toHaveAttribute('src', aggregate.bait.image?.url);
+    expect(baitImage.compareDocumentPosition(baitName)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+
+    const sortHeader = screen.getByRole('columnheader', { name: /Уловы/ });
+    expect(sortHeader).toHaveAttribute('aria-sort', 'descending');
+    fireEvent.click(screen.getByRole('button', { name: 'Уловы: сортировать по возрастанию' }));
+    expect(changeOrder).toHaveBeenCalledWith('asc');
   });
 
   test('contains no author, date, private field, or report-detail UI', () => {
-    render(<PublicFishCatchTable rows={[aggregate]} />);
+    render(
+      <PublicFishCatchTable
+        rows={[aggregate]}
+        intensityOrder="desc"
+        onIntensityOrderChange={() => undefined}
+      />,
+    );
 
     const table = screen.getByRole('table');
     expect(within(table).queryByRole('link')).not.toBeInTheDocument();
@@ -169,10 +194,33 @@ describe('PublicFishCatchTable', () => {
     expect(within(table).queryByRole('time')).not.toBeInTheDocument();
   });
 
+  test('renders a neutral count badge below 50 and a high-count badge from 50', () => {
+    render(
+      <PublicFishCatchTable
+        intensityOrder="desc"
+        onIntensityOrderChange={() => undefined}
+        rows={[
+          { ...aggregate, intensity: 49 },
+          {
+            ...aggregate,
+            bait: { ...aggregate.bait, id: 'bait-2' },
+            intensity: 50,
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText('49')).toHaveClass(styles.catchCountValue);
+    expect(screen.getByText('49')).not.toHaveClass(styles.catchCountValueHigh);
+    expect(screen.getByText('50')).toHaveClass(styles.catchCountValue, styles.catchCountValueHigh);
+  });
+
   test('keeps a long single raw value in one compact titled cell', () => {
     const longComment = 'Длинный комментарий '.repeat(20).trim();
     render(
       <PublicFishCatchTable
+        intensityOrder="desc"
+        onIntensityOrderChange={() => undefined}
         rows={[
           {
             ...aggregate,
@@ -191,6 +239,8 @@ describe('PublicFishCatchTable', () => {
   test('shows only anomaly classifications and an unknown BaseFish maximum fallback', () => {
     const { rerender } = render(
       <PublicFishCatchTable
+        intensityOrder="desc"
+        onIntensityOrderChange={() => undefined}
         rows={[
           {
             ...aggregate,
@@ -207,6 +257,8 @@ describe('PublicFishCatchTable', () => {
 
     rerender(
       <PublicFishCatchTable
+        intensityOrder="desc"
+        onIntensityOrderChange={() => undefined}
         rows={[
           {
             ...aggregate,
@@ -222,7 +274,13 @@ describe('PublicFishCatchTable', () => {
     expect(screen.getByText('1.25 кг / —')).toBeInTheDocument();
     expect(screen.queryByText('Без классификации')).not.toBeInTheDocument();
 
-    rerender(<PublicFishCatchTable rows={[aggregate]} />);
+    rerender(
+      <PublicFishCatchTable
+        rows={[aggregate]}
+        intensityOrder="desc"
+        onIntensityOrderChange={() => undefined}
+      />,
+    );
     expect(screen.queryByText('Обычный')).not.toBeInTheDocument();
   });
 });

@@ -9,7 +9,11 @@ import { type BaitStatistic, listBaitStatistics } from '@/lib/bait-statistics-ap
 import { formatBaseFishWeightBounds } from '@/lib/base-fish-weight';
 import { SpotAnalytics } from '@/components/spot-analytics/spot-analytics';
 import type { PublicFishDetail } from '@/lib/catalog-api';
-import { type FishCatchAggregate, listFishCatchAggregates } from '@/lib/fish-catch-aggregates-api';
+import {
+  type FishCatchAggregate,
+  type FishCatchIntensityOrder,
+  listFishCatchAggregates,
+} from '@/lib/fish-catch-aggregates-api';
 import { readFishBaseSelection, writeFishBaseSelection } from '@/lib/fish-base-selection';
 import {
   type FishingConditionStatistic,
@@ -20,6 +24,11 @@ import { FishingConditionStatisticsTable } from './fishing-condition-statistics-
 import { PublicFishCatchTable } from './public-fish-catch-table';
 
 const AGGREGATE_PAGE_SIZE = 20;
+const INTENSITY_FILTERS = [
+  { label: 'Все', minIntensity: null },
+  { label: 'Уловистые ≥10', minIntensity: 10 },
+  { label: 'Суперуловистые ≥30', minIntensity: 30 },
+] as const;
 
 type FeedState =
   | { kind: 'idle'; scopeKey: string }
@@ -506,6 +515,8 @@ export function FishReportFeed({
   const loadMoreRequestRef = useRef<ActiveRequest | null>(null);
   const paginationSentinelRef = useRef<HTMLDivElement | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const [intensityOrder, setIntensityOrder] = useState<FishCatchIntensityOrder>('desc');
+  const [minIntensity, setMinIntensity] = useState<number | null>(null);
   const [state, setState] = useState<FeedState>(() => ({ kind: 'loading', scopeKey }));
   const [loadingMoreScope, setLoadingMoreScope] = useState<string | null>(null);
   const [paginationError, setPaginationError] = useState<{
@@ -532,6 +543,8 @@ export function FishReportFeed({
           fishId,
           baseIds: [...selectedBaseIds],
           limit: AGGREGATE_PAGE_SIZE,
+          intensityOrder,
+          ...(minIntensity === null ? {} : { minIntensity }),
           signal: controller.signal,
         });
         if (!isCurrentRequest(initialRequestRef.current, request, scopeKey, revisionRef.current))
@@ -565,7 +578,7 @@ export function FishReportFeed({
       controller.abort();
       if (initialRequestRef.current === request) initialRequestRef.current = null;
     };
-  }, [attempt, fishId, scopeKey, selectedBaseIds]);
+  }, [attempt, fishId, intensityOrder, minIntensity, scopeKey, selectedBaseIds]);
 
   useEffect(
     () => () => {
@@ -606,6 +619,8 @@ export function FishReportFeed({
         baseIds: [...selectedBaseIds],
         cursor,
         limit: AGGREGATE_PAGE_SIZE,
+        intensityOrder,
+        ...(minIntensity === null ? {} : { minIntensity }),
         signal: controller.signal,
       });
       if (!isCurrentRequest(loadMoreRequestRef.current, request, scopeKey, revisionRef.current))
@@ -636,7 +651,27 @@ export function FishReportFeed({
         setLoadingMoreScope((current) => (current === scopeKey ? null : current));
       }
     }
-  }, [fishId, scopeKey, selectedBaseIds, state]);
+  }, [fishId, intensityOrder, minIntensity, scopeKey, selectedBaseIds, state]);
+
+  function changeIntensityOrder(order: FishCatchIntensityOrder) {
+    if (order === intensityOrder) return;
+    loadMoreRequestRef.current?.controller.abort();
+    loadMoreRequestRef.current = null;
+    setLoadingMoreScope(null);
+    setPaginationError(null);
+    setState({ kind: 'loading', scopeKey });
+    setIntensityOrder(order);
+  }
+
+  function changeMinIntensity(value: number | null) {
+    if (value === minIntensity) return;
+    loadMoreRequestRef.current?.controller.abort();
+    loadMoreRequestRef.current = null;
+    setLoadingMoreScope(null);
+    setPaginationError(null);
+    setState({ kind: 'loading', scopeKey });
+    setMinIntensity(value);
+  }
 
   const currentState = state.scopeKey === scopeKey ? state : null;
   const currentPaginationError =
@@ -693,13 +728,34 @@ export function FishReportFeed({
         </div>
       ) : null}
 
-      {currentState?.kind === 'ready' && currentState.items.length === 0 ? (
-        <p className={styles.statusMessage}>Для выбранных баз уловов пока нет.</p>
-      ) : null}
-
-      {currentState?.kind === 'ready' && currentState.items.length > 0 ? (
+      {currentState?.kind === 'ready' ? (
         <>
-          <PublicFishCatchTable rows={currentState.items} />
+          <div className={styles.catchTableToolbar} role="group" aria-label="Фильтр уловистости">
+            {INTENSITY_FILTERS.map((filter) => (
+              <button
+                className={`${styles.intensityFilterButton} ${minIntensity === filter.minIntensity ? styles.intensityFilterButtonActive : ''}`}
+                key={filter.label}
+                type="button"
+                aria-pressed={minIntensity === filter.minIntensity}
+                onClick={() => changeMinIntensity(filter.minIntensity)}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
+          {currentState.items.length > 0 ? (
+            <PublicFishCatchTable
+              rows={currentState.items}
+              intensityOrder={intensityOrder}
+              onIntensityOrderChange={changeIntensityOrder}
+            />
+          ) : (
+            <p className={styles.statusMessage}>
+              {minIntensity === null
+                ? 'Для выбранных баз уловов пока нет.'
+                : 'Для выбранного фильтра уловов пока нет.'}
+            </p>
+          )}
           {currentPaginationError ? (
             <div className={`${styles.statusMessage} ${styles.errorMessage}`} role="alert">
               <p>{currentPaginationError}</p>
@@ -712,7 +768,7 @@ export function FishReportFeed({
               </button>
             </div>
           ) : null}
-          {currentState.nextCursor !== null ? (
+          {currentState.items.length > 0 && currentState.nextCursor !== null ? (
             <div
               ref={paginationSentinelRef}
               className={styles.paginationSentinel}

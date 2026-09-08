@@ -12,7 +12,7 @@ import {
   sortCatalogItemsByName,
 } from '@/lib/catalog-search';
 import { useApiResource } from '@/lib/use-api-resource';
-import { BaitImage } from './bait-image';
+import { BaitImage } from '@/components/bait-image';
 
 type BaitTypeFilter = 'ALL' | PublicBait['type'];
 

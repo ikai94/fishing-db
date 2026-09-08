@@ -15,12 +15,16 @@ void describe('FishCatchAggregateQueryDto', () => {
       baseIds: `${BASE_ID.toUpperCase()},${OTHER_BASE_ID},${BASE_ID}`,
       limit: '7',
       cursor: 'opaque',
+      intensityOrder: 'asc',
+      minIntensity: '10',
     });
 
     assert.deepEqual(await validate(dto), []);
     assert.deepEqual(dto.baseIds, [BASE_ID, OTHER_BASE_ID]);
     assert.equal(dto.limit, 7);
     assert.equal(dto.cursor, 'opaque');
+    assert.equal(dto.intensityOrder, 'asc');
+    assert.equal(dto.minIntensity, 10);
   });
 
   void it('uses an omitted Base scope for all Bases', async () => {
@@ -28,6 +32,8 @@ void describe('FishCatchAggregateQueryDto', () => {
 
     assert.deepEqual(await validate(dto), []);
     assert.deepEqual(dto.baseIds, []);
+    assert.equal(dto.intensityOrder, 'desc');
+    assert.equal(dto.minIntensity, undefined);
   });
 
   void it('rejects missing Fish, empty-token, repeated-query, malformed, and oversized scopes', async () => {
@@ -43,6 +49,9 @@ void describe('FishCatchAggregateQueryDto', () => {
       { fishId: FISH_ID, baseIds: `${BASE_ID},invalid` },
       { fishId: FISH_ID, baseIds: tooManyIds },
       { fishId: 'invalid', baseIds: BASE_ID },
+      { fishId: FISH_ID, intensityOrder: 'sideways' },
+      { fishId: FISH_ID, minIntensity: '0' },
+      { fishId: FISH_ID, minIntensity: '1.5' },
     ]) {
       const dto = plainToInstance(FishCatchAggregateQueryDto, value);
       assert.ok((await validate(dto)).length > 0, JSON.stringify(value));

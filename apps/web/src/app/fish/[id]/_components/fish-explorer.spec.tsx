@@ -70,17 +70,33 @@ vi.mock('./fishing-condition-statistics-table', () => ({
 }));
 
 vi.mock('./public-fish-catch-table', () => ({
-  PublicFishCatchTable: ({ rows }: { rows: Array<{ id: string }> }) => (
-    <table aria-label="Агрегированные уловы рыбы">
-      <tbody>
-        {rows.map((row, index) => (
-          <tr key={row.id}>
-            <th scope="row">{index + 1}</th>
-            <td>{row.id}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+  PublicFishCatchTable: ({
+    rows,
+    intensityOrder,
+    onIntensityOrderChange,
+  }: {
+    rows: Array<{ id: string }>;
+    intensityOrder: 'asc' | 'desc';
+    onIntensityOrderChange: (order: 'asc' | 'desc') => void;
+  }) => (
+    <>
+      <button
+        type="button"
+        onClick={() => onIntensityOrderChange(intensityOrder === 'asc' ? 'desc' : 'asc')}
+      >
+        Тестовая сортировка: {intensityOrder}
+      </button>
+      <table aria-label="Агрегированные уловы рыбы">
+        <tbody>
+          {rows.map((row, index) => (
+            <tr key={row.id}>
+              <th scope="row">{index + 1}</th>
+              <td>{row.id}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
   ),
 }));
 
@@ -120,7 +136,7 @@ type TestAggregate = {
   fish: { id: string; name: string };
   fishingBase: { id: string; name: string };
   location: { id: string; number: number; name: string };
-  bait: { id: string; name: string; isActive: boolean };
+  bait: { id: string; name: string; isActive: boolean; image: null };
   spinningCombinations: Array<{
     spinningSpeed: 'SLOW' | 'MEDIUM' | 'FAST' | null;
     spinningSize: 'SMALL' | 'MEDIUM' | 'LARGE' | null;
@@ -185,7 +201,7 @@ function testAggregate(id: string): TestAggregate {
     fish: { id: 'fish-1', name: 'Сом' },
     fishingBase: { id: 'base-a', name: 'Ахтуба' },
     location: { id: 'location-a', number: 1, name: 'Локация' },
-    bait: { id, name: id, isActive: true },
+    bait: { id, name: id, isActive: true, image: null },
     spinningCombinations: [],
     holeSpotSummary: { distinctCount: 0, value: null },
     userNoteRawSummary: { distinctCount: 0, value: null },
@@ -206,6 +222,8 @@ function requestAt(index: number) {
     baseIds: string[];
     cursor?: string;
     limit: number;
+    intensityOrder?: 'asc' | 'desc';
+    minIntensity?: number;
     signal: AbortSignal;
   };
 }
@@ -519,6 +537,36 @@ describe('FishExplorer', () => {
     });
     expect(await screen.findByText('Для выбранных баз уловов пока нет.')).toBeVisible();
     expect(mocks.listCatchReports).toHaveBeenCalledTimes(2);
+  });
+
+  test('refetches complete Location-grouped pages for intensity filters and sorting', async () => {
+    const user = userEvent.setup();
+    mocks.listCatchReports
+      .mockResolvedValueOnce({ items: [testAggregate('all')], nextCursor: null })
+      .mockResolvedValueOnce({ items: [testAggregate('super')], nextCursor: null })
+      .mockResolvedValueOnce({ items: [testAggregate('ascending')], nextCursor: null });
+    render(<FishExplorer fish={fish} />);
+
+    expect(await screen.findByText('all')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Все' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Уловистые ≥10' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Суперуловистые ≥30' }));
+    expect(await screen.findByText('super')).toBeVisible();
+    expect(requestAt(1)).toMatchObject({
+      intensityOrder: 'desc',
+      minIntensity: 30,
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Тестовая сортировка: desc' }));
+    expect(await screen.findByText('ascending')).toBeVisible();
+    expect(requestAt(2)).toMatchObject({
+      intensityOrder: 'asc',
+      minIntensity: 30,
+    });
   });
 
   test('renders fishing conditions loading, recoverable error/retry, and exact no-data states', async () => {

@@ -128,7 +128,7 @@ interface FishCatchAggregateItem {
   fish: { id: string; name: string };
   fishingBase: { id: string; name: string };
   location: { id: string; number: number; name: string };
-  bait: { id: string; name: string; isActive: boolean };
+  bait: { id: string; name: string; isActive: boolean; image: { url: string } | null };
   spinningCombinations: Array<{
     spinningSpeed: 'SLOW' | 'MEDIUM' | 'FAST' | null;
     spinningSize: 'SMALL' | 'MEDIUM' | 'LARGE' | null;
@@ -483,8 +483,12 @@ function readFishCatchAggregatePage(body: unknown): {
     assert.deepEqual(Object.keys(fish).sort(), ['id', 'name']);
     assert.deepEqual(Object.keys(fishingBase).sort(), ['id', 'name']);
     assert.deepEqual(Object.keys(location).sort(), ['id', 'name', 'number']);
-    assert.deepEqual(Object.keys(bait).sort(), ['id', 'isActive', 'name']);
+    assert.deepEqual(Object.keys(bait).sort(), ['id', 'image', 'isActive', 'name']);
     assert.equal(typeof bait.isActive, 'boolean');
+    const baitImage = bait.image === null ? null : asObject(bait.image);
+    if (baitImage !== null) {
+      assert.deepEqual(Object.keys(baitImage), ['url']);
+    }
     const spinningCombinations = asArray(item.spinningCombinations).map((value) => {
       const combination = asObject(value);
       assert.deepEqual(Object.keys(combination).sort(), ['spinningSize', 'spinningSpeed']);
@@ -518,6 +522,7 @@ function readFishCatchAggregatePage(body: unknown): {
         id: asString(bait.id, 'bait.id'),
         name: asString(bait.name, 'bait.name'),
         isActive: bait.isActive as boolean,
+        image: baitImage === null ? null : { url: asString(baitImage.url, 'bait.image.url') },
       },
       spinningCombinations,
       holeSpotSummary: readFishCatchHoleSpotSummary(item.holeSpotSummary),

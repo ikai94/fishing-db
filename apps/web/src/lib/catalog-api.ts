@@ -106,7 +106,7 @@ function readFishImage(value: unknown): PublicFishImage | null {
   return { url: new URL(value.url, apiBaseUrl).href };
 }
 
-function readBaitImage(value: unknown): PublicBaitImage | null {
+export function decodePublicBaitImage(value: unknown): PublicBaitImage | null {
   if (value === null) return null;
   if (
     !isRecord(value) ||
@@ -256,7 +256,7 @@ function readBait(value: unknown): PublicBait {
     throw new Error('Сервер вернул некорректный ответ каталога');
   }
 
-  return { ...item, type: value.type, image: readBaitImage(value.image) };
+  return { ...item, type: value.type, image: decodePublicBaitImage(value.image) };
 }
 
 function readCatalogSearchItem(value: unknown): PublicCatalogSearchItem {

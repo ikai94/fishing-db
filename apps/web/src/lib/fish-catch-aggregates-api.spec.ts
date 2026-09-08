@@ -2,7 +2,10 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({ apiRequest: vi.fn() }));
 
-vi.mock('./api-client', () => ({ apiRequest: mocks.apiRequest }));
+vi.mock('./api-client', () => ({
+  apiBaseUrl: 'http://localhost:3001',
+  apiRequest: mocks.apiRequest,
+}));
 
 import {
   decodeFishCatchAggregate,
@@ -10,11 +13,13 @@ import {
   listFishCatchAggregates,
 } from './fish-catch-aggregates-api';
 
+const BAIT_IMAGE_PATH = `/api/v1/bait-images/${'a'.repeat(64)}.png`;
+
 const aggregate = {
   fish: { id: 'fish-a', name: 'Сом' },
   fishingBase: { id: 'base-a', name: 'Ахтуба' },
   location: { id: 'location-a', number: 7, name: 'Судачий откос' },
-  bait: { id: 'bait-a', name: 'Мотыль', isActive: false },
+  bait: { id: 'bait-a', name: 'Мотыль', isActive: false, image: { url: BAIT_IMAGE_PATH } },
   spinningCombinations: [
     { spinningSpeed: 'MEDIUM', spinningSize: 'MEDIUM' },
     { spinningSpeed: 'MEDIUM', spinningSize: 'LARGE' },
@@ -36,10 +41,18 @@ const aggregate = {
   },
 };
 
+const decodedAggregate = {
+  ...aggregate,
+  bait: {
+    ...aggregate.bait,
+    image: { url: `http://localhost:3001${BAIT_IMAGE_PATH}` },
+  },
+};
+
 describe('Fish catch aggregate decoder', () => {
   test('accepts only the aggregate row/page contract', () => {
     expect(decodeFishCatchAggregatePage({ items: [aggregate], nextCursor: 'next' })).toEqual({
-      items: [aggregate],
+      items: [decodedAggregate],
       nextCursor: 'next',
     });
     expect(decodeFishCatchAggregatePage({ items: [], nextCursor: null })).toEqual({
@@ -158,19 +171,21 @@ describe('Fish catch aggregate request', () => {
         baseIds: ['base-b', 'base-a', 'base-a'],
         limit: 20,
         cursor: 'cursor value',
+        intensityOrder: 'asc',
+        minIntensity: 30,
         signal: controller.signal,
       }),
-    ).resolves.toEqual({ items: [aggregate], nextCursor: 'next' });
+    ).resolves.toEqual({ items: [decodedAggregate], nextCursor: 'next' });
 
     expect(mocks.apiRequest).toHaveBeenCalledWith(
-      '/catch-reports/statistics/fish-catches?fishId=fish-a&baseIds=base-a%2Cbase-b&limit=20&cursor=cursor+value',
+      '/catch-reports/statistics/fish-catches?fishId=fish-a&baseIds=base-a%2Cbase-b&limit=20&cursor=cursor+value&intensityOrder=asc&minIntensity=30',
       { signal: controller.signal },
     );
   });
 
   test('supports all Bases while rejecting oversized scope, invalid limits, and mismatches', async () => {
     await expect(listFishCatchAggregates({ fishId: 'fish-a', baseIds: [] })).resolves.toEqual({
-      items: [aggregate],
+      items: [decodedAggregate],
       nextCursor: 'next',
     });
     expect(mocks.apiRequest).toHaveBeenCalledWith(
@@ -187,6 +202,16 @@ describe('Fish catch aggregate request', () => {
     ).rejects.toThrow();
     await expect(
       listFishCatchAggregates({ fishId: 'fish-a', baseIds: ['base-a'], limit: 0 }),
+    ).rejects.toThrow();
+    await expect(
+      listFishCatchAggregates({
+        fishId: 'fish-a',
+        baseIds: ['base-a'],
+        intensityOrder: 'sideways' as 'asc',
+      }),
+    ).rejects.toThrow();
+    await expect(
+      listFishCatchAggregates({ fishId: 'fish-a', baseIds: ['base-a'], minIntensity: 0 }),
     ).rejects.toThrow();
     expect(mocks.apiRequest).toHaveBeenCalledTimes(0);
 

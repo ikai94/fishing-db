@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import type { BaitImageDelivery } from '../catalog/bait-image-delivery.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
 import type { FishCatchAggregateQueryDto } from './dto/fish-catch-aggregate-query.dto.js';
 import {
@@ -16,7 +17,20 @@ const QUERY: FishCatchAggregateQueryDto = {
   fishId: FISH_ID,
   baseIds: [BASE_ID],
   limit: 1,
+  intensityOrder: 'desc',
 };
+
+const BAIT_IMAGE_URL = `/api/v1/bait-images/${'a'.repeat(64)}.png`;
+
+function service(prisma: PrismaService): FishCatchAggregatesService {
+  const baitImageDelivery = {
+    mappedImageCount: 1,
+    resolvePublicImage: ({ baitId }: { baitId: string }) =>
+      baitId === BAIT_ID ? { url: BAIT_IMAGE_URL } : null,
+    readPublicAsset: () => Promise.resolve(null),
+  } satisfies BaitImageDelivery;
+  return new FishCatchAggregatesService(prisma, baitImageDelivery);
+}
 
 function databaseRow(
   overrides: Partial<FishCatchAggregateDatabaseRow> = {},
@@ -65,7 +79,7 @@ void describe('FishCatchAggregatesService', () => {
       },
     } as unknown as PrismaService;
 
-    const result = await new FishCatchAggregatesService(prisma).list(QUERY);
+    const result = await service(prisma).list(QUERY);
     const sqlQuery = capturedQuery as { text: string; values: unknown[] };
 
     assert.deepEqual(sqlQuery.values, [FISH_ID, BASE_ID, 2]);
@@ -101,7 +115,12 @@ void describe('FishCatchAggregatesService', () => {
         fish: { id: FISH_ID, name: 'Сом' },
         fishingBase: { id: BASE_ID, name: 'Ахтуба' },
         location: { id: LOCATION_ID, number: 7, name: 'Судачий откос' },
-        bait: { id: BAIT_ID, name: 'Мотыль', isActive: false },
+        bait: {
+          id: BAIT_ID,
+          name: 'Мотыль',
+          isActive: false,
+          image: { url: BAIT_IMAGE_URL },
+        },
         spinningCombinations: [
           { spinningSpeed: 'MEDIUM', spinningSize: 'MEDIUM' },
           { spinningSpeed: 'MEDIUM', spinningSize: 'LARGE' },
@@ -136,7 +155,7 @@ void describe('FishCatchAggregatesService', () => {
       },
     } as unknown as PrismaService;
 
-    await new FishCatchAggregatesService(prisma).list({ ...QUERY, baseIds: [] });
+    await service(prisma).list({ ...QUERY, baseIds: [] });
     const sqlQuery = capturedQuery as { text: string; values: unknown[] };
 
     assert.deepEqual(sqlQuery.values, [FISH_ID, 2]);
@@ -152,7 +171,7 @@ void describe('FishCatchAggregatesService', () => {
           databaseRow({ baitId: '50000000-0000-4000-8000-000000000002' }),
         ]),
     } as unknown as PrismaService;
-    const firstPage = await new FishCatchAggregatesService(firstPrisma).list(QUERY);
+    const firstPage = await service(firstPrisma).list(QUERY);
     assert.ok(firstPage.nextCursor);
 
     const nextPrisma = {
@@ -161,7 +180,7 @@ void describe('FishCatchAggregatesService', () => {
         return Promise.resolve([]);
       },
     } as unknown as PrismaService;
-    await new FishCatchAggregatesService(nextPrisma).list({
+    await service(nextPrisma).list({
       ...QUERY,
       cursor: firstPage.nextCursor,
     });
@@ -176,13 +195,34 @@ void describe('FishCatchAggregatesService', () => {
     assert.match(sqlQuery.text, /"baitId" >/);
   });
 
+  void it('filters by minimum intensity and reverses intensity inside each Location group', async () => {
+    let capturedQuery: unknown;
+    const prisma = {
+      $queryRaw: (query: unknown) => {
+        capturedQuery = query;
+        return Promise.resolve([]);
+      },
+    } as unknown as PrismaService;
+
+    await service(prisma).list({
+      ...QUERY,
+      intensityOrder: 'asc',
+      minIntensity: 30,
+    });
+    const sqlQuery = capturedQuery as { text: string; values: unknown[] };
+
+    assert.match(sqlQuery.text, /aggregate_row\."intensity" >=/);
+    assert.match(sqlQuery.text, /aggregate_row\."intensity" ASC/);
+    assert.deepEqual(sqlQuery.values, [FISH_ID, BASE_ID, 30n, 2]);
+  });
+
   void it('rejects unsafe or inconsistent aggregate counts', async () => {
     for (const row of [
       databaseRow({ intensity: BigInt(Number.MAX_SAFE_INTEGER) + 1n }),
       databaseRow({ contributorCount: 19n }),
     ]) {
       const prisma = { $queryRaw: () => Promise.resolve([row]) } as unknown as PrismaService;
-      await assert.rejects(new FishCatchAggregatesService(prisma).list(QUERY), RangeError);
+      await assert.rejects(service(prisma).list(QUERY), RangeError);
     }
   });
 
@@ -198,7 +238,7 @@ void describe('FishCatchAggregatesService', () => {
       const prisma = {
         $queryRaw: () => Promise.resolve([databaseRow({ spinningCombinations })]),
       } as unknown as PrismaService;
-      await assert.rejects(new FishCatchAggregatesService(prisma).list(QUERY), TypeError);
+      await assert.rejects(service(prisma).list(QUERY), TypeError);
     }
   });
 
@@ -221,7 +261,7 @@ void describe('FishCatchAggregatesService', () => {
       }),
     ]) {
       const prisma = { $queryRaw: () => Promise.resolve([row]) } as unknown as PrismaService;
-      await assert.rejects(new FishCatchAggregatesService(prisma).list(QUERY));
+      await assert.rejects(service(prisma).list(QUERY));
     }
   });
 });

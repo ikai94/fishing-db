@@ -1,6 +1,9 @@
 import { apiRequest } from './api-client';
 import { isBaseFishWeightClassification, type BaseFishWeightAssessment } from './base-fish-weight';
 import type { SpinningSize, SpinningSpeed } from './catch-reports-api';
+import { decodePublicBaitImage, type PublicBaitImage } from './catalog-api';
+
+export type FishCatchIntensityOrder = 'asc' | 'desc';
 
 export type FishCatchSpinningCombination = {
   spinningSpeed: SpinningSpeed | null;
@@ -24,7 +27,7 @@ export type FishCatchAggregate = {
   fish: { id: string; name: string };
   fishingBase: { id: string; name: string };
   location: { id: string; number: number; name: string };
-  bait: { id: string; name: string; isActive: boolean };
+  bait: { id: string; name: string; isActive: boolean; image: PublicBaitImage | null };
   spinningCombinations: FishCatchSpinningCombination[];
   holeSpotSummary: FishCatchHoleSpotSummary;
   userNoteRawSummary: FishCatchTextSummary;
@@ -44,6 +47,8 @@ export type ListFishCatchAggregatesOptions = {
   baseIds: readonly string[];
   cursor?: string | null;
   limit?: number;
+  intensityOrder?: FishCatchIntensityOrder;
+  minIntensity?: number;
   signal?: AbortSignal;
 };
 
@@ -64,7 +69,7 @@ const ITEM_KEYS = [
 ] as const;
 const NAMED_KEYS = ['id', 'name'] as const;
 const LOCATION_KEYS = ['id', 'number', 'name'] as const;
-const BAIT_KEYS = ['id', 'name', 'isActive'] as const;
+const BAIT_KEYS = ['id', 'name', 'isActive', 'image'] as const;
 const COMBINATION_KEYS = ['spinningSpeed', 'spinningSize'] as const;
 const TEXT_SUMMARY_KEYS = ['distinctCount', 'value'] as const;
 const HOLE_SPOT_VALUE_KEYS = ['holeDepthCm', 'spotPositionRaw'] as const;
@@ -248,7 +253,12 @@ export function decodeFishCatchAggregate(value: unknown): FishCatchAggregate {
     fish: readNamedItem(value.fish),
     fishingBase: readNamedItem(value.fishingBase),
     location: { id: location.id, number: location.number as number, name: location.name },
-    bait: { id: bait.id, name: bait.name, isActive: bait.isActive },
+    bait: {
+      id: bait.id,
+      name: bait.name,
+      isActive: bait.isActive,
+      image: decodePublicBaitImage(bait.image),
+    },
     spinningCombinations: readSpinningCombinations(value.spinningCombinations),
     holeSpotSummary: readHoleSpotSummary(value.holeSpotSummary, intensity),
     userNoteRawSummary: readTextSummary(value.userNoteRawSummary, intensity),
@@ -286,6 +296,8 @@ export async function listFishCatchAggregates({
   baseIds,
   cursor,
   limit,
+  intensityOrder,
+  minIntensity,
   signal,
 }: ListFishCatchAggregatesOptions): Promise<FishCatchAggregatePage> {
   const canonicalBaseIds = [...new Set(baseIds)].sort();
@@ -295,11 +307,19 @@ export async function listFishCatchAggregates({
   if (limit !== undefined && (!Number.isInteger(limit) || limit < 1 || limit > 100)) {
     throw new Error('Лимит агрегированных уловов должен быть от 1 до 100');
   }
+  if (intensityOrder !== undefined && intensityOrder !== 'asc' && intensityOrder !== 'desc') {
+    throw new Error('Порядок агрегированных уловов должен быть asc или desc');
+  }
+  if (minIntensity !== undefined && (!Number.isSafeInteger(minIntensity) || minIntensity < 1)) {
+    throw new Error('Минимум агрегированных уловов должен быть положительным целым числом');
+  }
 
   const query = new URLSearchParams({ fishId });
   if (canonicalBaseIds.length > 0) query.set('baseIds', canonicalBaseIds.join(','));
   if (limit !== undefined) query.set('limit', String(limit));
   if (cursor) query.set('cursor', cursor);
+  if (intensityOrder !== undefined) query.set('intensityOrder', intensityOrder);
+  if (minIntensity !== undefined) query.set('minIntensity', String(minIntensity));
 
   const payload = await apiRequest<unknown>(
     `/catch-reports/statistics/fish-catches?${query.toString()}`,

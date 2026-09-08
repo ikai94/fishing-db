@@ -50,5 +50,6 @@ import { CatalogController } from './catalog.controller.js';
       },
     },
   ],
+  exports: [BaitImageDelivery],
 })
 export class CatalogModule {}

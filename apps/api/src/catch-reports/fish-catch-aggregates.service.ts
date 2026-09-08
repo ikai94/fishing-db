@@ -1,8 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { assessBaseFishWeight } from '../catalog/base-fish-weight-classification.js';
+import { BaitImageDelivery } from '../catalog/bait-image-delivery.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import type { FishCatchAggregateQueryDto } from './dto/fish-catch-aggregate-query.dto.js';
+import type {
+  FishCatchAggregateQueryDto,
+  FishCatchIntensityOrder,
+} from './dto/fish-catch-aggregate-query.dto.js';
 import {
   decodeFishCatchAggregateCursor,
   encodeFishCatchAggregateCursor,
@@ -186,12 +190,19 @@ function readHoleSpotSummary(
   };
 }
 
-function cursorWhere(cursor: FishCatchAggregateCursor | undefined): Prisma.Sql {
+function cursorPredicate(
+  cursor: FishCatchAggregateCursor | undefined,
+  intensityOrder: FishCatchIntensityOrder,
+): Prisma.Sql {
   if (cursor === undefined) return Prisma.empty;
 
   const intensity = BigInt(cursor.intensity);
+  const intensityComparison =
+    intensityOrder === 'asc'
+      ? Prisma.sql`aggregate_row."intensity" > ${intensity}`
+      : Prisma.sql`aggregate_row."intensity" < ${intensity}`;
   return Prisma.sql`
-    WHERE
+    (
       aggregate_row."baseNameNormalized" COLLATE "C" > ${cursor.baseNameNormalized}
       OR (
         aggregate_row."baseNameNormalized" COLLATE "C" = ${cursor.baseNameNormalized}
@@ -213,7 +224,7 @@ function cursorWhere(cursor: FishCatchAggregateCursor | undefined): Prisma.Sql {
         AND aggregate_row."baseId" = ${cursor.baseId}::uuid
         AND aggregate_row."locationNumber" = ${cursor.locationNumber}
         AND aggregate_row."locationId" = ${cursor.locationId}::uuid
-        AND aggregate_row."intensity" < ${intensity}
+        AND ${intensityComparison}
       )
       OR (
         aggregate_row."baseNameNormalized" COLLATE "C" = ${cursor.baseNameNormalized}
@@ -232,7 +243,25 @@ function cursorWhere(cursor: FishCatchAggregateCursor | undefined): Prisma.Sql {
         AND aggregate_row."baitNameNormalized" COLLATE "C" = ${cursor.baitNameNormalized}
         AND aggregate_row."baitId" > ${cursor.baitId}::uuid
       )
+    )
   `;
+}
+
+function pageWhere(
+  cursor: FishCatchAggregateCursor | undefined,
+  intensityOrder: FishCatchIntensityOrder,
+  minIntensity: number | undefined,
+): Prisma.Sql {
+  const afterCursor = cursorPredicate(cursor, intensityOrder);
+  const meetsMinimum =
+    minIntensity === undefined
+      ? Prisma.empty
+      : Prisma.sql`aggregate_row."intensity" >= ${BigInt(minIntensity)}`;
+
+  if (cursor === undefined && minIntensity === undefined) return Prisma.empty;
+  if (cursor === undefined) return Prisma.sql`WHERE ${meetsMinimum}`;
+  if (minIntensity === undefined) return Prisma.sql`WHERE ${afterCursor}`;
+  return Prisma.sql`WHERE ${meetsMinimum} AND ${afterCursor}`;
 }
 
 export function buildFishCatchAggregatesQuery(
@@ -240,6 +269,8 @@ export function buildFishCatchAggregatesQuery(
   baseIds: readonly string[],
   limit: number,
   cursor?: FishCatchAggregateCursor,
+  intensityOrder: FishCatchIntensityOrder = 'desc',
+  minIntensity?: number,
 ): Prisma.Sql {
   const baseScope =
     baseIds.length === 0
@@ -247,6 +278,7 @@ export function buildFishCatchAggregatesQuery(
       : Prisma.sql`AND source_location."fishingBaseId" IN (${Prisma.join(
           baseIds.map((baseId) => Prisma.sql`${baseId}::uuid`),
         )})`;
+  const intensityDirection = intensityOrder === 'asc' ? Prisma.sql`ASC` : Prisma.sql`DESC`;
 
   return Prisma.sql`
     WITH "aggregateRows" AS (
@@ -338,13 +370,13 @@ export function buildFishCatchAggregatesQuery(
     )
     SELECT *
     FROM "aggregateRows" AS aggregate_row
-    ${cursorWhere(cursor)}
+    ${pageWhere(cursor, intensityOrder, minIntensity)}
     ORDER BY
       aggregate_row."baseNameNormalized" COLLATE "C" ASC,
       aggregate_row."baseId" ASC,
       aggregate_row."locationNumber" ASC,
       aggregate_row."locationId" ASC,
-      aggregate_row."intensity" DESC,
+      aggregate_row."intensity" ${intensityDirection},
       aggregate_row."baitNameNormalized" COLLATE "C" ASC,
       aggregate_row."baitId" ASC
     LIMIT ${limit + 1}
@@ -353,7 +385,10 @@ export function buildFishCatchAggregatesQuery(
 
 @Injectable()
 export class FishCatchAggregatesService {
-  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
+  constructor(
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Inject(BaitImageDelivery) private readonly baitImageDelivery: BaitImageDelivery,
+  ) {}
 
   async list(query: FishCatchAggregateQueryDto) {
     const limit = query.limit;
@@ -371,7 +406,14 @@ export class FishCatchAggregatesService {
     }
 
     const fetchedRows = await this.prisma.$queryRaw<FishCatchAggregateDatabaseRow[]>(
-      buildFishCatchAggregatesQuery(query.fishId, query.baseIds, limit, cursor),
+      buildFishCatchAggregatesQuery(
+        query.fishId,
+        query.baseIds,
+        limit,
+        cursor,
+        query.intensityOrder,
+        query.minIntensity,
+      ),
     );
     const hasNextPage = fetchedRows.length > limit;
     const rows = hasNextPage ? fetchedRows.slice(0, limit) : fetchedRows;
@@ -386,7 +428,15 @@ export class FishCatchAggregatesService {
         fish: { id: row.fishId, name: row.fishName },
         fishingBase: { id: row.baseId, name: row.baseName },
         location: { id: row.locationId, number: row.locationNumber, name: row.locationName },
-        bait: { id: row.baitId, name: row.baitName, isActive: row.baitIsActive },
+        bait: {
+          id: row.baitId,
+          name: row.baitName,
+          isActive: row.baitIsActive,
+          image: this.baitImageDelivery.resolvePublicImage({
+            baitId: row.baitId,
+            nameNormalized: row.baitNameNormalized,
+          }),
+        },
         spinningCombinations: readSpinningCombinations(row.spinningCombinations),
         holeSpotSummary: readHoleSpotSummary(
           row.holeSpotDistinctCount,

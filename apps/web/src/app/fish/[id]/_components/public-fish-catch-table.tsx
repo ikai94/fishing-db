@@ -1,9 +1,11 @@
 import styles from '../../../public-catalog.module.css';
+import { BaitImage } from '@/components/bait-image';
 import { anomalyWeightLabel, formatCompactWeight } from '@/lib/base-fish-weight';
 import { formatCentimetersAsMeters } from '@/lib/catch-report-form';
 import type {
   FishCatchAggregate,
   FishCatchHoleSpotSummary,
+  FishCatchIntensityOrder,
   FishCatchSpinningCombination,
   FishCatchTextSummary,
 } from '@/lib/fish-catch-aggregates-api';
@@ -21,9 +23,15 @@ const SIZE_ABBREVIATIONS = {
 
 type PublicFishCatchTableProps = {
   rows: FishCatchAggregate[];
+  intensityOrder: FishCatchIntensityOrder;
+  onIntensityOrderChange: (order: FishCatchIntensityOrder) => void;
 };
 
-export function PublicFishCatchTable({ rows }: PublicFishCatchTableProps) {
+export function PublicFishCatchTable({
+  rows,
+  intensityOrder,
+  onIntensityOrderChange,
+}: PublicFishCatchTableProps) {
   return (
     <div
       className={styles.catchTableRegion}
@@ -31,7 +39,7 @@ export function PublicFishCatchTable({ rows }: PublicFishCatchTableProps) {
       aria-label="Таблица агрегированных уловов"
       tabIndex={0}
     >
-      <table className={styles.catchTable}>
+      <table className={`${styles.catchTable} ${styles.aggregateCatchTable}`}>
         <caption className={styles.visuallyHidden}>
           Агрегированные уловы выбранной рыбы на выбранных базах
         </caption>
@@ -43,20 +51,33 @@ export function PublicFishCatchTable({ rows }: PublicFishCatchTableProps) {
             <th scope="col">На что</th>
             <th scope="col">Проводка / размер</th>
             <th scope="col">Комментарий</th>
-            <th scope="col">Уловов / рыбаков</th>
+            <th scope="col" aria-sort={intensityOrder === 'asc' ? 'ascending' : 'descending'}>
+              <button
+                className={styles.catchSortButton}
+                type="button"
+                onClick={() => onIntensityOrderChange(intensityOrder === 'asc' ? 'desc' : 'asc')}
+                aria-label={`Уловы: сортировать ${intensityOrder === 'asc' ? 'по убыванию' : 'по возрастанию'}`}
+              >
+                Уловы
+                <span aria-hidden="true">{intensityOrder === 'asc' ? '↑' : '↓'}</span>
+              </button>
+            </th>
             <th scope="col">Наблюдаемый / максимальный вес</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((row, index) => (
             <tr
-              className={styles.catchRow}
+              className={`${styles.catchRow} ${isLocationGroupStart(rows, index) ? styles.catchLocationStartRow : ''}`}
               key={`${row.fish.id}:${row.fishingBase.id}:${row.location.id}:${row.bait.id}`}
             >
               <th className={styles.reportNumber} scope="row">
                 {index + 1}
               </th>
-              <td className={styles.aggregateSingleLineCell} title={formatFishCatchPlace(row)}>
+              <td
+                className={`${styles.aggregateSingleLineCell} ${styles.catchPlaceCell}`}
+                title={formatFishCatchPlace(row)}
+              >
                 {formatFishCatchPlace(row)}
               </td>
               <td
@@ -66,10 +87,15 @@ export function PublicFishCatchTable({ rows }: PublicFishCatchTableProps) {
                 {formatFishCatchHoleSpotSummary(row.holeSpotSummary)}
               </td>
               <td>
-                <span>{row.bait.name}</span>
-                {!row.bait.isActive ? (
-                  <span className={styles.secondaryText}>Сейчас неактивна</span>
-                ) : null}
+                <span className={styles.catchBaitCellContent}>
+                  <BaitImage baitName={row.bait.name} image={row.bait.image} variant="compact" />
+                  <span>
+                    <span className={styles.catchBaitName}>{row.bait.name}</span>
+                    {!row.bait.isActive ? (
+                      <span className={styles.secondaryText}>Сейчас неактивна</span>
+                    ) : null}
+                  </span>
+                </span>
               </td>
               <td className={styles.spinningCombinationsCell}>
                 {formatSpinningCombinations(row.spinningCombinations)}
@@ -80,11 +106,12 @@ export function PublicFishCatchTable({ rows }: PublicFishCatchTableProps) {
               >
                 {formatFishCatchTextSummary(row.userNoteRawSummary)}
               </td>
-              <td
-                className={styles.aggregateCountCell}
-                title={`${row.intensity} уловов / ${row.contributorCount} разных рыбаков`}
-              >
-                {row.intensity} / {row.contributorCount}
+              <td className={styles.aggregateCountCell} title={`${row.intensity} уловов`}>
+                <span
+                  className={`${styles.catchCountValue} ${row.intensity >= 50 ? styles.catchCountValueHigh : ''}`}
+                >
+                  {row.intensity}
+                </span>
               </td>
               <td className={styles.weightCell}>
                 {formatObservedAndMaximumWeight(
@@ -102,6 +129,16 @@ export function PublicFishCatchTable({ rows }: PublicFishCatchTableProps) {
         </tbody>
       </table>
     </div>
+  );
+}
+
+function isLocationGroupStart(rows: readonly FishCatchAggregate[], index: number): boolean {
+  if (index === 0) return false;
+  const previous = rows[index - 1];
+  const current = rows[index];
+  return (
+    previous?.fishingBase.id !== current?.fishingBase.id ||
+    previous.location.id !== current.location.id
   );
 }
 
