@@ -146,3 +146,17 @@ void describe('Bait image environment', () => {
     );
   });
 });
+
+void describe('Records sync environment', () => {
+  void it('is disabled by default in tests and accepts an explicit boolean string', () => {
+    assert.equal(validateEnvironment(base).RECORDS_SYNC_ENABLED, false);
+    assert.equal(
+      validateEnvironment({ ...base, RECORDS_SYNC_ENABLED: 'true' }).RECORDS_SYNC_ENABLED,
+      true,
+    );
+    assert.throws(
+      () => validateEnvironment({ ...base, RECORDS_SYNC_ENABLED: 'yes' }),
+      /must be true or false/u,
+    );
+  });
+});

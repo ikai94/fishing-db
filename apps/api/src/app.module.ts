@@ -7,6 +7,7 @@ import { CatchReportsModule } from './catch-reports/catch-reports.module.js';
 import { CatalogModule } from './catalog/catalog.module.js';
 import { validateEnvironment } from './config/environment.js';
 import { HealthModule } from './health/health.module.js';
+import { RecordsModule } from './records/records.module.js';
 import { OriginGuard } from './security/origin.guard.js';
 
 @Module({
@@ -21,6 +22,7 @@ import { OriginGuard } from './security/origin.guard.js';
     CatchReportsModule,
     CatalogModule,
     HealthModule,
+    RecordsModule,
   ],
   providers: [
     {

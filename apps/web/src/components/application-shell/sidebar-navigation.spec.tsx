@@ -25,6 +25,7 @@ describe('SidebarNavigation', () => {
       'Главная',
       'Базы и локации',
       'Рыбы',
+      'Рекорды',
       'Добавить рыбу',
       'Наживки',
     ]);
@@ -32,6 +33,7 @@ describe('SidebarNavigation', () => {
       '/',
       '/bases',
       '/fish',
+      '/records',
       '/catches/new',
       '/baits',
     ]);

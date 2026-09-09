@@ -2,8 +2,8 @@
 
 ## Accepted functional state
 
-- Current accepted application milestone: Email auth.
-- Snapshot date: 2026-09-05 (Europe/Moscow).
+- Current accepted application milestone: Public weekly records.
+- Snapshot date: 2026-09-09 (Europe/Moscow).
 
 This file records the accepted functional/product state; Git history records commit history.
 
@@ -82,6 +82,9 @@ The workspace currently includes only `apps/*`; there is no accepted `packages/s
   occurrence timestamp. PostgreSQL blocks event updates and deletes.
 - Activity history begins when the ActivityEvent migration is applied; existing catalog rows and
   CatchReports are deliberately not backfilled or reconstructed from entity timestamps.
+- Official weekly records are stored as immutable source snapshots, separate from `CatchReport`.
+  Their public projection starts from every active Fish and distinguishes a confirmed missing row
+  from a current week that has not been synchronized yet.
 - Roles are `USER` and `ADMIN`. ADMIN catalog access is enforced by backend guards.
 - Self-registration creates an unverified User, an expiring email-verification token, and an
   encrypted transactional outbox message without creating a Session. Existing Users were
@@ -119,6 +122,8 @@ The workspace currently includes only `apps/*`; there is no accepted `packages/s
 - Public recent-activity feed for approved online CatchReport and ADMIN catalog mutations, with
   immutable snapshots, opaque cursor pagination, and the latest ten events rendered on the
   homepage.
+- Public dense weekly records table synchronized from the official rus-fishsoft table, with
+  catalog maxima, tied Bases, headroom, status, sorting, and an exact default-order reset.
 
 ## Public routes
 
@@ -130,6 +135,7 @@ Important frontend routes:
   browser URL immediately, and then perform the action.
 - `/bases`, `/bases/:id`, `/locations/:id` — public Base and Location catalog.
 - `/fish`, `/fish/:id`, `/baits` — Fish search/explorer and bait catalog.
+- `/records` — current official weekly records for every active Fish.
 - `/catches`, `/catches/:id` — public report feed and detail.
 - `/catches/new`, `/catches/:id/edit`, `/my/catches` — authenticated entry and archive.
 - `/admin/catalog/**` — guarded Base, Location, Fish, Bait, ScreenAnchor, and membership UI.
@@ -143,6 +149,7 @@ Important REST families, all below `/api/v1`:
 - `/catch-reports` — public feed/detail/statistics, parser preview, and guarded mutations.
 - `/me/catch-reports` — authenticated owner list/detail.
 - `/activity` — anonymous append-only activity feed with versioned opaque cursor pagination.
+- `/records` — anonymous current-week records projection and catalog headroom assessment.
 
 ## Important accepted decisions
 

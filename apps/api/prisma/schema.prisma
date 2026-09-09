@@ -70,16 +70,16 @@ enum ActivitySubjectType {
 }
 
 model User {
-  id                 String          @id @default(uuid()) @db.Uuid
-  email              String          @unique @db.VarChar(254)
-  nickname           String          @db.VarChar(32)
-  nicknameNormalized String          @unique @db.VarChar(32)
-  passwordHash       String          @db.VarChar(255)
-  role               UserRole        @default(USER)
-  isBanned           Boolean         @default(false)
-  emailVerifiedAt    DateTime?       @db.Timestamptz(3)
-  createdAt          DateTime        @default(now()) @db.Timestamptz(3)
-  updatedAt          DateTime        @default(now()) @updatedAt @db.Timestamptz(3)
+  id                 String           @id @default(uuid()) @db.Uuid
+  email              String           @unique @db.VarChar(254)
+  nickname           String           @db.VarChar(32)
+  nicknameNormalized String           @unique @db.VarChar(32)
+  passwordHash       String           @db.VarChar(255)
+  role               UserRole         @default(USER)
+  isBanned           Boolean          @default(false)
+  emailVerifiedAt    DateTime?        @db.Timestamptz(3)
+  createdAt          DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime         @default(now()) @updatedAt @db.Timestamptz(3)
   sessions           Session[]
   authTokens         AuthToken[]
   catchReports       CatchReport[]
@@ -133,14 +133,15 @@ model AuthEmailOutbox {
 }
 
 model FishingBase {
-  id             String            @id @default(uuid()) @db.Uuid
-  name           String            @db.VarChar(128)
-  nameNormalized String            @unique @db.VarChar(128)
-  isActive       Boolean           @default(true)
-  createdAt      DateTime          @default(now()) @db.Timestamptz(3)
-  updatedAt      DateTime          @default(now()) @updatedAt @db.Timestamptz(3)
-  locations      Location[]
-  fishLinks      FishingBaseFish[]
+  id                 String                      @id @default(uuid()) @db.Uuid
+  name               String                      @db.VarChar(128)
+  nameNormalized     String                      @unique @db.VarChar(128)
+  isActive           Boolean                     @default(true)
+  createdAt          DateTime                    @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime                    @default(now()) @updatedAt @db.Timestamptz(3)
+  locations          Location[]
+  fishLinks          FishingBaseFish[]
+  officialRecordRows OfficialRecordSnapshotRow[]
 }
 
 model Location {
@@ -160,16 +161,17 @@ model Location {
 }
 
 model Fish {
-  id                   String            @id @default(uuid()) @db.Uuid
-  name                 String            @db.VarChar(128)
-  nameNormalized       String            @unique @db.VarChar(128)
-  forumTopicId         String?           @unique @db.VarChar(32)
-  officialFishImageKey Int?              @unique
-  isActive             Boolean           @default(true)
-  createdAt            DateTime          @default(now()) @db.Timestamptz(3)
-  updatedAt            DateTime          @default(now()) @updatedAt @db.Timestamptz(3)
+  id                   String                      @id @default(uuid()) @db.Uuid
+  name                 String                      @db.VarChar(128)
+  nameNormalized       String                      @unique @db.VarChar(128)
+  forumTopicId         String?                     @unique @db.VarChar(32)
+  officialFishImageKey Int?                        @unique
+  isActive             Boolean                     @default(true)
+  createdAt            DateTime                    @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime                    @default(now()) @updatedAt @db.Timestamptz(3)
   fishingBaseLinks     FishingBaseFish[]
   catchReports         CatchReport[]
+  officialRecordRows   OfficialRecordSnapshotRow[]
 }
 
 model Bait {
@@ -194,6 +196,50 @@ model FishingBaseFish {
 
   @@id([fishingBaseId, fishId])
   @@index([fishId])
+}
+
+model OfficialRecordSyncState {
+  id            Int       @id
+  lastAttemptAt DateTime? @db.Timestamptz(3)
+  lastSuccessAt DateTime? @db.Timestamptz(3)
+  lastError     String?   @db.Text
+  nextAttemptAt DateTime  @default(now()) @db.Timestamptz(3)
+  failureCount  Int       @default(0)
+  leaseUntil    DateTime? @db.Timestamptz(3)
+  leaseOwner    String?   @db.Uuid
+}
+
+model OfficialRecordSnapshot {
+  id             String                      @id @default(uuid()) @db.Uuid
+  weekStartsAt   DateTime                    @db.Timestamptz(3)
+  fetchedAt      DateTime                    @db.Timestamptz(3)
+  contentHash    String                      @db.Char(64)
+  parserVersion  Int
+  mappingVersion Int
+  rows           OfficialRecordSnapshotRow[]
+
+  @@unique([weekStartsAt, fetchedAt])
+  @@index([weekStartsAt, fetchedAt(sort: Desc)])
+}
+
+model OfficialRecordSnapshotRow {
+  snapshotId     String                 @db.Uuid
+  fishId         String                 @db.Uuid
+  fishingBaseId  String?                @db.Uuid
+  weightGrams    Int
+  sourceFishName String                 @db.VarChar(128)
+  sourceFishPath String                 @db.VarChar(255)
+  waterbodyRaw   String                 @db.VarChar(128)
+  playerNameRaw  String                 @db.VarChar(128)
+  caughtAt       DateTime               @db.Timestamptz(3)
+  caughtAtRaw    String                 @db.VarChar(32)
+  snapshot       OfficialRecordSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Restrict)
+  fish           Fish                   @relation(fields: [fishId], references: [id], onDelete: Restrict)
+  fishingBase    FishingBase?           @relation(fields: [fishingBaseId], references: [id], onDelete: Restrict)
+
+  @@id([snapshotId, fishId])
+  @@index([fishId])
+  @@index([fishingBaseId])
 }
 
 model ScreenAnchor {

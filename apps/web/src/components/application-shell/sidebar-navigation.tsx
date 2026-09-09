@@ -21,6 +21,12 @@ const navigationItems = [
     isActive: (pathname: string) => pathname === '/fish' || pathname.startsWith('/fish/'),
   },
   {
+    href: '/records',
+    icon: 'records',
+    label: 'Рекорды',
+    isActive: (pathname: string) => pathname === '/records',
+  },
+  {
     href: '/catches/new',
     icon: 'addCatch',
     label: 'Добавить рыбу',

@@ -150,6 +150,13 @@ function validateSmtpUrl(value: string): string {
   return value;
 }
 
+function parseBoolean(value: unknown, defaultValue: boolean, key: string): boolean {
+  if (value === undefined) return defaultValue;
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  throw new Error(`${key} must be true or false`);
+}
+
 export function validateEnvironment(config: Record<string, unknown>): Record<string, unknown> {
   const databaseUrl = validateDatabaseUrl(requiredString(config, 'DATABASE_URL'));
   const webOrigin = validateWebOrigin(requiredString(config, 'WEB_ORIGIN'));
@@ -181,6 +188,11 @@ export function validateEnvironment(config: Record<string, unknown>): Record<str
     baitImageDeliveryMode === 'local'
       ? requiredString(config, 'BAIT_IMAGE_STORAGE_ROOT')
       : undefined;
+  const recordsSyncEnabled = parseBoolean(
+    config.RECORDS_SYNC_ENABLED,
+    nodeEnvironment !== 'test',
+    'RECORDS_SYNC_ENABLED',
+  );
 
   return {
     ...config,
@@ -199,6 +211,7 @@ export function validateEnvironment(config: Record<string, unknown>): Record<str
     ...(fishImageStorageRoot === undefined
       ? {}
       : { FISH_IMAGE_STORAGE_ROOT: fishImageStorageRoot }),
+    RECORDS_SYNC_ENABLED: recordsSyncEnabled,
     WEB_ORIGIN: webOrigin,
   };
 }

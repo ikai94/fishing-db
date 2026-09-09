@@ -36,6 +36,7 @@ Browser
 | Database         | `apps/api/src/prisma`                                   | Prisma lifecycle, adapter, seeds, and audit command     |
 | Schema           | `apps/api/prisma/schema.prisma`                         | PostgreSQL models, relations, enums, indexes            |
 | Health           | `apps/api/src/health`                                   | Application/database health response                    |
+| Records          | `apps/api/src/records`                                  | Official snapshot sync and weekly public projection     |
 | Request security | `apps/api/src/security/origin.guard.ts`                 | Origin/Referer checks for unsafe methods                |
 
 Controller entry points:
@@ -47,6 +48,7 @@ Controller entry points:
 - `catch-reports/catch-reports.controller.ts` — public reads, statistics, parser, mutations.
 - `catch-reports/my-catch-reports.controller.ts` — owner reads under `/api/v1/me`.
 - `health/health.controller.ts` — `/api/v1/health`.
+- `records/records.controller.ts` — anonymous `/api/v1/records`.
 
 ## Frontend route/module map
 
@@ -58,6 +60,7 @@ Controller entry points:
 | Locations       | `/locations/[id]`                                                                            | `src/app/locations/[id]`                                |
 | Fish            | `/fish`, `/fish/[id]`                                                                        | `src/app/fish`, Fish Explorer `_components`             |
 | Baits           | `/baits`                                                                                     | `src/app/baits/page.tsx`                                |
+| Records         | `/records`                                                                                   | `src/app/records`, `src/lib/records-api.ts`             |
 | Public catches  | `/catches`, `/catches/[id]`                                                                  | `src/app/catches`, `src/lib/catch-reports-api.ts`       |
 | Catch entry     | `/catches/new`, `/catches/[id]/edit`                                                         | catch form/notebook components                          |
 | Private archive | `/my/catches`                                                                                | `src/app/my/catches/page.tsx`                           |
