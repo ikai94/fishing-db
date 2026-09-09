@@ -8,6 +8,10 @@ import {
   validateFishImageMetadataManifest,
   type FishImageMetadataManifest,
 } from './fish-image-metadata.js';
+import {
+  validateFishImageLocalMappingManifest,
+  validateFishImageLocalMappingsAgainstMetadata,
+} from './fish-image-local-mappings.js';
 
 const REPOSITORY_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 const CATALOG_DATA = new URL('../../prisma/catalog-data/', import.meta.url);
@@ -19,6 +23,7 @@ const RELEASES_DIRECTORY = fileURLToPath(
 );
 const MANIFEST_PATHS = {
   images: 'apps/api/prisma/catalog-data/fish-image-metadata.json',
+  localMappings: 'apps/api/prisma/catalog-data/fish-image-local-mappings-20260909.json',
   forum: 'apps/api/prisma/catalog-data/forum69-fish.json',
 } as const;
 
@@ -44,8 +49,12 @@ async function readTrackedFile(repositoryPath: string, fileName: string): Promis
 
 async function run(): Promise<void> {
   if (process.argv.length !== 2) throw new Error('usage: pnpm db:build:fish-image-release');
-  const [imageContent, forumContent] = await Promise.all([
+  const [imageContent, localMappingContent, forumContent] = await Promise.all([
     readTrackedFile(MANIFEST_PATHS.images, 'fish-image-metadata.json'),
+    readTrackedFile(
+      MANIFEST_PATHS.localMappings,
+      'fish-image-local-mappings-20260909.json',
+    ),
     readTrackedFile(MANIFEST_PATHS.forum, 'forum69-fish.json'),
   ]);
   const forum = JSON.parse(forumContent) as ForumManifest;
@@ -53,14 +62,35 @@ async function run(): Promise<void> {
     JSON.parse(imageContent) as unknown,
     forum.fish,
   );
-  const expectedKeys = manifest.entries.flatMap((entry) =>
-    entry.official === null ? [] : [entry.official.imageKey],
+  const localMappings = validateFishImageLocalMappingManifest(
+    JSON.parse(localMappingContent) as unknown,
+  );
+  validateFishImageLocalMappingsAgainstMetadata(localMappings, manifest.entries);
+  for (const mapping of localMappings.mappings) {
+    const bytes = await readFile(
+      new URL(`../../.local/fish-images/source/${mapping.fileName}`, import.meta.url),
+    );
+    if (sha256(bytes) !== mapping.sha256) {
+      throw new Error(`approved local Fish image changed: ${mapping.fileName}`);
+    }
+  }
+  const expectedKeys = [
+    ...manifest.entries.flatMap((entry) =>
+      entry.official === null ? [] : [entry.official.imageKey],
+    ),
+    ...localMappings.mappings.map((mapping) => mapping.imageKey),
+  ];
+  const sourceManifestSha256 = sha256(
+    stableJson({
+      fishImageManifestSha256: sha256(imageContent),
+      fishImageLocalMappingsSha256: sha256(localMappingContent),
+    }),
   );
   const result = await buildFishImageRelease({
     sourceDirectory: SOURCE_DIRECTORY,
     releasesDirectory: RELEASES_DIRECTORY,
     expectedKeys,
-    sourceManifestSha256: sha256(imageContent),
+    sourceManifestSha256,
   });
 
   process.stdout.write(

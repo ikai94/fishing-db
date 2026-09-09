@@ -13,6 +13,28 @@ import {
   type FishImageMetadataManifest,
   type OfficialFishEvidence,
 } from './fish-image-metadata.js';
+import {
+  validateFishImageLocalMappingManifest,
+  validateFishImageLocalMappingsAgainstMetadata,
+  type FishImageLocalMappingManifest,
+} from './fish-image-local-mappings.js';
+import {
+  validateFishCatalogCleanupManifest,
+  type FishCatalogCleanupManifest,
+} from './fish-catalog-cleanup.js';
+
+const EMPTY_LOCAL_MAPPINGS: FishImageLocalMappingManifest = {
+  schemaVersion: 1,
+  mode: 'APPROVED_LOCAL_FISH_IMAGE_MAPPINGS',
+  sourceDirectory: 'apps/api/.local/fish-images/source',
+  mappings: [],
+};
+
+const EMPTY_CATALOG_CLEANUP: FishCatalogCleanupManifest = {
+  schemaVersion: 1,
+  mode: 'DELETE_FISH_WITHOUT_CATCH_REPORTS',
+  fish: [],
+};
 
 function forumFish(topicId: string, canonicalName: string): ForumFishIdentity {
   return {
@@ -130,10 +152,14 @@ function smallInput(): FishImageMaterializationInput {
   return {
     sources: {
       fishImageManifestSha256: 'image-hash',
+      fishImageLocalMappingsSha256: 'local-image-hash',
+      fishCatalogCleanupManifestSha256: 'cleanup-hash',
       fishReconciliationManifestSha256: 'reconciliation-hash',
       forumManifestSha256: 'forum-hash',
     },
     imageManifest,
+    localImageMappings: EMPTY_LOCAL_MAPPINGS,
+    catalogCleanupManifest: EMPTY_CATALOG_CLEANUP,
     reconciliationManifest,
     forumFish: forum,
     liveFish,
@@ -223,11 +249,29 @@ void describe('Fish image metadata materialization plan', () => {
       JSON.parse(readFileSync(new URL('fish-image-metadata.json', catalogData), 'utf8')) as unknown,
       forumManifest.fish,
     );
+    const localImageMappings = validateFishImageLocalMappingManifest(
+      JSON.parse(
+        readFileSync(
+          new URL('fish-image-local-mappings-20260909.json', catalogData),
+          'utf8',
+        ),
+      ) as unknown,
+    );
+    const catalogCleanupManifest = validateFishCatalogCleanupManifest(
+      JSON.parse(
+        readFileSync(
+          new URL('fish-catalog-cleanup-20260909.json', catalogData),
+          'utf8',
+        ),
+      ) as unknown,
+    );
+    validateFishImageLocalMappingsAgainstMetadata(localImageMappings, imageManifest.entries);
     const liveById = new Map<string, LiveFishImageMetadataRow>();
 
     for (const entry of reconciliationManifest.entries) {
       if (entry.topicId === null || entry.category === 'REPOINT_DEACTIVATE') continue;
       assert.ok(entry.canonicalName);
+      if (catalogCleanupManifest.fish.includes(entry.canonicalName)) continue;
       const id = entry.currentFishId ?? `created:forum69:${entry.topicId}`;
       liveById.set(id, {
         id,
@@ -241,6 +285,7 @@ void describe('Fish image metadata materialization plan', () => {
     for (const entry of reconciliationManifest.entries) {
       if (entry.currentFishId === null || liveById.has(entry.currentFishId)) continue;
       assert.ok(entry.currentName);
+      if (catalogCleanupManifest.fish.includes(entry.currentName)) continue;
       liveById.set(entry.currentFishId, {
         id: entry.currentFishId,
         name: entry.currentName,
@@ -254,10 +299,14 @@ void describe('Fish image metadata materialization plan', () => {
     const plan = buildFishImageMaterializationPlan({
       sources: {
         fishImageManifestSha256: 'image-hash',
+        fishImageLocalMappingsSha256: 'local-image-hash',
+        fishCatalogCleanupManifestSha256: 'cleanup-hash',
         fishReconciliationManifestSha256: 'reconciliation-hash',
         forumManifestSha256: 'forum-hash',
       },
       imageManifest,
+      localImageMappings,
+      catalogCleanupManifest,
       reconciliationManifest,
       forumFish: forumManifest.fish,
       liveFish: [...liveById.values()],
@@ -265,20 +314,20 @@ void describe('Fish image metadata materialization plan', () => {
         fishFingerprint: 'fish-fingerprint',
         fishingBaseFishFingerprint: 'membership-fingerprint',
         catchReportsFingerprint: 'report-fingerprint',
-        fishingBaseFishCount: 3_596,
+        fishingBaseFishCount: 3_603,
         catchReportsCount: 31_337,
       },
     });
 
     assert.deepEqual(plan.blockers, []);
     assert.deepEqual(plan.counts, {
-      fish: 1_486,
-      owners: 1_479,
-      withForumTopicId: { before: 0, after: 1_479 },
-      withOfficialFishImageKey: { before: 0, after: 1_463 },
-      canonicalWithoutOfficialFishImageKey: 16,
-      nonOwnerFishWithNullMetadata: 7,
-      writes: 1_479,
+      fish: 1_471,
+      owners: 1_471,
+      withForumTopicId: { before: 0, after: 1_471 },
+      withOfficialFishImageKey: { before: 0, after: 1_471 },
+      canonicalWithoutOfficialFishImageKey: 0,
+      nonOwnerFishWithNullMetadata: 0,
+      writes: 1_471,
     });
   });
 });

@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "mode": "APPROVED_LOCAL_FISH_IMAGE_MAPPINGS",
+  "sourceDirectory": "apps/api/.local/fish-images/source",
+  "mappings": [
+    {
+      "forumTopicId": "127",
+      "canonicalFish": "Старая покрышка",
+      "imageKey": 1068,
+      "fileName": "1068.png",
+      "sha256": "4e757e41ca516bc3b08ab2f28503a5ef8b9f0bcadcec3e86be57fc3e1f9262de"
+    },
+    {
+      "forumTopicId": "181",
+      "canonicalFish": "Рваный сапог",
+      "imageKey": 1054,
+      "fileName": "1054.png",
+      "sha256": "3cb575be3aadb9f82c80fcc3142b8a6ae55d1478bad0bea739ae214343e4ae89"
+    },
+    {
+      "forumTopicId": "304",
+      "canonicalFish": "Карп",
+      "imageKey": 1023,
+      "fileName": "1023.png",
+      "sha256": "667175b07aa3c360504a9bdedc3525eb35939fcc02d957738e68f93642f3ecd2"
+    },
+    {
+      "forumTopicId": "735",
+      "canonicalFish": "Мазутный двухголов",
+      "imageKey": 5001,
+      "fileName": "5001.png",
+      "sha256": "2b2b6d89d8ccfd31d8f87f101a5c757d72c300198126caa05f926c5a3642d29c"
+    },
+    {
+      "forumTopicId": "22706",
+      "canonicalFish": "Бочка",
+      "imageKey": 4002,
+      "fileName": "4002.png",
+      "sha256": "579915e7877579e9a87cf2fadd2c06b416f66a81a7ff73e099e3466ad5d0461a"
+    },
+    {
+      "forumTopicId": "22722",
+      "canonicalFish": "Улитка",
+      "imageKey": 2069,
+      "fileName": "2069.png",
+      "sha256": "84ba7ac1cff71dfa92fc66707bf74a2d13c2eb1bb7e66b395ede8b61c33af130"
+    },
+    {
+      "forumTopicId": "31414",
+      "canonicalFish": "Красное бревно",
+      "imageKey": 4003,
+      "fileName": "4003.png",
+      "sha256": "60b18290fd2f30841323477ec9d88354fa61066781a97adc33b78b659dd42d37"
+    },
+    {
+      "forumTopicId": "31415",
+      "canonicalFish": "Серое бревно",
+      "imageKey": 4004,
+      "fileName": "4004.png",
+      "sha256": "5a2692317b913812074e99d7a4dfe4eaec6e62c1d5a1e50813e815c70ea6efe3"
+    }
+  ]
+}

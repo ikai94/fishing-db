@@ -10,9 +10,9 @@ import {
 } from './fish-image-delivery.js';
 
 export const APPROVED_FISH_IMAGE_ASSET_INDEX_SHA256 =
-  '6eae2d768a1fbb88de3970b7b42c593602d3bd1fcdec340cb4909710b1d6d1cf';
+  '2c86fa8f84d651408694d7a36f1ee78321216e5d8842b4ace15c75d0ab4dea98';
 export const APPROVED_FISH_IMAGE_SOURCE_MANIFEST_SHA256 =
-  '21a362ba353eec616b53e7054000fda0ab0adde8ffa32f8603338c46627454ad';
+  '12209874d6269975aa6fc0c4b5535b6ac5a81aa2e5a3c17de2844c8f49222ac9';
 
 const INDEX_FILE_NAME = 'fish-image-assets.json';
 const REPORT_FILE_NAME = 'import-report.json';

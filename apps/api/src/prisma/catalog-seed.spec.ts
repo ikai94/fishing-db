@@ -370,7 +370,7 @@ void describe('catalog seed', () => {
       validated.bases.reduce((total, base) => total + base.locations.length, 0),
       853,
     );
-    assert.equal(validated.fish.length, 1_255);
+    assert.equal(validated.fish.length, 1_250);
     assert.equal(
       validated.bases.reduce((total, base) => total + base.fishNormalized.length, 0),
       3_230,
@@ -380,7 +380,7 @@ void describe('catalog seed', () => {
     assert.equal(validated.baits.filter((bait) => bait.type === 'LURE').length, 180);
     assert.equal(validated.screenAnchors.length, 8);
     assert.equal(new Set(validated.bases.map((base) => base.nameNormalized)).size, 77);
-    assert.equal(new Set(validated.fish.map((fish) => fish.nameNormalized)).size, 1_255);
+    assert.equal(new Set(validated.fish.map((fish) => fish.nameNormalized)).size, 1_250);
     assert.equal(new Set(validated.baits.map((bait) => bait.nameNormalized)).size, 248);
 
     const globalFish = new Set(validated.fish.map((fish) => fish.nameNormalized));
@@ -530,7 +530,7 @@ void describe('catalog seed', () => {
     assert.deepEqual(first, {
       fishingBases: { created: 77, reused: 0 },
       locations: { created: 853, reused: 0 },
-      fish: { created: 1_255, reused: 0 },
+      fish: { created: 1_250, reused: 0 },
       baits: { created: 248, reused: 0 },
       screenAnchors: { created: 8, reused: 0 },
       fishingBaseFish: { created: 3_230, reused: 0 },
@@ -540,7 +540,7 @@ void describe('catalog seed', () => {
     assert.deepEqual(second, {
       fishingBases: { created: 0, reused: 77 },
       locations: { created: 0, reused: 853 },
-      fish: { created: 0, reused: 1_255 },
+      fish: { created: 0, reused: 1_250 },
       baits: { created: 0, reused: 248 },
       screenAnchors: { created: 0, reused: 8 },
       fishingBaseFish: { created: 0, reused: 3_230 },
@@ -549,7 +549,7 @@ void describe('catalog seed', () => {
     });
     assert.equal(database.state.fishingBases.length, 78);
     assert.equal(database.state.locations.length, 854);
-    assert.equal(database.state.fish.length, 1_256);
+    assert.equal(database.state.fish.length, 1_251);
     assert.equal(database.state.memberships.length, 3_231);
     assert.equal(database.state.screenAnchors.length, 9);
     assert.equal(database.state.baits.length, 249);
@@ -579,17 +579,8 @@ void describe('catalog seed', () => {
       ),
       true,
     );
-    const kola = database.state.fishingBases.find((item) => item.name === 'Кола');
     const shark = database.state.fish.find((item) => item.name === 'Акула');
-    assert.ok(kola);
-    assert.ok(shark);
-    assert.equal(
-      database.state.memberships.some(
-        (item) => item.fishingBaseId === kola.id && item.fishId === shark.id,
-      ),
-      false,
-      'catalog seed must not restore an obsolete FishingBaseFish membership',
-    );
+    assert.equal(shark, undefined, 'catalog seed must not restore a deleted Fish');
   });
 
   void it('reuses the previously approved Amur catalog without a special-case branch', async () => {
@@ -637,7 +628,7 @@ void describe('catalog seed', () => {
     assert.deepEqual(result, {
       fishingBases: { created: 76, reused: 1 },
       locations: { created: 844, reused: 9 },
-      fish: { created: 1_222, reused: 33 },
+      fish: { created: 1_217, reused: 33 },
       baits: { created: 248, reused: 0 },
       screenAnchors: { created: 0, reused: 8 },
       fishingBaseFish: { created: 3_197, reused: 33 },

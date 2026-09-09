@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { CATALOG_BAIT_TYPES, type CatalogBaitType } from '../catalog/catalog.constants.js';
+import { validateFishCatalogCleanupManifest } from './fish-catalog-cleanup.js';
 
 const CATALOG_SCHEMA_VERSION = 1;
 
@@ -76,7 +77,7 @@ export interface CatalogSeedSnapshotCounts {
 export const AUTHORITATIVE_CATALOG_COUNTS = {
   fishingBases: 77,
   locations: 853,
-  fish: 1_255,
+  fish: 1_250,
   fishingBaseFish: 3_230,
   baits: 248,
   baitTypes: {
@@ -303,10 +304,8 @@ function assertFishingBaseFishManifest(
   if (source.sha256 !== AUTHORITATIVE_FISHING_BASE_FISH_WORKBOOK_SHA256) {
     issues.push('sourceWorkbook.sha256 does not match the approved workbook');
   }
-  if (source.resolvedFishRows !== AUTHORITATIVE_CATALOG_COUNTS.fishingBaseFish) {
-    issues.push(
-      `sourceWorkbook.resolvedFishRows must equal ${String(AUTHORITATIVE_CATALOG_COUNTS.fishingBaseFish)}`,
-    );
+  if (source.resolvedFishRows !== 3_230) {
+    issues.push('sourceWorkbook.resolvedFishRows must equal 3230');
   }
   if (source.populatedFishRows !== source.resolvedFishRows + source.unresolvedFishRows) {
     issues.push('sourceWorkbook row counts are inconsistent');
@@ -385,12 +384,15 @@ export function createCatalogSeedData(
   fishingCatalog: CanonicalFishingCatalogData,
   baitCatalog: CanonicalBaitCatalogData,
   membershipCatalog: CanonicalFishingBaseFishData,
+  excludedFishNames: readonly string[] = [],
 ): CatalogSeedData {
   const fish: string[] = [];
   const exactFishNames = new Set<string>();
+  const excludedFish = new Set(excludedFishNames);
 
   for (const fishingBase of fishingCatalog.bases) {
     for (const fishName of fishingBase.fish) {
+      if (excludedFish.has(fishName)) continue;
       if (!exactFishNames.has(fishName)) {
         exactFishNames.add(fishName);
         fish.push(fishName);
@@ -398,9 +400,16 @@ export function createCatalogSeedData(
     }
   }
 
-  assertFishingBaseFishManifest(fishingCatalog, membershipCatalog, fish);
+  const filteredMembershipCatalog: CanonicalFishingBaseFishData = {
+    ...membershipCatalog,
+    bases: membershipCatalog.bases.map((base) => ({
+      ...base,
+      fish: base.fish.filter((fishName) => !excludedFish.has(fishName)),
+    })),
+  };
+  assertFishingBaseFishManifest(fishingCatalog, filteredMembershipCatalog, fish);
   const membershipByBaseName = new Map(
-    membershipCatalog.bases.map((base) => [base.name, base.fish] as const),
+    filteredMembershipCatalog.bases.map((base) => [base.name, base.fish] as const),
   );
   const bases = fishingCatalog.bases.map((base) => {
     const membership = membershipByBaseName.get(base.name);
@@ -489,8 +498,17 @@ export function loadCatalogSeedData(): CatalogSeedData {
       'fishingBaseFishCatalog',
     ),
   );
+  const cleanupManifest = validateFishCatalogCleanupManifest(
+    readJson(
+      new URL(
+        '../../prisma/catalog-data/fish-catalog-cleanup-20260909.json',
+        import.meta.url,
+      ),
+      'fishCatalogCleanup',
+    ),
+  );
 
-  return createCatalogSeedData(fishingCatalog, baitCatalog, membershipCatalog);
+  return createCatalogSeedData(fishingCatalog, baitCatalog, membershipCatalog, cleanupManifest.fish);
 }
 
 export const FISHING_BASE_FISH_MANIFEST = decodeFishingBaseFishCatalog(

@@ -31,8 +31,8 @@ void describe('approved BaseFish max-weight catalog patch', () => {
     assert.equal(sha256(patchFile.content), ACCEPTED_BASE_FISH_MAX_WEIGHT_PATCH_SHA256);
     assert.equal(patchFile.content, stableJson(patch));
     assert.deepEqual(patch.counts, {
-      entries: 160,
-      overrides: 150,
+      entries: 161,
+      overrides: 151,
       supplementalTargets: 10,
     });
 
@@ -58,7 +58,7 @@ void describe('approved BaseFish max-weight catalog patch', () => {
       effective.entries.filter((entry) =>
         desiredByKey.has(`${entry.baseName}\0${entry.forumTopicId}`),
       ).length,
-      160,
+      161,
     );
     for (const entry of effective.entries) {
       const desired = desiredByKey.get(`${entry.baseName}\0${entry.forumTopicId}`);

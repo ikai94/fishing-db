@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto';
 import type { FishReconciliationEntry, ForumFishIdentity } from './fish-catalog-audit.js';
 import { stableJson } from './fish-catalog-audit.js';
 import type { FishImageMetadataManifest } from './fish-image-metadata.js';
+import type { FishImageLocalMappingManifest } from './fish-image-local-mappings.js';
+import type { FishCatalogCleanupManifest } from './fish-catalog-cleanup.js';
 
 export interface LiveFishImageMetadataRow {
   id: string;
@@ -27,11 +29,11 @@ export interface FishImageMaterializationExpectedCounts {
 }
 
 export const FISH_IMAGE_MATERIALIZATION_EXPECTED_COUNTS = {
-  fish: 1_486,
-  owners: 1_479,
-  withOfficialFishImageKey: 1_463,
-  canonicalWithoutOfficialFishImageKey: 16,
-  nonOwners: 7,
+  fish: 1_471,
+  owners: 1_471,
+  withOfficialFishImageKey: 1_471,
+  canonicalWithoutOfficialFishImageKey: 0,
+  nonOwners: 0,
 } as const satisfies FishImageMaterializationExpectedCounts;
 
 export interface FishImageMaterializationProtectedState {
@@ -45,10 +47,14 @@ export interface FishImageMaterializationProtectedState {
 export interface FishImageMaterializationInput {
   sources: {
     fishImageManifestSha256: string;
+    fishImageLocalMappingsSha256: string;
+    fishCatalogCleanupManifestSha256: string;
     fishReconciliationManifestSha256: string;
     forumManifestSha256: string;
   };
   imageManifest: FishImageMetadataManifest;
+  localImageMappings: FishImageLocalMappingManifest;
+  catalogCleanupManifest: FishCatalogCleanupManifest;
   reconciliationManifest: FishImageReconciliationManifest;
   forumFish: ForumFishIdentity[];
   liveFish: LiveFishImageMetadataRow[];
@@ -190,6 +196,8 @@ export function buildFishImageMaterializationPlan(
   const liveById = new Map(liveFish.map((fish) => [fish.id, fish] as const));
   const liveByExactName = new Map(liveFish.map((fish) => [fish.name, fish] as const));
   const forumByTopic = new Map(input.forumFish.map((fish) => [fish.topicId, fish] as const));
+  const cleanupFishNames = new Set(input.catalogCleanupManifest.fish);
+  const deletedTopicIds = new Set<string>();
   addDuplicateBlockers(input.forumFish, (fish) => fish.topicId, 'forum topic ID', blockers);
 
   const ownerByTopic = new Map<
@@ -210,6 +218,11 @@ export function buildFishImageMaterializationPlan(
         ? liveByExactName.get(entry.canonicalName)
         : liveById.get(entry.currentFishId);
     if (fish === undefined) {
+      const absentFishName = entry.currentName ?? entry.canonicalName;
+      if (absentFishName !== null && cleanupFishNames.has(absentFishName)) {
+        deletedTopicIds.add(entry.topicId);
+        continue;
+      }
       blockers.push(`final Fish owner is absent for topic ${entry.topicId}`);
       continue;
     }
@@ -235,7 +248,7 @@ export function buildFishImageMaterializationPlan(
   }
 
   for (const forumEntry of input.forumFish) {
-    if (!ownerByTopic.has(forumEntry.topicId)) {
+    if (!ownerByTopic.has(forumEntry.topicId) && !deletedTopicIds.has(forumEntry.topicId)) {
       blockers.push(`forum topic has no final Fish owner: ${forumEntry.topicId}`);
     }
   }
@@ -250,9 +263,13 @@ export function buildFishImageMaterializationPlan(
 
   const desiredByFishId = new Map<string, DesiredFishImageMetadata>();
   const desiredImageKeyOwner = new Map<number, string>();
+  const localImageKeyByTopicId = new Map(
+    input.localImageMappings.mappings.map((mapping) => [mapping.forumTopicId, mapping.imageKey]),
+  );
   for (const imageEntry of input.imageManifest.entries) {
     const owner = ownerByTopic.get(imageEntry.forumTopicId);
     if (owner === undefined) {
+      if (deletedTopicIds.has(imageEntry.forumTopicId)) continue;
       blockers.push(`image metadata has no final Fish owner: ${imageEntry.forumTopicId}`);
       continue;
     }
@@ -260,7 +277,8 @@ export function buildFishImageMaterializationPlan(
       blockers.push(`image metadata canonical name differs for topic ${imageEntry.forumTopicId}`);
     }
 
-    const officialFishImageKey = imageEntry.official?.imageKey ?? null;
+    const officialFishImageKey =
+      imageEntry.official?.imageKey ?? localImageKeyByTopicId.get(imageEntry.forumTopicId) ?? null;
     if (officialFishImageKey !== null) {
       if (!Number.isSafeInteger(officialFishImageKey) || officialFishImageKey <= 0) {
         blockers.push(`official Fish image key is invalid for topic ${imageEntry.forumTopicId}`);
@@ -274,7 +292,11 @@ export function buildFishImageMaterializationPlan(
         desiredImageKeyOwner.set(officialFishImageKey, imageEntry.forumTopicId);
       }
     }
-    if (imageEntry.status === 'MISSING' && officialFishImageKey !== null) {
+    if (
+      imageEntry.status === 'MISSING' &&
+      officialFishImageKey !== null &&
+      !localImageKeyByTopicId.has(imageEntry.forumTopicId)
+    ) {
       blockers.push(`MISSING topic has an official Fish image key: ${imageEntry.forumTopicId}`);
     }
     if (imageEntry.status !== 'MISSING' && officialFishImageKey === null) {

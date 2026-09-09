@@ -206,7 +206,7 @@ or PostgreSQL e2e. E2e uses the isolated test PostgreSQL service, which defaults
 The committed canonical offline seed asserts:
 
 - 77 FishingBases and 853 Locations;
-- 1,255 global Fish identities and 3,230 canonical FishingBaseFish memberships;
+- 1,250 global Fish identities and 3,230 canonical FishingBaseFish memberships;
 - 248 Baits: 68 `BAIT` and 180 `LURE`;
 - 8 ScreenAnchors.
 

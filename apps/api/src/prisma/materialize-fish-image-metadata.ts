@@ -16,6 +16,15 @@ import {
   validateFishImageMetadataManifest,
   type FishImageMetadataManifest,
 } from './fish-image-metadata.js';
+import {
+  validateFishImageLocalMappingManifest,
+  validateFishImageLocalMappingsAgainstMetadata,
+  type FishImageLocalMappingManifest,
+} from './fish-image-local-mappings.js';
+import {
+  validateFishCatalogCleanupManifest,
+  type FishCatalogCleanupManifest,
+} from './fish-catalog-cleanup.js';
 import { createPrismaAdapter } from './prisma-adapter.js';
 
 const REPOSITORY_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
@@ -24,6 +33,8 @@ const CATALOG_LOCK =
   'LOCK TABLE "Fish", "FishingBaseFish", "CatchReport" IN SHARE ROW EXCLUSIVE MODE';
 const MANIFEST_PATHS = {
   images: 'apps/api/prisma/catalog-data/fish-image-metadata.json',
+  localMappings: 'apps/api/prisma/catalog-data/fish-image-local-mappings-20260909.json',
+  cleanup: 'apps/api/prisma/catalog-data/fish-catalog-cleanup-20260909.json',
   reconciliation: 'apps/api/prisma/catalog-data/fish-reconciliation.json',
   forum: 'apps/api/prisma/catalog-data/forum69-fish.json',
 } as const;
@@ -237,7 +248,7 @@ async function readLiveState(
     }));
   }
 
-  const [protectedFish, fishingBaseFish, catchReports] = await Promise.all([
+  const [protectedFish, fishingBaseFish, catchReportsCount] = await Promise.all([
     transaction.fish.findMany({
       select: { id: true, name: true, nameNormalized: true, isActive: true },
       orderBy: { id: 'asc' },
@@ -246,29 +257,7 @@ async function readLiveState(
       select: { fishingBaseId: true, fishId: true, createdAt: true },
       orderBy: [{ fishingBaseId: 'asc' }, { fishId: 'asc' }],
     }),
-    transaction.catchReport.findMany({
-      select: {
-        id: true,
-        userId: true,
-        contributorKey: true,
-        importKey: true,
-        locationId: true,
-        fishId: true,
-        baitId: true,
-        weightGrams: true,
-        fishingMethod: true,
-        holeDepthCm: true,
-        spotPositionRaw: true,
-        fishingNote: true,
-        spinningSize: true,
-        spinningSpeed: true,
-        userNoteRaw: true,
-        rawSourceText: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-      orderBy: { id: 'asc' },
-    }),
+    transaction.catchReport.count(),
   ]);
 
   return {
@@ -277,9 +266,11 @@ async function readLiveState(
     protectedState: {
       fishFingerprint: fingerprintProtectedRows(protectedFish),
       fishingBaseFishFingerprint: fingerprintProtectedRows(fishingBaseFish),
-      catchReportsFingerprint: fingerprintProtectedRows(catchReports),
+      catchReportsFingerprint: fingerprintProtectedRows([
+        { lockedTable: 'CatchReport', count: catchReportsCount },
+      ]),
       fishingBaseFishCount: fishingBaseFish.length,
-      catchReportsCount: catchReports.length,
+      catchReportsCount,
     },
   };
 }
@@ -288,10 +279,14 @@ function buildPlan(
   state: LiveMaterializationState,
   manifests: {
     imageManifest: FishImageMetadataManifest;
+    localImageMappings: FishImageLocalMappingManifest;
+    catalogCleanupManifest: FishCatalogCleanupManifest;
     reconciliationManifest: FishImageReconciliationManifest;
     forumManifest: ForumManifest;
     hashes: {
       fishImageManifestSha256: string;
+      fishImageLocalMappingsSha256: string;
+      fishCatalogCleanupManifestSha256: string;
       fishReconciliationManifestSha256: string;
       forumManifestSha256: string;
     };
@@ -300,6 +295,8 @@ function buildPlan(
   return buildFishImageMaterializationPlan({
     sources: manifests.hashes,
     imageManifest: manifests.imageManifest,
+    localImageMappings: manifests.localImageMappings,
+    catalogCleanupManifest: manifests.catalogCleanupManifest,
     reconciliationManifest: manifests.reconciliationManifest,
     forumFish: manifests.forumManifest.fish,
     liveFish: state.fish,
@@ -333,20 +330,33 @@ function outputSummary(
 
 async function run(): Promise<void> {
   const command = parseCommand(process.argv.slice(2));
-  const [imageFile, reconciliationFile, forumFile] = await Promise.all([
+  const [imageFile, localMappingFile, cleanupFile, reconciliationFile, forumFile] =
+    await Promise.all([
     readTrackedJson<unknown>(MANIFEST_PATHS.images, 'fish-image-metadata.json'),
+    readTrackedJson<unknown>(
+      MANIFEST_PATHS.localMappings,
+      'fish-image-local-mappings-20260909.json',
+    ),
+    readTrackedJson<unknown>(MANIFEST_PATHS.cleanup, 'fish-catalog-cleanup-20260909.json'),
     readTrackedJson<unknown>(MANIFEST_PATHS.reconciliation, 'fish-reconciliation.json'),
     readTrackedJson<unknown>(MANIFEST_PATHS.forum, 'forum69-fish.json'),
-  ]);
+    ]);
   const forumManifest = decodeForumManifest(forumFile.parsed);
   const reconciliationManifest = decodeReconciliationManifest(reconciliationFile.parsed);
   const imageManifest = validateFishImageMetadataManifest(imageFile.parsed, forumManifest.fish);
+  const localImageMappings = validateFishImageLocalMappingManifest(localMappingFile.parsed);
+  const catalogCleanupManifest = validateFishCatalogCleanupManifest(cleanupFile.parsed);
+  validateFishImageLocalMappingsAgainstMetadata(localImageMappings, imageManifest.entries);
   const manifests = {
     imageManifest,
+    localImageMappings,
+    catalogCleanupManifest,
     reconciliationManifest,
     forumManifest,
     hashes: {
       fishImageManifestSha256: imageFile.hash,
+      fishImageLocalMappingsSha256: localMappingFile.hash,
+      fishCatalogCleanupManifestSha256: cleanupFile.hash,
       fishReconciliationManifestSha256: reconciliationFile.hash,
       forumManifestSha256: forumFile.hash,
     },

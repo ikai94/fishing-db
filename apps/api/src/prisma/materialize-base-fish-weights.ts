@@ -19,7 +19,7 @@ import { createPrismaAdapter } from './prisma-adapter.js';
 export const ACCEPTED_BASE_FISH_WEIGHT_MANIFEST_SHA256 =
   'c36b13cb186632a5017f9d63e7f3a1b082539d7323c4b423f267f42598ad161a';
 export const ACCEPTED_BASE_FISH_MAX_WEIGHT_PATCH_SHA256 =
-  '435d81d96297f5bed64d37d6fdc0a3e8d1e3388e8ae8ef7e03ceb3d0c439e388';
+  '90d8f98c072761ddabe6b801ad5d6460ea243710bcde92256bb7dd7049f60d71';
 
 const CATALOG_DATA = new URL('../../prisma/catalog-data/', import.meta.url);
 const MANIFEST = new URL('fishing-base-fish-weights.json', CATALOG_DATA);

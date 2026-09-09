@@ -76,6 +76,8 @@ recovery fingerprints. Full image-metadata auditing is tracked separately so tho
 mechanics do not change:
 
 - `fish-image-metadata.json` — one audit-only status/evidence row for every forum69 topic identity;
+- `fish-image-local-mappings-20260909.json` — eight approved local source-file mappings, pinned by
+  forum topic, image key, filename, and PNG SHA-256 without changing official-site evidence;
 - `fish-image-manual-review.audit.json` — a generated, ignored concise review projection for MANUAL
   rows; it is derived from the tracked full manifest.
 
@@ -96,6 +98,14 @@ pnpm db:materialize:fish-images --apply --expected-plan-fingerprint=<SHA-256>
 Materialization reads the tracked manifest offline and writes only `Fish.forumTopicId` and
 `Fish.officialFishImageKey`. It never changes Fish identity/catalog fields, Base↔Fish memberships,
 or CatchReports, and neither application startup nor normal catalog reads load the manifest.
+
+The versioned `fish-catalog-cleanup-20260909.json` excludes its exact Fish names from future
+catalog seeds. Preview its guarded runtime cleanup with `pnpm db:cleanup:fish-catalog --dry-run`;
+apply the reviewed zero-report subset with
+`pnpm db:cleanup:fish-catalog --apply --expected-plan-fingerprint=<SHA-256>`. The cleanup removes
+only matching zero-report Fish and their `FishingBaseFish` links. Fish with historical
+CatchReports are reported as blocked and are not modified; CatchReports and ActivityEvents are
+preserved.
 
 The first three are required inputs for a reproducible future Fish/BaseFish apply. The list-fish
 manifest is not an apply input, but remains tracked because its reviewed supplemental identity
@@ -131,7 +141,7 @@ After the nullable `FishingBaseFish` weight migration is deployed, preview the e
 manifest against existing memberships with
 `pnpm db:materialize:base-fish-weights --dry-run`. Apply is separately guarded by the unchanged
 manifest SHA-256, the pinned versioned `base-fish-max-weight-patch-20260909.json`, and
-`--apply --expected-plan-fingerprint=<dry-run fingerprint>`. The patch records 150 approved
+`--apply --expected-plan-fingerprint=<dry-run fingerprint>`. The patch records 151 approved
 maximum-weight corrections over the workbook manifest plus 10 supplemental existing membership
 targets. It is sourced from the approved current database state and changes only
 `FishingBaseFish.maxWeightGrams`; the materializer remains idempotent, never creates or deletes

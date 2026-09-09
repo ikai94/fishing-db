@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "mode": "APPLY_READY",
-  "version": "2026-09-09-klevalka-max-weight-corrections-v1",
+  "version": "2026-09-09-klevalka-max-weight-corrections-v2",
   "target": "FishingBaseFish.maxWeightGrams",
   "source": {
     "authority": "CURRENT_APPROVED_DATABASE_STATE",
@@ -13,8 +13,8 @@
     "catchReportsRead": false
   },
   "counts": {
-    "entries": 160,
-    "overrides": 150,
+    "entries": 161,
+    "overrides": 151,
     "supplementalTargets": 10
   },
   "entries": [
@@ -507,6 +507,13 @@
       "forumTopicId": "181",
       "previousMaxWeightGrams": null,
       "maxWeightGrams": 7700
+    },
+    {
+      "baseName": "Колыма",
+      "canonicalFish": "Кижуч",
+      "forumTopicId": "309",
+      "previousMaxWeightGrams": 14900,
+      "maxWeightGrams": 14800
     },
     {
       "baseName": "Красное море",
