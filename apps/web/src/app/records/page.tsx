@@ -34,9 +34,20 @@ const STATUS_LABELS: Record<Exclude<RecordsStatus, null>, string> = {
   NO_RECORD: 'Нет рекорда',
   CAN_BEAT: 'Можно побить',
   NEAR_MAX: 'Почти максимум',
+  MAXIMUM: 'Максимал',
   MUTANT: 'Мутант',
   MAX_UNKNOWN: 'Нет данных о max',
 };
+const BASE_FILTER_PARAM = 'baseId';
+const STATUS_FILTER_PARAM = 'status';
+const HIDE_RAREST_FILTER_PARAM = 'hideRarest';
+const FILTERABLE_STATUSES = [
+  'MUTANT',
+  'NEAR_MAX',
+  'CAN_BEAT',
+  'MAXIMUM',
+] as const satisfies readonly Exclude<RecordsStatus, 'NO_RECORD' | 'MAX_UNKNOWN' | null>[];
+type FilterableStatus = (typeof FILTERABLE_STATUSES)[number];
 
 export default function RecordsPage() {
   return (
@@ -61,10 +72,33 @@ function RecordsContent() {
     'Не удалось загрузить рекорды. Попробуйте ещё раз.',
   );
   const sort = readRecordsSort(searchParams);
-  const rows = useMemo(
-    () => (state.kind === 'ready' ? sortRecords(state.data.items, sort) : []),
-    [sort, state],
+  const selectedStatuses = useMemo(() => readStatusFilters(searchParams), [searchParams]);
+  const hideRarest = searchParams.get(HIDE_RAREST_FILTER_PARAM) === 'true';
+  const baseOptions = useMemo(
+    () => (state.kind === 'ready' ? caughtAtBaseOptions(state.data.items) : []),
+    [state],
   );
+  const selectedBaseId = baseOptions.some((base) => base.id === searchParams.get(BASE_FILTER_PARAM))
+    ? (searchParams.get(BASE_FILTER_PARAM) ?? '')
+    : '';
+  const rows = useMemo(() => {
+    if (state.kind !== 'ready') return [];
+    const baseFiltered =
+      selectedBaseId === ''
+        ? state.data.items
+        : state.data.items.filter((item) => item.record?.fishingBase?.id === selectedBaseId);
+    const statusFiltered =
+      selectedStatuses.length === 0
+        ? baseFiltered
+        : baseFiltered.filter(
+            (item) =>
+              item.status !== null && selectedStatuses.includes(item.status as FilterableStatus),
+          );
+    const rarityFiltered = hideRarest
+      ? statusFiltered.filter((item) => !item.fish.isRarest)
+      : statusFiltered;
+    return sortRecords(rarityFiltered, sort);
+  }, [hideRarest, selectedBaseId, selectedStatuses, sort, state]);
 
   useEffect(() => {
     if (state.kind !== 'ready') return;
@@ -79,10 +113,48 @@ function RecordsContent() {
   }, [reload, state]);
 
   function setSort(key: Exclude<RecordsSortKey, 'default'>) {
-    const defaultDirection: RecordsSortDirection = key === 'name' ? 'asc' : 'desc';
+    const defaultDirection: RecordsSortDirection =
+      key === 'name' || key === 'maxBase' || key === 'fishingBase' ? 'asc' : 'desc';
     const direction =
       sort.key === key ? (sort.direction === 'asc' ? 'desc' : 'asc') : defaultDirection;
-    router.replace(`/records?${recordsSortSearch({ key, direction })}`, { scroll: false });
+    const params = new URLSearchParams(searchParams.toString());
+    const sortParams = new URLSearchParams(recordsSortSearch({ key, direction }));
+    params.set('sort', sortParams.get('sort')!);
+    params.set('direction', sortParams.get('direction')!);
+    router.replace(recordsHref(params), { scroll: false });
+  }
+
+  function setBaseFilter(baseId: string) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (baseId === '') params.delete(BASE_FILTER_PARAM);
+    else params.set(BASE_FILTER_PARAM, baseId);
+    router.replace(recordsHref(params), { scroll: false });
+  }
+
+  function setStatusFilter(status: FilterableStatus, selected: boolean) {
+    const nextStatuses = new Set(selectedStatuses);
+    if (selected) nextStatuses.add(status);
+    else nextStatuses.delete(status);
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete(STATUS_FILTER_PARAM);
+    for (const option of FILTERABLE_STATUSES) {
+      if (nextStatuses.has(option)) params.append(STATUS_FILTER_PARAM, option);
+    }
+    router.replace(recordsHref(params), { scroll: false });
+  }
+
+  function setHideRarest(hidden: boolean) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (hidden) params.set(HIDE_RAREST_FILTER_PARAM, 'true');
+    else params.delete(HIDE_RAREST_FILTER_PARAM);
+    router.replace(recordsHref(params), { scroll: false });
+  }
+
+  function resetSort() {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('sort');
+    params.delete('direction');
+    router.replace(recordsHref(params), { scroll: false });
   }
 
   return (
@@ -116,10 +188,17 @@ function RecordsContent() {
           <RecordsTable
             data={state.data}
             rows={rows}
+            baseOptions={baseOptions}
+            selectedBaseId={selectedBaseId}
+            selectedStatuses={selectedStatuses}
+            hideRarest={hideRarest}
             sortKey={sort.key}
             sortDirection={sort.direction}
+            onBaseFilter={setBaseFilter}
+            onStatusFilter={setStatusFilter}
+            onHideRarest={setHideRarest}
             onSort={setSort}
-            onReset={() => router.replace('/records', { scroll: false })}
+            onReset={resetSort}
           />
         ) : null}
       </div>
@@ -130,13 +209,34 @@ function RecordsContent() {
 type TableProps = {
   data: RecordsResponse;
   rows: RecordsItem[];
+  baseOptions: Array<{ id: string; name: string }>;
+  selectedBaseId: string;
+  selectedStatuses: readonly FilterableStatus[];
+  hideRarest: boolean;
   sortKey: RecordsSortKey;
   sortDirection: RecordsSortDirection;
+  onBaseFilter: (baseId: string) => void;
+  onStatusFilter: (status: FilterableStatus, selected: boolean) => void;
+  onHideRarest: (hidden: boolean) => void;
   onSort: (key: Exclude<RecordsSortKey, 'default'>) => void;
   onReset: () => void;
 };
 
-function RecordsTable({ data, rows, sortKey, sortDirection, onSort, onReset }: TableProps) {
+function RecordsTable({
+  data,
+  rows,
+  baseOptions,
+  selectedBaseId,
+  selectedStatuses,
+  hideRarest,
+  sortKey,
+  sortDirection,
+  onBaseFilter,
+  onStatusFilter,
+  onHideRarest,
+  onSort,
+  onReset,
+}: TableProps) {
   const syncMessage =
     data.sync.status === 'WAITING'
       ? 'Ожидаем данные новой недели. Старые рекорды не показываются.'
@@ -152,14 +252,58 @@ function RecordsTable({ data, rows, sortKey, sortDirection, onSort, onReset }: T
           <strong>Порядок:</strong> {sortKey === 'default' ? 'Проще поставить' : 'пользовательский'}{' '}
           · Рыб: {rows.length}
         </div>
-        <button
-          className={styles.resetButton}
-          type="button"
-          disabled={sortKey === 'default'}
-          onClick={onReset}
-        >
-          Сбросить сортировку
-        </button>
+        <div className={styles.toolbarControls}>
+          <label className={styles.baseFilter} htmlFor="records-base-filter">
+            <span>Где пойман</span>
+            <select
+              id="records-base-filter"
+              value={selectedBaseId}
+              onChange={(event) => onBaseFilter(event.target.value)}
+            >
+              <option value="">Все базы</option>
+              {baseOptions.map((base) => (
+                <option key={base.id} value={base.id}>
+                  {base.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className={styles.statusFilter}>
+            <span id="records-status-filter-label">Статус</span>
+            <div
+              className={styles.statusOptions}
+              role="group"
+              aria-labelledby="records-status-filter-label"
+            >
+              {FILTERABLE_STATUSES.map((status) => (
+                <label className={styles.statusOption} key={status}>
+                  <input
+                    type="checkbox"
+                    checked={selectedStatuses.includes(status)}
+                    onChange={(event) => onStatusFilter(status, event.target.checked)}
+                  />
+                  <span>{STATUS_LABELS[status]}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+          <label className={styles.rarityFilter}>
+            <input
+              type="checkbox"
+              checked={hideRarest}
+              onChange={(event) => onHideRarest(event.target.checked)}
+            />
+            <span>Скрыть редчайших</span>
+          </label>
+          <button
+            className={styles.resetButton}
+            type="button"
+            disabled={sortKey === 'default'}
+            onClick={onReset}
+          >
+            Сбросить сортировку
+          </button>
+        </div>
       </div>
       {syncMessage ? (
         <p
@@ -192,10 +336,7 @@ function RecordsTable({ data, rows, sortKey, sortDirection, onSort, onReset }: T
                 direction={sortDirection}
                 onSort={onSort}
               />
-              <th scope="col">Где пойман</th>
-              <th scope="col">Игрок/дата</th>
               <th scope="col">Наш max</th>
-              <th scope="col">База(ы) max</th>
               <SortableHeader
                 label="Запас"
                 sortName="headroom"
@@ -203,6 +344,21 @@ function RecordsTable({ data, rows, sortKey, sortDirection, onSort, onReset }: T
                 direction={sortDirection}
                 onSort={onSort}
               />
+              <SortableHeader
+                label="Где пойман"
+                sortName="fishingBase"
+                activeKey={sortKey}
+                direction={sortDirection}
+                onSort={onSort}
+              />
+              <SortableHeader
+                label="База(ы) max"
+                sortName="maxBase"
+                activeKey={sortKey}
+                direction={sortDirection}
+                onSort={onSort}
+              />
+              <th scope="col">Игрок/дата</th>
               <th scope="col">Статус</th>
             </tr>
           </thead>
@@ -225,7 +381,7 @@ function SortableHeader({
   onSort,
 }: {
   label: string;
-  sortName: 'name' | 'weight' | 'headroom';
+  sortName: Exclude<RecordsSortKey, 'default'>;
   activeKey: RecordsSortKey;
   direction: RecordsSortDirection;
   onSort: TableProps['onSort'];
@@ -248,11 +404,21 @@ function RecordRow({ row }: { row: RecordsItem }) {
   return (
     <tr>
       <th scope="row">
-        <Link className={styles.fishLink} href={`/fish/${row.fish.id}`}>
+        <Link
+          className={`${styles.fishLink} ${row.fish.isRarest ? styles.rarestFishLink : ''}`}
+          href={`/fish/${row.fish.id}`}
+        >
           {row.fish.name}
+          {row.fish.isRarest ? (
+            <span className={styles.rarestDot} aria-hidden="true" title="Редчайший вид" />
+          ) : null}
         </Link>
       </th>
       <td>{recordWeight(row)}</td>
+      <td className={styles.numeric}>
+        {row.normalMaxWeightGrams === null ? '—' : formatCompactWeight(row.normalMaxWeightGrams)}
+      </td>
+      <td className={styles.numeric}>{formatHeadroom(row)}</td>
       <td>
         {row.record ? (
           row.record.fishingBase?.isActive ? (
@@ -265,21 +431,6 @@ function RecordRow({ row }: { row: RecordsItem }) {
         ) : (
           '—'
         )}
-      </td>
-      <td>
-        {row.record ? (
-          <>
-            <span className={styles.player}>{row.record.playerName}</span>
-            <span className={styles.secondary}>
-              {DATE_FORMATTER.format(new Date(row.record.caughtAt))}
-            </span>
-          </>
-        ) : (
-          '—'
-        )}
-      </td>
-      <td className={styles.numeric}>
-        {row.normalMaxWeightGrams === null ? '—' : formatCompactWeight(row.normalMaxWeightGrams)}
       </td>
       <td>
         {row.maxBases.length === 0
@@ -297,7 +448,18 @@ function RecordRow({ row }: { row: RecordsItem }) {
               </span>
             ))}
       </td>
-      <td className={styles.numeric}>{formatHeadroom(row)}</td>
+      <td>
+        {row.record ? (
+          <>
+            <span className={styles.player}>{row.record.playerName}</span>
+            <span className={styles.secondary}>
+              {DATE_FORMATTER.format(new Date(row.record.caughtAt))}
+            </span>
+          </>
+        ) : (
+          '—'
+        )}
+      </td>
       <td>
         <span className={`${styles.status} ${statusClass(row.status)}`}>
           {row.status === null ? '—' : STATUS_LABELS[row.status]}
@@ -305,6 +467,30 @@ function RecordRow({ row }: { row: RecordsItem }) {
       </td>
     </tr>
   );
+}
+
+function caughtAtBaseOptions(items: readonly RecordsItem[]): Array<{ id: string; name: string }> {
+  const bases = new Map<string, string>();
+  for (const item of items) {
+    const base = item.record?.fishingBase;
+    if (base !== null && base !== undefined) bases.set(base.id, base.name);
+  }
+  return [...bases]
+    .map(([id, name]) => ({ id, name }))
+    .sort(
+      (left, right) =>
+        left.name.localeCompare(right.name, 'ru-RU') || left.id.localeCompare(right.id),
+    );
+}
+
+function readStatusFilters(search: Pick<URLSearchParams, 'getAll'>): FilterableStatus[] {
+  const requested = new Set(search.getAll(STATUS_FILTER_PARAM));
+  return FILTERABLE_STATUSES.filter((status) => requested.has(status));
+}
+
+function recordsHref(params: URLSearchParams): string {
+  const search = params.toString();
+  return search === '' ? '/records' : `/records?${search}`;
 }
 
 function recordWeight(row: RecordsItem) {
@@ -317,13 +503,13 @@ function recordWeight(row: RecordsItem) {
       </span>
     );
   const badge =
-    row.headroomGrams === null
-      ? styles.badgeNeutral
-      : row.headroomGrams > 10
-        ? styles.badgeGreen
-        : row.headroomGrams >= 0
-          ? styles.badgeYellow
-          : styles.badgeRed;
+    row.status === 'CAN_BEAT'
+      ? styles.badgeGreen
+      : row.status === 'NEAR_MAX' || row.status === 'MAXIMUM'
+        ? styles.badgeYellow
+        : row.status === 'MUTANT'
+          ? styles.badgeRed
+          : styles.badgeNeutral;
   return (
     <span className={`${styles.recordBadge} ${badge}`}>
       {formatCompactWeight(row.record!.weightGrams)}
@@ -341,7 +527,7 @@ function formatHeadroom(row: RecordsItem): string {
 
 function statusClass(status: RecordsStatus): string {
   if (status === 'CAN_BEAT') return styles.statusGreen;
-  if (status === 'NEAR_MAX') return styles.statusYellow;
+  if (status === 'NEAR_MAX' || status === 'MAXIMUM') return styles.statusYellow;
   if (status === 'MUTANT') return styles.statusRed;
   return styles.statusNeutral;
 }

@@ -11,11 +11,24 @@ void describe('official record assessment', () => {
     });
   });
 
-  void it('classifies the approved gram boundaries', () => {
-    assert.equal(assessOfficialRecord(989, 1_000).status, 'CAN_BEAT');
-    assert.equal(assessOfficialRecord(990, 1_000).status, 'NEAR_MAX');
-    assert.equal(assessOfficialRecord(1_000, 1_000).status, 'NEAR_MAX');
-    assert.equal(assessOfficialRecord(1_001, 1_000).status, 'MUTANT');
+  void it('classifies the approved relative-headroom boundaries', () => {
+    assert.deepEqual(assessOfficialRecord(9_949, 10_000), {
+      headroomGrams: 51,
+      headroomPercent: 0.51,
+      status: 'CAN_BEAT',
+    });
+    assert.deepEqual(assessOfficialRecord(9_950, 10_000), {
+      headroomGrams: 50,
+      headroomPercent: 0.5,
+      status: 'NEAR_MAX',
+    });
+    assert.equal(assessOfficialRecord(9_951, 10_000).status, 'NEAR_MAX');
+    assert.deepEqual(assessOfficialRecord(10_000, 10_000), {
+      headroomGrams: 0,
+      headroomPercent: 0,
+      status: 'MAXIMUM',
+    });
+    assert.equal(assessOfficialRecord(10_001, 10_000).status, 'MUTANT');
   });
 
   void it('keeps missing records and unknown maxima distinct', () => {
@@ -30,10 +43,12 @@ void describe('public records projection', () => {
       fish: {
         findMany: (query: unknown) => {
           assert.deepEqual((query as { where: unknown }).where, { isActive: true });
+          assert.equal((query as { select: { isRarest?: boolean } }).select.isRarest, true);
           return Promise.resolve([
             {
               id: 'fish-a',
               name: 'А',
+              isRarest: true,
               fishingBaseLinks: [
                 {
                   maxWeightGrams: 1_000,
@@ -45,7 +60,7 @@ void describe('public records projection', () => {
                 },
               ],
             },
-            { id: 'fish-b', name: 'Б', fishingBaseLinks: [] },
+            { id: 'fish-b', name: 'Б', isRarest: false, fishingBaseLinks: [] },
           ]);
         },
       },
@@ -75,6 +90,8 @@ void describe('public records projection', () => {
     );
     assert.equal(response.items.length, 2);
     assert.equal(response.items[0]?.state, 'RECORD');
+    assert.equal(response.items[0]?.fish.isRarest, true);
+    assert.equal(response.items[1]?.fish.isRarest, false);
     assert.deepEqual(
       response.items[0]?.maxBases.map((base) => base.name),
       ['База А', 'База Б'],
@@ -86,7 +103,8 @@ void describe('public records projection', () => {
   void it('uses UNKNOWN for every Fish before this week has an accepted snapshot', async () => {
     const prisma = {
       fish: {
-        findMany: () => Promise.resolve([{ id: 'fish', name: 'Рыба', fishingBaseLinks: [] }]),
+        findMany: () =>
+          Promise.resolve([{ id: 'fish', name: 'Рыба', isRarest: false, fishingBaseLinks: [] }]),
       },
       officialRecordSnapshot: { findFirst: () => Promise.resolve(null) },
       officialRecordSyncState: { findUnique: () => Promise.resolve(null) },

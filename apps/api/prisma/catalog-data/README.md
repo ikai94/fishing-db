@@ -160,6 +160,26 @@ but a later explicitly approved `db:materialize:base-fish-weights --apply` synch
 memberships back to this tracked manifest and may overwrite those edits. Review every dry-run delta
 before supplying its plan fingerprint to an apply.
 
+## Fish rarity
+
+`fish-rarity-20260910.json` is the versioned canonical list of the 295 Fish classified as
+`SET_RAREST_FISH`. After deploying the matching `Fish.isRarest` schema migration, preview the exact
+live changes without writes:
+
+```bash
+pnpm db:materialize:fish-rarity --dry-run
+```
+
+Apply requires the unchanged reviewed plan fingerprint:
+
+```bash
+pnpm db:materialize:fish-rarity --apply --expected-plan-fingerprint=<SHA-256>
+```
+
+The materializer uses exact Fish display names only, requires the accepted 1,471-row catalog,
+sets exactly the manifest's 295 Fish to rarest, clears the flag from every other Fish, and asserts
+the 295/1,176 post-state in the same transaction.
+
 Preview the apply-ready Fish/BaseFish/CatchReport poststate without writes with:
 
 ```bash

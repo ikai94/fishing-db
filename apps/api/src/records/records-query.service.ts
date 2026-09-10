@@ -5,7 +5,7 @@ import { getRecordsWeek } from './records-week.js';
 
 export type PublicRecordState = 'RECORD' | 'NO_RECORD' | 'UNKNOWN';
 export type PublicRecordStatus =
-  'NO_RECORD' | 'CAN_BEAT' | 'NEAR_MAX' | 'MUTANT' | 'MAX_UNKNOWN' | null;
+  'NO_RECORD' | 'CAN_BEAT' | 'NEAR_MAX' | 'MAXIMUM' | 'MUTANT' | 'MAX_UNKNOWN' | null;
 
 export function assessOfficialRecord(
   recordWeightGrams: number | null,
@@ -18,15 +18,18 @@ export function assessOfficialRecord(
     return { headroomGrams: null, headroomPercent: null, status: 'MAX_UNKNOWN' as const };
   }
   const headroomGrams = normalMaxWeightGrams - recordWeightGrams;
+  const headroomPercent = (100 * headroomGrams) / normalMaxWeightGrams;
   return {
     headroomGrams,
-    headroomPercent: (100 * headroomGrams) / normalMaxWeightGrams,
+    headroomPercent,
     status:
       headroomGrams < 0
         ? ('MUTANT' as const)
-        : headroomGrams <= 10
-          ? ('NEAR_MAX' as const)
-          : ('CAN_BEAT' as const),
+        : headroomGrams === 0
+          ? ('MAXIMUM' as const)
+          : headroomPercent <= 0.5
+            ? ('NEAR_MAX' as const)
+            : ('CAN_BEAT' as const),
   };
 }
 
@@ -43,6 +46,7 @@ export class RecordsQueryService {
         select: {
           id: true,
           name: true,
+          isRarest: true,
           fishingBaseLinks: {
             select: {
               maxWeightGrams: true,
@@ -110,7 +114,7 @@ export class RecordsQueryService {
             ? { headroomGrams: null, headroomPercent: null, status: null }
             : assessOfficialRecord(record?.weightGrams ?? null, normalMaxWeightGrams);
         return {
-          fish: { id: item.id, name: item.name },
+          fish: { id: item.id, name: item.name, isRarest: item.isRarest },
           state,
           record:
             record === null

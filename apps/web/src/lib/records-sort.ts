@@ -1,7 +1,7 @@
 import { compareCatalogItemsByName } from './catalog-search';
 import type { RecordsItem } from './records-api';
 
-export type RecordsSortKey = 'default' | 'headroom' | 'weight' | 'name';
+export type RecordsSortKey = 'default' | 'headroom' | 'weight' | 'name' | 'maxBase' | 'fishingBase';
 export type RecordsSortDirection = 'asc' | 'desc';
 export type RecordsSort = { key: RecordsSortKey; direction: RecordsSortDirection };
 export const DEFAULT_RECORDS_SORT: RecordsSort = { key: 'default', direction: 'desc' };
@@ -10,7 +10,7 @@ export function readRecordsSort(search: Pick<URLSearchParams, 'get'>): RecordsSo
   const key = search.get('sort');
   const direction = search.get('direction');
   if (
-    !['headroom', 'weight', 'name'].includes(key ?? '') ||
+    !['headroom', 'weight', 'name', 'maxBase', 'fishingBase'].includes(key ?? '') ||
     !['asc', 'desc'].includes(direction ?? '')
   ) {
     return DEFAULT_RECORDS_SORT;
@@ -46,6 +46,17 @@ function nullableOrder(
   return direction === 'asc' ? left - right : right - left;
 }
 
+function nullableBaseNameOrder(
+  left: { name: string } | null,
+  right: { name: string } | null,
+  direction: RecordsSortDirection,
+): number {
+  if (left === null) return right === null ? 0 : 1;
+  if (right === null) return -1;
+  const result = left.name.localeCompare(right.name, 'ru-RU');
+  return direction === 'asc' ? result : -result;
+}
+
 export function sortRecords(items: readonly RecordsItem[], sort: RecordsSort): RecordsItem[] {
   return [...items].sort((left, right) => {
     if (sort.key === 'default') {
@@ -60,6 +71,24 @@ export function sortRecords(items: readonly RecordsItem[], sort: RecordsSort): R
     if (sort.key === 'name') {
       const result = nameOrder(left, right);
       return sort.direction === 'asc' ? result : -result;
+    }
+    if (sort.key === 'maxBase') {
+      return (
+        nullableBaseNameOrder(
+          left.maxBases[0] ?? null,
+          right.maxBases[0] ?? null,
+          sort.direction,
+        ) || nameOrder(left, right)
+      );
+    }
+    if (sort.key === 'fishingBase') {
+      return (
+        nullableBaseNameOrder(
+          left.record?.fishingBase ?? null,
+          right.record?.fishingBase ?? null,
+          sort.direction,
+        ) || nameOrder(left, right)
+      );
     }
     const result = nullableOrder(
       sort.key === 'headroom' ? left.headroomPercent : (left.record?.weightGrams ?? null),

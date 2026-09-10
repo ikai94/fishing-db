@@ -166,6 +166,7 @@ model Fish {
   nameNormalized       String                      @unique @db.VarChar(128)
   forumTopicId         String?                     @unique @db.VarChar(32)
   officialFishImageKey Int?                        @unique
+  isRarest             Boolean                     @default(false)
   isActive             Boolean                     @default(true)
   createdAt            DateTime                    @default(now()) @db.Timestamptz(3)
   updatedAt            DateTime                    @default(now()) @updatedAt @db.Timestamptz(3)

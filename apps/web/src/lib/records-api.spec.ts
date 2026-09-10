@@ -13,7 +13,7 @@ describe('records API decoder', () => {
       sync: { status: 'WAITING', observedAt: null, lastAttemptAt: null, lastSuccessAt: null },
     };
     const item = {
-      fish: { id: 'fish', name: 'Рыба' },
+      fish: { id: 'fish', name: 'Рыба', isRarest: true },
       state: 'UNKNOWN',
       record: null,
       normalMaxWeightGrams: null,
@@ -23,6 +23,29 @@ describe('records API decoder', () => {
       status: null,
     };
     expect(decodeRecordsResponse({ ...base, items: [item] }).items[0]?.state).toBe('UNKNOWN');
+    expect(decodeRecordsResponse({ ...base, items: [item] }).items[0]?.fish.isRarest).toBe(true);
+    expect(
+      decodeRecordsResponse({
+        ...base,
+        items: [
+          {
+            ...item,
+            state: 'RECORD',
+            record: {
+              weightGrams: 1_000,
+              waterbody: 'База',
+              fishingBase: null,
+              playerName: 'Игрок',
+              caughtAt: '2026-09-09T10:00:00Z',
+            },
+            normalMaxWeightGrams: 1_000,
+            headroomGrams: 0,
+            headroomPercent: 0,
+            status: 'MAXIMUM',
+          },
+        ],
+      }).items[0]?.status,
+    ).toBe('MAXIMUM');
     expect(() => decodeRecordsResponse({ ...base, items: [{ ...item, state: 'RECORD' }] })).toThrow(
       /Несогласованное/u,
     );

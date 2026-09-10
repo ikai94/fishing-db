@@ -45,6 +45,80 @@
   padding: 7px 0;
   border-top: 1px solid var(--app-border);
 }
+.toolbarControls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.baseFilter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--app-text-muted);
+  font-weight: 650;
+}
+.baseFilter select {
+  min-height: 30px;
+  max-width: 220px;
+  padding: 4px 28px 4px 8px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+  color: var(--app-text);
+  background: #fff;
+  font: inherit;
+}
+.statusFilter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--app-text-muted);
+  font-weight: 650;
+}
+.statusOptions {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 8px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+  color: var(--app-text);
+  background: #fff;
+  font-weight: 500;
+}
+.statusOption {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.statusOption input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--app-accent-strong);
+}
+.rarityFilter {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+  color: var(--app-text);
+  background: #fff;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.rarityFilter input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--app-accent-strong);
+}
 .resetButton,
 .message button {
   min-height: 30px;
@@ -134,6 +208,19 @@
 .fishLink:hover,
 .baseLink:hover {
   text-decoration: underline;
+}
+.rarestFishLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #b42318;
+}
+.rarestDot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  border-radius: 50%;
+  background: #d92d20;
 }
 .recordBadge,
 .status {
@@ -227,6 +314,9 @@
   .toolbar {
     align-items: flex-start;
     flex-direction: column;
+  }
+  .toolbarControls {
+    flex-wrap: wrap;
   }
   .tableRegion {
     max-height: none;

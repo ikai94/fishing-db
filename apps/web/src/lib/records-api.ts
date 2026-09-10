@@ -1,10 +1,11 @@
 import { apiRequest } from './api-client';
 
 export type RecordsState = 'RECORD' | 'NO_RECORD' | 'UNKNOWN';
-export type RecordsStatus = 'NO_RECORD' | 'CAN_BEAT' | 'NEAR_MAX' | 'MUTANT' | 'MAX_UNKNOWN' | null;
+export type RecordsStatus =
+  'NO_RECORD' | 'CAN_BEAT' | 'NEAR_MAX' | 'MAXIMUM' | 'MUTANT' | 'MAX_UNKNOWN' | null;
 export type RecordsBase = { id: string; name: string; isActive: boolean };
 export type RecordsItem = {
-  fish: { id: string; name: string };
+  fish: { id: string; name: string; isRarest: boolean };
   state: RecordsState;
   record: null | {
     weightGrams: number;
@@ -70,6 +71,10 @@ function nullableNumber(value: unknown, label: string): number | null {
     throw new Error(`Некорректный ${label}.`);
   return value;
 }
+function boolean(value: unknown, label: string): boolean {
+  if (typeof value !== 'boolean') throw new Error(`Некорректный ${label}.`);
+  return value;
+}
 function decodeBase(value: unknown): RecordsBase {
   const row = exactObject(value, 'водоём', ['id', 'name', 'isActive']);
   if (typeof row.isActive !== 'boolean') throw new Error('Некорректный водоём.');
@@ -90,10 +95,10 @@ function decodeItem(value: unknown): RecordsItem {
     'headroomPercent',
     'status',
   ]);
-  const fish = exactObject(row.fish, 'рыба', ['id', 'name']);
+  const fish = exactObject(row.fish, 'рыба', ['id', 'name', 'isRarest']);
   if (!['RECORD', 'NO_RECORD', 'UNKNOWN'].includes(String(row.state)))
     throw new Error('Некорректное состояние рекорда.');
-  const statuses = [null, 'NO_RECORD', 'CAN_BEAT', 'NEAR_MAX', 'MUTANT', 'MAX_UNKNOWN'];
+  const statuses = [null, 'NO_RECORD', 'CAN_BEAT', 'NEAR_MAX', 'MAXIMUM', 'MUTANT', 'MAX_UNKNOWN'];
   if (!statuses.includes(row.status as never)) throw new Error('Некорректный статус рекорда.');
   const recordRaw =
     row.record === null
@@ -119,7 +124,11 @@ function decodeItem(value: unknown): RecordsItem {
     throw new Error('Несогласованное состояние рекорда.');
   if (!Array.isArray(row.maxBases)) throw new Error('Некорректные базы максимума.');
   return {
-    fish: { id: text(fish.id, 'ID рыбы'), name: text(fish.name, 'название рыбы') },
+    fish: {
+      id: text(fish.id, 'ID рыбы'),
+      name: text(fish.name, 'название рыбы'),
+      isRarest: boolean(fish.isRarest, 'признак редчайшего вида'),
+    },
     state: row.state as RecordsState,
     record,
     normalMaxWeightGrams:
