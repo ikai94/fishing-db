@@ -113,12 +113,13 @@ condition, not a location landmark.
 - Report the delta, verification evidence, schema/migration/dependency impact, blockers, and final
   worktree state; do not restate the whole accepted architecture.
 
-  ## Code comments
+## Production code comments
 
-This project uses educational Russian comments.
+Production code uses educational Russian comments.
 
-- Add JSDoc to meaningful functions, methods, classes, React components and hooks.
-- Explain purpose, data flow, domain rules and side effects.
-- Add inline comments for non-obvious calculations and business rules.
-- Do not comment trivial assignments or restate the syntax.
-- Prefer clearer naming over unnecessary comments.
+- Add JSDoc above meaningful functions, methods, classes, components, hooks, and types.
+- Add inline `//` comments above important calculations, data flow, and business rules.
+- Explain why code exists, relevant domain rules, side effects, and non-obvious decisions.
+- Do not comment obvious syntax or trivial assignments.
+- Prefer clear naming over unnecessary comments.
+- Adding or updating comments must not change code behavior.
