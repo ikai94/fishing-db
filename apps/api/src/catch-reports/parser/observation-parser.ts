@@ -10,16 +10,23 @@ import { trimSourceRange } from './game-line-parser.js';
 import { parseHoleDepthCm } from './numeric-parsers.js';
 import { SCREEN_ANCHOR_ALIASES } from './screen-anchor-aliases.js';
 
+/** Распознанное значение вместе с точным фрагментом, из которого оно получено. */
 interface ParsedValue<T> {
   value: T;
   source: SourceRange;
 }
 
+/** Активный ScreenAnchor, чьи нормализованные токены могут обозначать позицию на локации. */
 export interface ObservationAnchor {
   name: string;
   nameNormalized: string;
 }
 
+/**
+ * Результат разбора свободного хвоста после Bait.
+ * Независимые доменные понятия не смешиваются: глубина, позиция, условие ловли, параметры
+ * спиннинга и комментарий имеют отдельные значения, а непринятый текст остаётся unresolved.
+ */
 export interface ParsedObservation {
   holeDepthCm: ParsedValue<number> | null;
   spotPositionRaw: ParsedValue<string> | null;
@@ -30,17 +37,21 @@ export interface ParsedObservation {
   unresolvedFragments: SourceRange[];
 }
 
+/** Полуинтервал относительно начала observationSource, уже потреблённый одним из этапов. */
 interface RelativeInterval {
   start: number;
   end: number;
 }
 
+/** Пара параметров спиннинга и общий диапазон синтаксиса, который их выразил. */
 interface ParsedSpinning {
   size: ParsedValue<CatchReportSpinningSize>;
   speed: ParsedValue<CatchReportSpinningSpeed>;
   consumed: RelativeInterval;
 }
 
+// Порядок алиасов закрыт и детерминирован; односимвольные варианты распознаются только после того,
+// как Bait уже определил контекст SPINNING.
 const SIZE_ALIASES: ReadonlyArray<readonly [string, CatchReportSpinningSize]> = [
   ['маленькая', 'SMALL'],
   ['маленький', 'SMALL'],
@@ -77,12 +88,15 @@ const SPEED_ALIASES: ReadonlyArray<readonly [string, CatchReportSpinningSpeed]> 
   ['б', 'FAST'],
 ];
 
+// Условия ловли — отдельная классификация и никогда не используются как позиция или ориентир.
 const FISHING_NOTES: ReadonlyArray<readonly [RegExp, CatchReportFishingNote]> = [
   [/(?<![\p{L}\p{N}])вполводы(?![\p{L}\p{N}])/iu, 'MIDWATER'],
   [/(?<![\p{L}\p{N}])со\s+дна(?![\p{L}\p{N}])/iu, 'FROM_BOTTOM'],
   [/(?<![\p{L}\p{N}])поверху(?![\p{L}\p{N}])/iu, 'SURFACE'],
 ];
 
+// Необязательные «яма/ямка» входят в потреблённый токен, но числовой SourceRange указывает только
+// на значение глубины. Границы запрещают извлекать глубину из знаковых и более точных чисел.
 const DEPTH_TOKEN =
   /(?<![\p{L}\p{N},+-])(?<!\d\.)(?:ям(?:а|ка)\s*)?(\d+(?:[,.]\d{1,2})?)(?![\d,.+-]|[\p{L}\p{N}])/iu;
 const DEPTH_TOKENS = new RegExp(DEPTH_TOKEN.source, 'giu');
@@ -94,10 +108,12 @@ const DEPTH_SPOT_PHRASE = /^над\s+\S(?:[\s\S]*\S)?$/iu;
 const TRAILING_CLOSING_WRAPPERS = /[\s)\]}]+$/u;
 const NARRATIVE_SENTENCE_BOUNDARY = /\.\s+\p{Lu}/u;
 
+/** Экранирует утверждённый текстовый алиас перед сборкой составного RegExp. */
 function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
 }
 
+/** Собирает regex-альтернативу из закрытого списка алиасов без интерпретации их пунктуации. */
 function aliasPattern<T extends string>(aliases: ReadonlyArray<readonly [string, T]>): string {
   return aliases.map(([alias]) => escapeRegex(alias)).join('|');
 }
@@ -122,6 +138,7 @@ const TEXT_SPINNING = new RegExp(
 );
 const MEDIUM_ON_MEDIUM_SPINNING = /^(сред)\s+на\s+(средн)\s+пров(?=$|[.,;:!?])/iu;
 
+/** Преобразует точный регистронезависимый алиас в доменное enum-значение. */
 function aliasValue<T extends string>(
   source: string,
   aliases: ReadonlyArray<readonly [string, T]>,
@@ -130,6 +147,7 @@ function aliasValue<T extends string>(
   return aliases.find(([alias]) => alias === normalized)?.[1] ?? null;
 }
 
+/** Переводит относительный match в точный абсолютный SourceRange исходной строки. */
 function parsedRange<T>(
   rawSourceText: string,
   sourceStart: number,
@@ -144,11 +162,17 @@ function parsedRange<T>(
   };
 }
 
+/** Находит начало значимого синтаксиса, пропуская только разрешённые вводные разделители. */
 function firstMeaningfulIndex(value: string): number {
   const match = /[^\s.,;:!?]/u.exec(value);
   return match?.index ?? value.length;
 }
 
+/**
+ * Распознаёт параметры спиннинга в начале observationSource: компактную пару, пару в скобках,
+ * текстовую форму и один закрытый игровой вариант «сред на средн пров».
+ * Функция вызывается только в уже разрешённом SPINNING-контексте и не угадывает одиночный параметр.
+ */
 function parseSpinning(rawSourceText: string, source: SourceRange): ParsedSpinning | null {
   const relativeSource = rawSourceText.slice(source.start, source.end);
   const prefixLength = firstMeaningfulIndex(relativeSource);
@@ -165,6 +189,8 @@ function parseSpinning(rawSourceText: string, source: SourceRange): ParsedSpinni
   }
 
   const size = aliasValue(match[1], SIZE_ALIASES);
+
+  // В специальной фразе второй capture «средн» намеренно закрыт на MEDIUM, а не общий alias lookup.
   const speed = match === mediumOnMediumMatch ? 'MEDIUM' : aliasValue(match[2], SPEED_ALIASES);
 
   if (size === null || speed === null) {
@@ -181,6 +207,10 @@ function parseSpinning(rawSourceText: string, source: SourceRange): ParsedSpinni
   };
 }
 
+/**
+ * Отделяет компактную пару Size/Speed только с конца явной позиции вида «над …» после глубины.
+ * Ограничение на форму позиции не даёт откусить похожее окончание у произвольного комментария.
+ */
 function parseTerminalCompactSpinning(
   rawSourceText: string,
   sourceStart: number,
@@ -218,6 +248,7 @@ function parseTerminalCompactSpinning(
   };
 }
 
+/** Удаляет служебную пунктуацию по краям остатка, сохраняя абсолютные offsets содержимого. */
 function trimFragment(rawSourceText: string, start: number, end: number): SourceRange | null {
   const untrimmed = rawSourceText.slice(start, end);
   const withoutLeading = untrimmed.replace(/^[\s.,;:!?]+/u, '');
@@ -236,6 +267,10 @@ function trimFragment(rawSourceText: string, start: number, end: number): Source
   };
 }
 
+/**
+ * Делит непринятый остаток только по жёстким разделителям «.» и «;».
+ * Запятые и внутренняя пунктуация сохраняются, чтобы не разрушить смысл ручной проверки.
+ */
 function splitFragments(rawSourceText: string, start: number, end: number): SourceRange[] {
   const fragments: SourceRange[] = [];
   const relative = rawSourceText.slice(start, end);
@@ -263,6 +298,10 @@ function splitFragments(rawSourceText: string, start: number, end: number): Sour
   return fragments;
 }
 
+/**
+ * Вычитает из observationSource все распознанные полуинтервалы и возвращает непокрытый текст.
+ * Перекрывающиеся интервалы сливаются движением cursor, поэтому ни один остаток не дублируется.
+ */
 function subtractIntervals(
   rawSourceText: string,
   source: SourceRange,
@@ -281,6 +320,7 @@ function subtractIntervals(
       );
     }
 
+    // max сохраняет уже потреблённую дальнюю границу при вложенных или пересекающихся matches.
     cursor = Math.max(cursor, interval.end);
   }
 
@@ -291,6 +331,7 @@ function subtractIntervals(
   return fragments;
 }
 
+/** Нормализует текст в буквенно-цифровые токены; невалидный catalog-текст не распознаётся. */
 function normalizedTokens(source: string): string[] {
   try {
     return normalizeCatalogName(source)
@@ -301,6 +342,11 @@ function normalizedTokens(source: string): string[] {
   }
 }
 
+/**
+ * Проверяет присутствие полного токена активного ScreenAnchor или его одобренного алиаса.
+ * Подстрочное и fuzzy-сопоставление не используется; неактивный канонический anchor отключает
+ * также свой статический алиас.
+ */
 function containsAnchor(source: string, anchors: readonly ObservationAnchor[]): boolean {
   const sourceTokens = normalizedTokens(source);
   const activeNames = new Set(anchors.map((anchor) => anchor.nameNormalized));
@@ -321,6 +367,10 @@ function containsAnchor(source: string, anchors: readonly ObservationAnchor[]): 
   return sourceTokens.some((token) => recognized.has(token));
 }
 
+/**
+ * Для SPINNING отделяет текст после первого физического перевода строки как возможный комментарий.
+ * Пустой хвост не создаёт userNoteRaw.
+ */
 function findLineComment(
   rawSourceText: string,
   source: SourceRange,
@@ -342,6 +392,10 @@ function findLineComment(
     : { comment, observationEnd: source.start + lineBreak.index };
 }
 
+/**
+ * Распознаёт однострочный комментарий только после границы «точка + пробел + заглавная буква».
+ * Строгая граница не позволяет автоматически считать любой неизвестный suffix комментарием.
+ */
 function sameLineSpinningComment(
   rawSourceText: string,
   source: SourceRange,
@@ -362,6 +416,11 @@ function sameLineSpinningComment(
   return comment.text.length === 0 ? null : comment;
 }
 
+/**
+ * Распознаёт явную позицию «над …», непосредственно следующую за единственной глубиной.
+ * Нарративные предложения, переносы строк и fishingNote отклоняются; при разрешённом сценарии
+ * функция также может снять точную terminal-пару спиннинга, оставив неизвестный prefix unresolved.
+ */
 function trailingDepthSpot(
   rawSourceText: string,
   source: SourceRange,
@@ -402,6 +461,8 @@ function trailingDepthSpot(
     ? parseTerminalCompactSpinning(rawSourceText, source.start, phraseMatch[1], phraseStart)
     : null;
 
+  // Неструктурный prefix допустим только когда справа найден специальный terminal-spinning:
+  // тогда полезный suffix можно разобрать, не скрывая prefix из unresolvedFragments.
   if (
     !prefixIsStructural &&
     (terminalSpinning === null ||
@@ -430,12 +491,19 @@ function trailingDepthSpot(
   };
 }
 
+/**
+ * Поэтапно разбирает свободный хвост CatchReport, не меняя исходный текст.
+ * Сначала в SPINNING-контексте ищутся параметры и строгая граница комментария, затем ровно одна
+ * глубина и явная позиция, после неё fishingNote. Из остатков максимум один anchor-фрагмент
+ * становится позицией; весь прочий текст возвращается как unresolved для ручной проверки.
+ */
 export function parseObservation(
   rawSourceText: string,
   source: SourceRange,
   fishingMethod: CatchReportFishingMethod | null,
   anchors: readonly ObservationAnchor[],
 ): ParsedObservation {
+  // Только SPINNING имеет утверждённое правило комментария; BAIT-перенос остаётся наблюдением.
   const lineComment = fishingMethod === 'SPINNING' ? findLineComment(rawSourceText, source) : null;
   let parseEnd = lineComment?.observationEnd ?? source.end;
   let observationSource = trimSourceRange(rawSourceText, source.start, parseEnd);
@@ -446,9 +514,12 @@ export function parseObservation(
   let userNoteRaw: SourceRange | null = null;
 
   if (fishingMethod === 'SPINNING') {
+    // Первая попытка не включает предполагаемый комментарий после перевода строки.
     spinning = parseSpinning(rawSourceText, observationSource);
 
     if (spinning === null && lineComment !== null) {
+      // Если до переноса параметров нет, вся строка снова считается наблюдением: перенос мог
+      // разделять саму запись параметров, а не вводить комментарий.
       parseEnd = source.end;
       observationSource = trimSourceRange(rawSourceText, source.start, parseEnd);
       spinning = parseSpinning(rawSourceText, observationSource);
@@ -469,6 +540,7 @@ export function parseObservation(
         );
 
         if (userNoteRaw !== null) {
+          // Структурные этапы не должны повторно разобрать уже предложенный комментарий.
           parseEnd = userNoteRaw.start;
         }
       }
@@ -486,6 +558,8 @@ export function parseObservation(
   let explicitSpotPositionRaw: ParsedValue<string> | null = null;
   DEPTH_TOKENS.lastIndex = 0;
   const depthMatches = [...effectiveRelative.matchAll(DEPTH_TOKENS)];
+
+  // Несколько похожих глубин неоднозначны: ни одна не выбирается, весь текст остаётся unresolved.
   const depthMatch = depthMatches.length === 1 ? depthMatches[0] : undefined;
 
   if (depthMatch !== undefined && depthMatch.index !== undefined && depthMatch[1] !== undefined) {
@@ -523,6 +597,7 @@ export function parseObservation(
 
   let fishingNote: ParsedValue<CatchReportFishingNote> | null = null;
 
+  // Закрытый порядок правил задаёт стабильный выбор, если в строке встретилось несколько условий.
   for (const [pattern, value] of FISHING_NOTES) {
     const match = pattern.exec(effectiveRelative);
 
@@ -534,6 +609,9 @@ export function parseObservation(
   }
 
   const fragments = subtractIntervals(rawSourceText, effectiveSource, consumed);
+
+  // Явная позиция после глубины имеет приоритет. Anchor-поиск отключается и при нескольких
+  // глубинах, чтобы фрагмент неоднозначной конструкции не был ошибочно повышен до позиции.
   const positionIndex =
     explicitSpotPositionRaw !== null || depthMatches.length > 1
       ? -1

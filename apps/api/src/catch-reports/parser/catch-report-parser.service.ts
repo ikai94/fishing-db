@@ -44,20 +44,29 @@ import {
 } from './game-line-parser.js';
 import { parseObservation } from './observation-parser.js';
 
+/** Однозначно разрешённая сущность вместе с точным текстом, который на неё указал. */
 interface ResolvedSource<T> {
   item: T;
   source: SourceRange;
 }
 
+/** Location-кандидат ограничивается уже разрешённой FishingBase. */
 type LocationCandidate = DraftLocation;
 
+/** Bait-кандидат несёт тип, из которого выводится метод ловли. */
 type BaitCandidate = DraftBait;
 
+/** Минимальная форма активного ScreenAnchor для распознавания позиции. */
 interface AnchorCandidate {
   name: string;
   nameNormalized: string;
 }
 
+/**
+ * Абстракция каталога для общего parsing pipeline.
+ * Одиночный preview читает данные через Prisma по мере надобности, а пакетный заранее создаёт
+ * неизменяемые индексы, чтобы строки одного запроса разбирались по одному загруженному набору.
+ */
 interface ParserCatalog {
   findBase: (lookupText: string) => Promise<CatalogLookupResolution<DraftNamedItem>>;
   findFish: (lookupText: string) => Promise<CatalogLookupResolution<DraftNamedItem>>;
@@ -67,6 +76,7 @@ interface ParserCatalog {
   hasMembership: (baseId: string, fishId: string) => Promise<boolean>;
 }
 
+// Сообщения описывают обязательные поля; точная причина хранится отдельно в стабильном issue code.
 const FIELD_MESSAGES: Record<string, string> = {
   fishingBase: 'Не удалось определить рыболовную базу',
   location: 'Не удалось определить локацию',
@@ -76,10 +86,12 @@ const FIELD_MESSAGES: Record<string, string> = {
   fishingMethod: 'Метод ловли нельзя определить без наживки или приманки',
 };
 
+/** Создаёт единый NOT_FOUND-результат для отсутствующего источника или fallback-ветки. */
 function notFoundLookup<T>(): CatalogLookupResolution<T> {
   return { status: 'NOT_FOUND' };
 }
 
+/** Связывает SourceRange с элементом только при строго UNIQUE catalog resolution. */
 function resolvedSource<T>(
   source: SourceRange | null,
   resolution: CatalogLookupResolution<T>,
@@ -89,6 +101,10 @@ function resolvedSource<T>(
     : null;
 }
 
+/**
+ * Переводит результат обязательного catalog lookup в DraftField, не скрывая разницу между
+ * отсутствующим текстом, неизвестным значением и несколькими точными совпадениями.
+ */
 function requiredCatalogField<T>(
   source: SourceRange | null,
   resolution: CatalogLookupResolution<T>,
@@ -110,10 +126,12 @@ function requiredCatalogField<T>(
   return resolvedField(resolution.item, source.text, true);
 }
 
+/** Детерминированно выводит исторический метод ловли из типа разрешённой Bait/Lure. */
 function methodFromBait(type: CatalogBaitType): CatchReportFishingMethod {
   return type === 'BAIT' ? 'BAIT_FISHING' : 'SPINNING';
 }
 
+/** Создаёт blocking issue для одного обязательного поля, если оно ещё не разрешено. */
 function issueForField(field: string, fieldValue: DraftField<unknown>): DraftIssue | null {
   if (fieldValue.status === 'RESOLVED') {
     return null;
@@ -130,6 +148,7 @@ function issueForField(field: string, fieldValue: DraftField<unknown>): DraftIss
   };
 }
 
+/** Собирает blocking issues только для полей, помеченных обязательными в текущем Draft. */
 function fieldIssues(draft: CatchReportDraft): DraftIssue[] {
   const requiredEntries: Array<readonly [string, DraftField<unknown>]> = [
     ['fishingBase', draft.fields.fishingBase],
@@ -149,6 +168,10 @@ function fieldIssues(draft: CatchReportDraft): DraftIssue[] {
     .filter((issue): issue is DraftIssue => issue !== null);
 }
 
+/**
+ * Проверяет предложенный сырой текст позиции или комментария по тем же ограничениям, что запись.
+ * Невалидное необязательное значение становится warning и UNRESOLVED, а не тихо обрезается.
+ */
 function proposedTextIssue(
   field: 'spotPositionRaw' | 'userNoteRaw',
   value: string | null,
@@ -173,21 +196,34 @@ function proposedTextIssue(
   };
 }
 
+/**
+ * Оркестрирует неперсистентный preview CatchReport: разбирает структуру, разрешает активный
+ * каталог, проверяет Base↔Fish и возвращает Draft для подтверждения или ручного исправления.
+ * Сервис только читает PostgreSQL и не создаёт CatchReport.
+ */
 @Injectable()
 export class CatchReportParserService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
+  /** Разбирает одну исходную запись через актуальный активный каталог PostgreSQL. */
   async parse(rawSourceText: string): Promise<ParseCatchReportResult> {
     return this.parseWithCatalog(rawSourceText, this.databaseCatalog());
   }
 
+  /**
+   * Выполняет общий детерминированный pipeline поверх переданной реализации каталога.
+   * Все неразрешённые части сохраняются в Draft; метод не угадывает значения и не записывает их.
+   */
   private async parseWithCatalog(
     rawSourceText: string,
     catalog: ParserCatalog,
   ): Promise<ParseCatchReportResult> {
+    // Этап 1: выделяем игровое ядро и точные диапазоны, ещё не обращаясь к каталогу.
     const gameLine = parseGameLine(rawSourceText);
     const baseSource = gameLine.fishingBaseSource;
     const fishSource = gameLine.fishSource;
+
+    // Этап 2: Base/Fish разрешаются параллельно с загрузкой словарей Bait и ScreenAnchor.
     const [baseResolution, fishResolution, baits, anchors] = await Promise.all([
       baseSource === null
         ? Promise.resolve(notFoundLookup<DraftNamedItem>())
@@ -202,6 +238,7 @@ export class CatchReportParserService {
     const baseResolved = resolvedSource(baseSource, baseResolution);
     const fishResolved = resolvedSource(fishSource, fishResolution);
 
+    // Этап 3: Location зависит от Base, Bait — от границы Location, а метод — только от типа Bait.
     const locationResult = await this.resolveLocation(
       rawSourceText,
       gameLine.locationAndBaitSource,
@@ -211,10 +248,15 @@ export class CatchReportParserService {
     const baitResult = this.resolveBait(rawSourceText, locationResult.baitAndSuffixSource, baits);
     const fishingMethod =
       baitResult.resolved === null ? null : methodFromBait(baitResult.resolved.item.type);
+
+    // Полностью найденное игровое ядро отдаёт наблюдениям остаток после Bait. При неполном ядре
+    // используется консервативный observationSource, подготовленный первым этапом.
     const observationSource =
       gameLine.hasGameCore && baitResult.observationSource !== null
         ? baitResult.observationSource
         : gameLine.observationSource;
+
+    // Этап 4: необязательные наблюдения извлекаются независимо и сохраняют непокрытый текст.
     const observation = parseObservation(rawSourceText, observationSource, fishingMethod, anchors);
     const spotPositionIssue = proposedTextIssue(
       'spotPositionRaw',
@@ -222,6 +264,8 @@ export class CatchReportParserService {
     );
     const userNoteIssue = proposedTextIssue('userNoteRaw', observation.userNoteRaw?.value ?? null);
 
+    // Membership проверяется отдельно от разрешения сущностей: точные Base и Fish могут
+    // существовать, но их текущая каталожная связь обязательна для будущего сохранения.
     const membership = await this.resolveMembership(
       baseResolved?.item ?? null,
       fishResolved?.item ?? null,
@@ -258,6 +302,7 @@ export class CatchReportParserService {
           ? unresolvedField(gameLine.weight.source.text, 'INVALID_WEIGHT', true)
           : resolvedField(gameLine.weight.value, gameLine.weight.source.text, true);
 
+    // Этап 5: все промежуточные результаты сводятся в единый публично безопасный Draft.
     const draft: CatchReportDraft = {
       rawSourceText,
       fields: {
@@ -340,6 +385,8 @@ export class CatchReportParserService {
       canConfirm: false,
     };
 
+    // Этап 6: issues производятся после полей, чтобы blocking-решение выводилось из Draft,
+    // а не из разрозненных ветвей парсера.
     draft.issues.push(...fieldIssues(draft));
 
     for (const issue of [spotPositionIssue, userNoteIssue]) {
@@ -366,11 +413,18 @@ export class CatchReportParserService {
     draft.missingRequiredFields = Object.entries(draft.fields)
       .filter(([, field]) => field.status === 'MISSING' && field.required)
       .map(([name]) => name);
+
+    // Warning не запрещает подтверждение; только хотя бы один BLOCKING делает Draft неготовым.
     draft.canConfirm = !draft.issues.some((issue) => issue.severity === 'BLOCKING');
 
     return { draft };
   }
 
+  /**
+   * Разбирает каждую непустую физическую строку как независимый Draft, сохраняя порядок.
+   * Пакет сначала валидируется целиком, затем использует один загруженный набор каталога;
+   * точные дубли не удаляются, а получают warning со ссылкой на другую строку.
+   */
   async parseBatch(rawSourceText: string): Promise<ParseCatchReportBatchResult> {
     const candidates = splitCatchReportBatchSource(rawSourceText);
     if (candidates.length > CATCH_REPORT_BATCH_MAX_ITEMS) {
@@ -391,6 +445,7 @@ export class CatchReportParserService {
       }
     }
 
+    // Метаданные дублей строятся до параллельного разбора и сравнивают исходные строки побайтно.
     const duplicateIndexes = duplicateIndexesByCandidate(candidates);
     const catalog = await this.batchCatalog();
     const parsed = await Promise.all(
@@ -424,6 +479,11 @@ export class CatchReportParserService {
     };
   }
 
+  /**
+   * Разрешает Location только среди активных локаций однозначно найденной Base и требует запятую
+   * после каталожного префикса. Без Base или точного совпадения первая запятая лишь разделяет
+   * unresolved Location от хвоста Bait, не создавая ложного resolution.
+   */
   private async resolveLocation(
     rawSourceText: string,
     locationAndBaitSource: SourceRange | null,
@@ -473,6 +533,7 @@ export class CatchReportParserService {
       }
 
       if (match?.resolution.status === 'AMBIGUOUS') {
+        // Неоднозначная Location завершает структурное разрешение: выбирать границу Bait опасно.
         return {
           source: match.source,
           resolution: match.resolution,
@@ -491,6 +552,11 @@ export class CatchReportParserService {
     };
   }
 
+  /**
+   * Ищет самый длинный точный Bait-prefix с безопасной границей и возвращает остаток наблюдений.
+   * При отсутствии совпадения fallback отделяет предполагаемый Bait первой точкой, но оставляет
+   * его NOT_FOUND; неоднозначность не сокращается до более короткого совпадения.
+   */
   private resolveBait(
     rawSourceText: string,
     baitAndSuffixSource: SourceRange | null,
@@ -528,6 +594,7 @@ export class CatchReportParserService {
     }
 
     if (match?.resolution.status === 'AMBIGUOUS') {
+      // Без однозначной границы Bait последующий текст нельзя безопасно назначить наблюдениям.
       return {
         source: match.source,
         resolution: match.resolution,
@@ -545,6 +612,10 @@ export class CatchReportParserService {
     };
   }
 
+  /**
+   * Проверяет текущую Base↔Fish membership после разрешения обеих сущностей.
+   * MISSING означает, что проверка невозможна, UNRESOLVED — что точная пара отсутствует в каталоге.
+   */
   private async resolveMembership(
     base: DraftNamedItem | null,
     fish: DraftNamedItem | null,
@@ -557,6 +628,11 @@ export class CatchReportParserService {
     return (await catalog.hasMembership(base.id, fish.id)) ? 'RESOLVED' : 'UNRESOLVED';
   }
 
+  /**
+   * Создаёт lazy-адаптер одиночного preview поверх Prisma.
+   * Каждая операция читает только активные catalog-сущности; membership проверяется по составному
+   * ключу и никаких записей или побочных эффектов не выполняет.
+   */
   private databaseCatalog(): ParserCatalog {
     return {
       findBase: async (lookupText) => {
@@ -605,6 +681,11 @@ export class CatchReportParserService {
     };
   }
 
+  /**
+   * Загружает активный каталог и все membership одним параллельным набором запросов для batch.
+   * Локальные индексы устраняют N+1-запросы и гарантируют одинаковую картину каталога для всех
+   * строк конкретного вызова parseBatch.
+   */
   private async batchCatalog(): Promise<ParserCatalog> {
     const [bases, fish, baits, anchors, locations, memberships] = await Promise.all([
       this.prisma.fishingBase.findMany({
@@ -644,6 +725,8 @@ export class CatchReportParserService {
         select: { fishingBaseId: true, fishId: true },
       }),
     ]);
+
+    // Base и Fish используют общий детерминированный lookup, Location индексируются внутри Base.
     const basesByName = buildCatalogLookupIndex(bases);
     const fishByName = buildCatalogLookupIndex(fish);
     const locationsByBase = new Map<string, LocationCandidate[]>();
@@ -652,6 +735,8 @@ export class CatchReportParserService {
       items.push(location);
       locationsByBase.set(location.fishingBaseId, items);
     }
+
+    // Составной строковый ключ нужен только для lookup в памяти и не становится доменной identity.
     const membershipKeys = new Set(
       memberships.map((item) => `${item.fishingBaseId}:${item.fishId}`),
     );
