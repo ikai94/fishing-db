@@ -4,6 +4,7 @@ import { RecordsController } from './records.controller.js';
 import { RecordsQueryService } from './records-query.service.js';
 import { RecordsSyncService } from './records-sync.service.js';
 
+/** Объединяет публичное чтение рекордов и фоновую синхронизацию с PostgreSQL. */
 @Module({
   imports: [PrismaModule],
   controllers: [RecordsController],

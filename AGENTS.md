@@ -112,3 +112,13 @@ condition, not a location landmark.
   repository acceptance pass for a stable implementation.
 - Report the delta, verification evidence, schema/migration/dependency impact, blockers, and final
   worktree state; do not restate the whole accepted architecture.
+
+  ## Code comments
+
+This project uses educational Russian comments.
+
+- Add JSDoc to meaningful functions, methods, classes, React components and hooks.
+- Explain purpose, data flow, domain rules and side effects.
+- Add inline comments for non-obvious calculations and business rules.
+- Do not comment trivial assignments or restate the syntax.
+- Prefer clearer naming over unnecessary comments.

@@ -7,6 +7,10 @@ export type PublicRecordState = 'RECORD' | 'NO_RECORD' | 'UNKNOWN';
 export type PublicRecordStatus =
   'NO_RECORD' | 'CAN_BEAT' | 'NEAR_MAX' | 'MAXIMUM' | 'MUTANT' | 'MAX_UNKNOWN' | null;
 
+/**
+ * Сравнивает официальный рекорд с нормальным максимумом рыбы и классифицирует запас веса.
+ * Отсутствующий рекорд и неизвестный максимум остаются разными состояниями публичного контракта.
+ */
 export function assessOfficialRecord(
   recordWeightGrams: number | null,
   normalMaxWeightGrams: number | null,
@@ -17,6 +21,9 @@ export function assessOfficialRecord(
   if (normalMaxWeightGrams === null) {
     return { headroomGrams: null, headroomPercent: null, status: 'MAX_UNKNOWN' as const };
   }
+
+  // Процент считается от нормального максимума: это доля оставшегося потенциала, а не прирост
+  // относительно текущего рекорда.
   const headroomGrams = normalMaxWeightGrams - recordWeightGrams;
   const headroomPercent = (100 * headroomGrams) / normalMaxWeightGrams;
   return {
@@ -33,12 +40,20 @@ export function assessOfficialRecord(
   };
 }
 
+/** Формирует публичную проекцию недельных рекордов для всего активного каталога Fish. */
 @Injectable()
 export class RecordsQueryService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
+  /**
+   * Читает активных рыб, последний снимок текущей недели и состояние синхронизации параллельно.
+   * Метод не изменяет БД и различает ещё не загруженную неделю от подтверждённого отсутствия
+   * рекорда для конкретной рыбы.
+   */
   async getPublicRecords(now = new Date()) {
     const week = getRecordsWeek(now);
+
+    // Независимые чтения запускаются вместе, чтобы задержки БД не складывались последовательно.
     const [fish, snapshot, syncState] = await Promise.all([
       this.prisma.fish.findMany({
         where: { isActive: true },
@@ -77,6 +92,8 @@ export class RecordsQueryService {
         select: { lastAttemptAt: true, lastSuccessAt: true, lastError: true },
       }),
     ]);
+
+    // Индекс по fishId связывает разреженные строки снимка с полным активным каталогом.
     const records = new Map(snapshot?.rows.map((row) => [row.fishId, row]) ?? []);
     return {
       week: {
@@ -93,6 +110,8 @@ export class RecordsQueryService {
       },
       items: fish.map((item) => {
         const record = records.get(item.id) ?? null;
+
+        // Нормальный максимум берётся среди всех Base-связей; null не участвует в сравнении.
         const knownMaxima = item.fishingBaseLinks
           .map((link) => link.maxWeightGrams)
           .filter((value): value is number => value !== null);
@@ -107,6 +126,8 @@ export class RecordsQueryService {
                   (left, right) =>
                     left.name.localeCompare(right.name, 'ru-RU') || left.id.localeCompare(right.id),
                 );
+
+        // Без снимка отсутствие строки ничего не доказывает; после снимка оно означает NO_RECORD.
         const state: PublicRecordState =
           snapshot === null ? 'UNKNOWN' : record === null ? 'NO_RECORD' : 'RECORD';
         const assessment =

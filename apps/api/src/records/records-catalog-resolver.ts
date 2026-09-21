@@ -29,6 +29,11 @@ export type ResolvedOfficialRecordRow = OfficialRecordSourceRow & {
 
 let mappingPromise: Promise<OfficialFishMapping> | undefined;
 
+/**
+ * Собирает проверенное соответствие официальных изображений и названий форумным topicId.
+ * Конфликты стабильных идентификаторов завершают загрузку ошибкой, а неоднозначные текстовые
+ * псевдонимы исключаются из поиска, чтобы не привязать рекорд к неверной рыбе.
+ */
 async function loadMapping(): Promise<OfficialFishMapping> {
   const metadataPath = new URL(
     '../../prisma/catalog-data/fish-image-metadata.json',
@@ -56,6 +61,8 @@ async function loadMapping(): Promise<OfficialFishMapping> {
   const byImageKey = new Map<number, string>();
   const byNameNormalized = new Map<string, string>();
   const ambiguousNames = new Set<string>();
+
+  /** Добавляет ключ изображения только при согласованном единственном topicId. */
   const addMapping = (imageKey: number, topicId: string) => {
     const existing = byImageKey.get(imageKey);
     if (existing !== undefined && existing !== topicId) {
@@ -75,6 +82,8 @@ async function loadMapping(): Promise<OfficialFishMapping> {
     }
     addMapping(raw.imageKey, raw.forumTopicId);
   }
+
+  // Имя служит запасным путём разрешения; любой псевдоним с несколькими topicId удаляется навсегда.
   for (const raw of forumDocument.fish as ForumMappingEntry[]) {
     if (
       typeof raw.topicId !== 'string' ||
@@ -101,12 +110,18 @@ async function loadMapping(): Promise<OfficialFishMapping> {
   return { byImageKey, byNameNormalized };
 }
 
+/**
+ * Сопоставляет строки источника с Fish и, когда возможно, с FishingBase локального каталога.
+ * Стабильный forum topicId является основой идентичности, а изображение и имя используются
+ * для проверки согласованности. Известная внешняя рыба, которой ещё нет в каталоге, пропускается.
+ */
 export function resolveOfficialRecordRows(
   rows: readonly OfficialRecordSourceRow[],
   fish: readonly CatalogFish[],
   bases: readonly CatalogBase[],
   officialMapping: OfficialFishMapping,
 ): ResolvedOfficialRecordRow[] {
+  // Индексы обеспечивают однозначные независимые проверки всех доступных идентификаторов.
   const fishByTopic = new Map(
     fish.filter((row) => row.forumTopicId !== null).map((row) => [row.forumTopicId, row]),
   );
@@ -129,10 +144,13 @@ export function resolveOfficialRecordRows(
     }
     const topicId = topicByImage ?? topicByName;
     if (topicId === undefined) throw new Error(`Unknown official Fish image key ${row.imageKey}`);
+
+    // TopicId выбирает сущность, а совпадения по картинке и имени не имеют права указывать на другую.
     const byTopic = fishByTopic.get(topicId);
     const byImage = fishByImage.get(row.imageKey);
     const byName = fishByName.get(normalizedName);
     if (byTopic === undefined) {
+      // Известную источнику рыбу разрешено пропустить лишь пока ни один локальный признак её не занял.
       if (byImage !== undefined || byName !== undefined) {
         throw new Error(`Official Fish mapping conflict for ${row.fishName}`);
       }
@@ -158,6 +176,10 @@ export function resolveOfficialRecordRows(
   return resolved;
 }
 
+/**
+ * Возвращает единый лениво загруженный mapping для всего процесса.
+ * Кешируется и Promise, поэтому параллельные синхронизации не читают файлы повторно.
+ */
 export async function getOfficialFishMapping(): Promise<OfficialFishMapping> {
   mappingPromise ??= loadMapping();
   return mappingPromise;

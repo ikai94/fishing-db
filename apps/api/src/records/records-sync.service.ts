@@ -19,8 +19,14 @@ import { getOfficialFishMapping, resolveOfficialRecordRows } from './records-cat
 import { fetchOfficialRecords } from './records-source.js';
 import { getRecordsWeek } from './records-week.js';
 
+// Верхняя граница backoff не позволяет длительной ошибке откладывать проверку более чем на час.
 const RETRY_MAX_MS = 60 * 60_000;
 
+/**
+ * Фоново синхронизирует официальные недельные рекорды в неизменяемые снимки PostgreSQL.
+ * Межпроцессная аренда не допускает одновременную запись несколькими экземплярами API, а
+ * локальный флаг защищает один экземпляр от наложения запусков таймера.
+ */
 @Injectable()
 export class RecordsSyncService implements OnApplicationBootstrap, OnApplicationShutdown {
   private readonly logger = new Logger(RecordsSyncService.name);
@@ -35,6 +41,7 @@ export class RecordsSyncService implements OnApplicationBootstrap, OnApplication
     this.enabled = config.getOrThrow<boolean>('RECORDS_SYNC_ENABLED');
   }
 
+  /** Запускает минутный планировщик и немедленную первую попытку, когда синхронизация включена. */
   onApplicationBootstrap(): void {
     if (!this.enabled) return;
     this.timer = setInterval(() => void this.runScheduledSync(), 60_000);
@@ -42,10 +49,16 @@ export class RecordsSyncService implements OnApplicationBootstrap, OnApplication
     void this.runScheduledSync();
   }
 
+  /** Освобождает локальный таймер при штатной остановке Nest-приложения. */
   onApplicationShutdown(): void {
     if (this.timer !== undefined) clearInterval(this.timer);
   }
 
+  /**
+   * Пытается захватить аренду, загрузить источник и атомарно принять снимок текущей недели.
+   * Возвращает false, если другой экземпляр уже работает или следующая попытка ещё не наступила;
+   * ошибки после захвата сохраняют диагностическое состояние и пробрасываются вызывающему коду.
+   */
   async syncNow(now = new Date()): Promise<boolean> {
     const owner = randomUUID();
     const week = getRecordsWeek(now);
@@ -54,6 +67,8 @@ export class RecordsSyncService implements OnApplicationBootstrap, OnApplication
       create: { id: 1 },
       update: {},
     });
+
+    // Условный update одновременно проверяет расписание и захватывает межпроцессную аренду.
     const claimed = await this.prisma.officialRecordSyncState.updateMany({
       where: {
         id: 1,
@@ -73,6 +88,8 @@ export class RecordsSyncService implements OnApplicationBootstrap, OnApplication
       if (parsed.rows.some((row) => row.caughtAt < week.startsAt || row.caughtAt >= week.endsAt)) {
         throw new Error('Official records source still contains rows outside the current week');
       }
+
+      // Небольшой допуск учитывает расхождение часов источника и API, но отсекает будущие данные.
       if (parsed.rows.some((row) => row.caughtAt.getTime() > now.getTime() + 5 * 60_000)) {
         throw new Error('Official records source contains a future record date');
       }
@@ -89,6 +106,8 @@ export class RecordsSyncService implements OnApplicationBootstrap, OnApplication
         getOfficialFishMapping(),
       ]);
       const rows = resolveOfficialRecordRows(parsed.rows, fish, bases, mapping);
+
+      // Каноническая сортировка делает хеш содержимого независимым от порядка строк в HTML.
       const contentHash = createHash('sha256')
         .update(
           JSON.stringify(
@@ -109,6 +128,8 @@ export class RecordsSyncService implements OnApplicationBootstrap, OnApplication
         )
         .digest('hex');
 
+      // Блокировка строки повторно подтверждает владение арендой и объединяет снимок со служебным
+      // состоянием в одну транзакцию: читатели не увидят частично принятую синхронизацию.
       await this.prisma.$transaction(async (tx) => {
         const state = await tx.$queryRaw<
           Array<{ leaseOwner: string | null; leaseUntil: Date | null }>
@@ -127,6 +148,8 @@ export class RecordsSyncService implements OnApplicationBootstrap, OnApplication
           orderBy: { fetchedAt: 'desc' },
           select: { contentHash: true, parserVersion: true, mappingVersion: true },
         });
+
+        // Неизменяемый снимок создаётся только при новом содержимом или версии правил обработки.
         if (
           latest?.contentHash !== contentHash ||
           latest.parserVersion !== RECORDS_PARSER_VERSION ||
@@ -175,6 +198,8 @@ export class RecordsSyncService implements OnApplicationBootstrap, OnApplication
         select: { failureCount: true },
       });
       const failures = Math.min((state?.failureCount ?? 0) + 1, 10);
+
+      // Экспоненциальная задержка снижает нагрузку при повторяющемся сбое и ограничивается одним часом.
       const delay = Math.min(RECORDS_SYNC_INTERVAL_MS * 2 ** (failures - 1), RETRY_MAX_MS);
       await this.prisma.officialRecordSyncState.updateMany({
         where: { id: 1, leaseOwner: owner },
@@ -190,6 +215,7 @@ export class RecordsSyncService implements OnApplicationBootstrap, OnApplication
     }
   }
 
+  /** Выполняет плановый запуск без наложения и пишет сбой в лог, сохраняя работу планировщика. */
   private async runScheduledSync(): Promise<void> {
     if (this.running) return;
     this.running = true;
