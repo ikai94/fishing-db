@@ -123,3 +123,12 @@ Production code uses educational Russian comments.
 - Do not comment obvious syntax or trivial assignments.
 - Prefer clear naming over unnecessary comments.
 - Adding or updating comments must not change code behavior.
+
+## Context efficiency
+
+- Treat AGENTS.md, PROJECT_STATE, repository code and relevant skills as the source of truth.
+- Do not require prior chat history when repository state is sufficient.
+- Read only files relevant to the current task.
+- Do not repeatedly summarize established architecture or previously accepted decisions.
+- Prefer delta-only reports: changed files, important decisions, checks and blockers.
+- Do not run broad verification when targeted checks are sufficient.
