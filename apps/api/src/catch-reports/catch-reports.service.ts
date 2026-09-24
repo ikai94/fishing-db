@@ -50,6 +50,12 @@ import type { PublicCatchReportListQueryDto } from './dto/public-catch-report-li
 import type { OwnerCatchReportListQueryDto } from './dto/owner-catch-report-list-query.dto.js';
 import type { UpdateCatchReportDto } from './dto/update-catch-report.dto.js';
 
+/**
+ * Явный allowlist публичной Prisma-проекции.
+ *
+ * В нём намеренно нет rawSourceText, contributorKey и importKey: новые поля persistence-модели
+ * не должны автоматически просачиваться в публичный контракт.
+ */
 export const PUBLIC_CATCH_REPORT_SELECT = {
   id: true,
   weightGrams: true,
@@ -95,6 +101,7 @@ export const PUBLIC_CATCH_REPORT_SELECT = {
   },
 } as const;
 
+/** Owner-detail allowlist: добавляет rawSourceText, но скрывает внутренние identity keys. */
 const OWNER_CATCH_REPORT_SELECT = {
   id: true,
   weightGrams: true,
@@ -141,6 +148,12 @@ const OWNER_CATCH_REPORT_SELECT = {
   },
 } as const;
 
+/**
+ * Внутренняя проекция Location-агрегации.
+ *
+ * contributorKey нужен лишь для distinct-подсчёта и удаляется mapper-ом; расширенная Fish нужна
+ * для стабильной сортировки и отображения исторически неактивной рыбы.
+ */
 const LOCATION_OBSERVATION_SELECT = {
   ...PUBLIC_CATCH_REPORT_SELECT,
   contributorKey: true,
@@ -154,6 +167,7 @@ const LOCATION_OBSERVATION_SELECT = {
   },
 } as const;
 
+/** Узкий owner allowlist для чтения результата мутации внутри той же транзакции. */
 const OWNER_CATCH_REPORT_SCALAR_SELECT = {
   id: true,
   userId: true,
@@ -190,15 +204,18 @@ const BATCH_DOMAIN_FIELD_BY_CODE: Readonly<Record<string, keyof CreateCatchRepor
 
 type BatchFieldErrors = Record<string, string[]>;
 
+/** Сужает неизвестное тело HTTP-ошибки перед безопасным чтением полей. */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/** Возвращает структурированное тело доменной HttpException для batch-ошибки. */
 function httpExceptionResponse(error: HttpException): Record<string, unknown> | null {
   const value = error.getResponse();
   return isRecord(value) ? value : null;
 }
 
+/** Переводит доменную ошибку строки в адрес reports.<index>.<field>. */
 function appendBatchRowErrors(result: BatchFieldErrors, rowIndex: number, error: unknown): boolean {
   if (!(error instanceof HttpException)) return false;
   const response = httpExceptionResponse(error);
@@ -229,6 +246,7 @@ function appendBatchRowErrors(result: BatchFieldErrors, rowIndex: number, error:
   return appended;
 }
 
+/** Описывает только поля, разрешённые публичной проекцией CatchReport. */
 export interface PublicCatchReportRecord {
   id: string;
   weightGrams: number;
@@ -252,10 +270,12 @@ export interface PublicCatchReportRecord {
   bait: { id: string; name: string };
 }
 
+/** Расширяет публичную запись единственным owner-only полем для detail-ответа. */
 interface OwnerCatchReportRecord extends PublicCatchReportRecord {
   rawSourceText: string | null;
 }
 
+/** Держит contributorKey только во внутреннем контуре Location-агрегации. */
 interface LocationObservationRecord extends Omit<PublicCatchReportRecord, 'fish'> {
   contributorKey: string;
   fish: {
@@ -266,12 +286,14 @@ interface LocationObservationRecord extends Omit<PublicCatchReportRecord, 'fish'
   };
 }
 
+/** Считает отчёты отдельно от множества неизменных contributor identity. */
 interface ObservedFishAccumulator {
   fish: LocationObservationRecord['fish'];
   contributorKeys: Set<string>;
   reportCount: number;
 }
 
+/** Снимок сохраняемых полей до PATCH для исторической валидации и ActivityEvent. */
 interface CurrentCatchReportState {
   userId: string;
   locationId: string;
@@ -287,6 +309,7 @@ interface CurrentCatchReportState {
   userNoteRaw: string | null;
 }
 
+/** Allowlist полей, которые PATCH вправе передать Prisma. */
 interface CatchReportWriteData {
   locationId?: string;
   fishId?: string;
@@ -313,10 +336,15 @@ const MISSING_WEIGHT_BOUNDS: BaseFishWeightBounds = {
   maxWeightGrams: null,
 };
 
+/** Строит однозначный ключ текущих весовых границ membership Base–Fish. */
 function baseFishWeightKey(fishingBaseId: string, fishId: string): string {
   return `${fishingBaseId}:${fishId}`;
 }
 
+/**
+ * Загружает текущие весовые границы, не отфильтровывая исторические отчёты.
+ * Отсутствующая сегодня membership даёт пустые границы, а не скрывает сохранённый улов.
+ */
 export async function resolveBaseFishWeightBounds(
   database: WeightBoundsDatabase,
   records: readonly PublicCatchReportRecord[],
@@ -349,6 +377,7 @@ export async function resolveBaseFishWeightBounds(
   );
 }
 
+/** Оценивает вес по текущим границам Base–Fish без изменения сохранённой истории. */
 function weightAssessment(
   record: PublicCatchReportRecord,
   boundsByBaseFish: ReadonlyMap<string, BaseFishWeightBounds>,
@@ -359,6 +388,10 @@ function weightAssessment(
   return assessBaseFishWeight(record.weightGrams, bounds);
 }
 
+/**
+ * Собирает публичный ответ только из allowlisted полей.
+ * contributorKey, importKey и owner-only rawSourceText сюда попасть не могут.
+ */
 export function toPublicCatchReport(
   record: PublicCatchReportRecord,
   boundsByBaseFish: ReadonlyMap<string, BaseFishWeightBounds>,
@@ -400,6 +433,7 @@ export function toPublicCatchReport(
   };
 }
 
+/** Добавляет rawSourceText только к уже проверенной owner-detail проекции. */
 function toOwnerCatchReport(
   record: OwnerCatchReportRecord,
   boundsByBaseFish: ReadonlyMap<string, BaseFishWeightBounds>,
@@ -428,6 +462,7 @@ function toOwnerCatchReport(
   };
 }
 
+/** Отличает пустой PATCH от передачи nullable-полей со значением null. */
 function updateHasNoDefinedValues(dto: UpdateCatchReportDto): boolean {
   return [
     dto.locationId,
@@ -443,6 +478,10 @@ function updateHasNoDefinedValues(dto: UpdateCatchReportDto): boolean {
   ].every((value) => value === undefined);
 }
 
+/**
+ * Строит Prisma PATCH allowlist и сохраняет семантику raw-полей.
+ * Непустой ввод не trim-ится и не переписывается; пустая строка становится null.
+ */
 function buildUpdateData(dto: UpdateCatchReportDto): CatchReportWriteData {
   const data: CatchReportWriteData = {};
 
@@ -462,6 +501,7 @@ function buildUpdateData(dto: UpdateCatchReportDto): CatchReportWriteData {
   return data;
 }
 
+/** Восстанавливает исторически сохранённое наблюдение до применения PATCH. */
 function currentObservation(current: CurrentCatchReportState): CatchReportObservation {
   return {
     fishingMethod: current.fishingMethod,
@@ -471,12 +511,14 @@ function currentObservation(current: CurrentCatchReportState): CatchReportObserv
   };
 }
 
+/** Даёт детерминированный tie-break для нормализованных строк и UUID. */
 function compareStableStrings(left: string, right: string): number {
   if (left < right) return -1;
   if (left > right) return 1;
   return 0;
 }
 
+/** Формирует публично безопасный снимок отчёта для неизменяемого ActivityEvent. */
 function activitySnapshot(report: {
   id: string;
   weightGrams: number;
@@ -495,6 +537,7 @@ function activitySnapshot(report: {
   };
 }
 
+/** Вычисляет только фактически изменившиеся публичные поля для audit-события PATCH. */
 function changedActivityFields(
   before: CurrentCatchReportState,
   after: {
@@ -530,6 +573,11 @@ function changedActivityFields(
     .map(([field]) => field);
 }
 
+/**
+ * Владеет публичными/owner проекциями и атомарными мутациями CatchReport.
+ * Online-мутации сериализуются с ActivityEvent; offline-import использует общий preflight,
+ * но намеренно не публикует online-активность.
+ */
 @Injectable()
 export class CatchReportsService {
   constructor(
@@ -537,6 +585,7 @@ export class CatchReportsService {
     @Inject(ActivityEventWriter) private readonly activityEvents: ActivityEventWriter,
   ) {}
 
+  /** Читает публичную историю без фильтров активности каталога или ban автора. */
   async listPublic(query: PublicCatchReportListQueryDto) {
     return this.list(query, undefined, {
       fishId: query.fishId,
@@ -544,6 +593,7 @@ export class CatchReportsService {
     });
   }
 
+  /** Ограничивает архив actorUserId и сохраняет list-проекцию без rawSourceText. */
   async listMine(actorUserId: string, query: OwnerCatchReportListQueryDto) {
     return this.list(query, actorUserId, undefined, {
       source: query.source,
@@ -554,6 +604,11 @@ export class CatchReportsService {
     });
   }
 
+  /**
+   * Агрегирует все исторические отчёты Location по Fish.
+   * reportCount считает наблюдения, а contributorCount — уникальные contributorKey, поэтому
+   * импортированные участники не схлопываются из-за общего ADMIN-владельца.
+   */
   async listLocationObservations(locationId: string) {
     const records = await this.prisma.catchReport.findMany({
       where: { locationId },
@@ -568,6 +623,7 @@ export class CatchReportsService {
     const boundsByBaseFish = await resolveBaseFishWeightBounds(this.prisma, records);
     const observedFishById = new Map<string, ObservedFishAccumulator>();
 
+    // contributorKey используется только для множества участников и не отдаётся наружу.
     for (const record of records) {
       const existing = observedFishById.get(record.fish.id);
 
@@ -607,6 +663,7 @@ export class CatchReportsService {
     };
   }
 
+  /** Возвращает public-detail без проверки текущей активности связанных сущностей. */
   async getPublic(reportId: string) {
     const record = await this.prisma.catchReport.findUnique({
       where: { id: reportId },
@@ -618,6 +675,7 @@ export class CatchReportsService {
     return { report: toPublicCatchReport(record, boundsByBaseFish) };
   }
 
+  /** Возвращает owner-detail только при совпадении report.userId с actorUserId. */
   async getMine(actorUserId: string, reportId: string) {
     const record = await this.prisma.catchReport.findFirst({
       where: { id: reportId, userId: actorUserId },
@@ -629,6 +687,10 @@ export class CatchReportsService {
     return { report: toOwnerCatchReport(record, boundsByBaseFish) };
   }
 
+  /**
+   * Атомарно создаёт нативный отчёт и его ActivityEvent.
+   * contributorKey выводится из User, но остаётся внутренней неизменной личностью участника.
+   */
   async create(actorUserId: string, dto: CreateCatchReportDto) {
     try {
       return await this.runSerializableTransaction(async (tx) => {
@@ -646,6 +708,7 @@ export class CatchReportsService {
         });
 
         const result = await this.getMineInTransaction(tx, actorUserId, record.id);
+        // Событие — последняя запись: отчёт и публичная активность фиксируются вместе.
         await this.activityEvents.append(tx, actorUserId, {
           type: 'CATCH_REPORT_CREATED',
           subjectType: 'CATCH_REPORT',
@@ -662,6 +725,11 @@ export class CatchReportsService {
     }
   }
 
+  /**
+   * Атомарно создаёт batch после полного preflight и публикует одно агрегатное ActivityEvent.
+   * Ошибки собираются по индексам до первой вставки, а данные вставляются chunks, чтобы
+   * ограничить размер SQL-запроса без частичного сохранения batch.
+   */
   async createBatch(actorUserId: string, reports: readonly CreateCatchReportDto[]) {
     try {
       return await this.runSerializableTransaction(async (tx) => {
@@ -686,6 +754,7 @@ export class CatchReportsService {
 
         const contributorKey = nativeContributorKey(actorUserId);
         const reportIds = prepared.map(() => randomUUID());
+        // Chunking меняет размер запросов, но все chunks остаются в одной транзакции.
         for (let offset = 0; offset < prepared.length; offset += BATCH_INSERT_CHUNK_SIZE) {
           const items = prepared.slice(offset, offset + BATCH_INSERT_CHUNK_SIZE);
           await tx.catchReport.createMany({
@@ -699,6 +768,7 @@ export class CatchReportsService {
           });
         }
 
+        // Агрегатное событие пишется лишь после успешной вставки каждого chunk.
         await this.activityEvents.append(tx, actorUserId, {
           type: 'CATCH_REPORT_BATCH_CREATED',
           subjectType: 'CATCH_REPORT_BATCH',
@@ -716,6 +786,11 @@ export class CatchReportsService {
     }
   }
 
+  /**
+   * Атомарно обновляет owner-report и при реальном изменении добавляет ActivityEvent.
+   * Ссылки перепроверяются только при смене Location/Fish/Bait; fishingMethod выводится заново
+   * исключительно при фактической смене Bait.
+   */
   async update(actorUserId: string, reportId: string, dto: UpdateCatchReportDto) {
     try {
       return await this.runSerializableTransaction(async (tx) => {
@@ -747,6 +822,7 @@ export class CatchReportsService {
         const fishChanged = dto.fishId !== undefined && dto.fishId !== current.fishId;
         const baitChanged = dto.baitId !== undefined && dto.baitId !== current.baitId;
 
+        // Неизменённые ссылки допустимы после деактивации или удаления membership.
         if (locationChanged || fishChanged) {
           const resultingLocationId = dto.locationId ?? current.locationId;
           const resultingFishId = dto.fishId ?? current.fishId;
@@ -758,6 +834,7 @@ export class CatchReportsService {
         let fishingMethod: CatchReportFishingMethod = current.fishingMethod;
         const data = buildUpdateData(dto);
 
+        // Текущий тип Bait не переопределяет историю, пока ссылка Bait не меняется.
         if (baitChanged) {
           const bait = await validateCatchReportBait(tx, dto.baitId ?? current.baitId);
           fishingMethod = deriveFishingMethod(bait.type);
@@ -807,6 +884,7 @@ export class CatchReportsService {
         const result = await this.getMineInTransaction(tx, actorUserId, record.id);
         const changedFields = changedActivityFields(current, result.report);
         if (changedFields.length > 0) {
+          // Effective no-op возвращает отчёт, но не создаёт ложное событие активности.
           await this.activityEvents.append(tx, actorUserId, {
             type: 'CATCH_REPORT_UPDATED',
             subjectType: 'CATCH_REPORT',
@@ -825,6 +903,7 @@ export class CatchReportsService {
     }
   }
 
+  /** Атомарно удаляет owner-report и сохраняет его публичный снимок в ActivityEvent. */
   async delete(actorUserId: string, reportId: string): Promise<void> {
     try {
       await this.runSerializableTransaction(async (tx) => {
@@ -842,6 +921,7 @@ export class CatchReportsService {
         await tx.catchReport.delete({
           where: { id: reportId, userId: actorUserId },
         });
+        // Снимок получен до DELETE, а append завершает ту же транзакцию после удаления.
         await this.activityEvents.append(tx, actorUserId, {
           type: 'CATCH_REPORT_DELETED',
           subjectType: 'CATCH_REPORT',
@@ -858,6 +938,11 @@ export class CatchReportsService {
     }
   }
 
+  /**
+   * Выполняет cursor-чтение через публичный Prisma allowlist.
+   * Owner-list получает userId-фильтр, но rawSourceText остаётся только в owner-detail;
+   * active/membership/ban-фильтры отсутствуют ради исторической семантики.
+   */
   private async list(
     query: CatchReportListQueryDto,
     actorUserId?: string,
@@ -918,6 +1003,7 @@ export class CatchReportsService {
     };
   }
 
+  /** Повторяет сериализуемую транзакцию только при P2034 и не дробит операцию. */
   private async runSerializableTransaction<Result>(
     operation: (tx: Prisma.TransactionClient) => Promise<Result>,
     timeout?: number,
@@ -939,6 +1025,7 @@ export class CatchReportsService {
     throw lastConflict;
   }
 
+  /** Переводит ошибку непрозрачного cursor в стабильную доменную ошибку API. */
   private cursorWhere(cursor: string | undefined): CatchReportCursorWhere | object {
     if (cursor === undefined) return {};
 
@@ -952,6 +1039,10 @@ export class CatchReportsService {
     }
   }
 
+  /**
+   * Повторно проверяет ban внутри транзакции под FOR SHARE.
+   * NotBannedGuard даёт ранний отказ, а эта проверка закрывает гонку до записи.
+   */
   private async assertActorCanMutate(
     database: Prisma.TransactionClient,
     actorUserId: string,
@@ -967,6 +1058,10 @@ export class CatchReportsService {
     if (actor === undefined) throw catchReportErrors.referenceConflict();
   }
 
+  /**
+   * Собирает owner-detail результата мутации внутри её транзакции.
+   * Раздельные allowlisted чтения не допускают утечки persistence-записи.
+   */
   private async getMineInTransaction(
     database: Prisma.TransactionClient,
     actorUserId: string,

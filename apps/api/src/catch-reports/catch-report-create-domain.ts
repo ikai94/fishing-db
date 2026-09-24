@@ -19,6 +19,7 @@ import type {
 import { catchReportErrors } from './catch-reports.errors.js';
 import type { CreateCatchReportDto } from './dto/create-catch-report.dto.js';
 
+/** Канонические данные CatchReport после общей проверки ссылок и наблюдений. */
 export interface PreparedCatchReportCreate {
   fishingBaseId: string;
   data: {
@@ -37,6 +38,7 @@ export interface PreparedCatchReportCreate {
   };
 }
 
+/** Сохраняет результат адресной проверки строки без остановки preflight всего batch. */
 export type PreparedCatchReportCreateResult =
   { prepared: PreparedCatchReportCreate; error?: never } | { prepared?: never; error: unknown };
 
@@ -50,10 +52,12 @@ type LocationValidationRecord = {
 type ActiveRecord = { id: string; isActive: boolean };
 type BaitValidationRecord = ActiveRecord & { type: CatalogBaitType };
 
+/** Выводит сохраняемый исторический способ ловли из текущего типа выбранной приманки. */
 export function deriveFishingMethod(type: CatalogBaitType): CatchReportFishingMethod {
   return type === 'BAIT' ? 'BAIT_FISHING' : 'SPINNING';
 }
 
+/** Проверяет совместимость наблюдений с уже выведенным способом ловли. */
 export function assertCatchReportObservation(observation: CatchReportObservation): void {
   const errors = catchReportObservationErrors(observation);
   if (Object.keys(errors).length > 0) {
@@ -61,6 +65,7 @@ export function assertCatchReportObservation(observation: CatchReportObservation
   }
 }
 
+/** Проверяет существование и текущую активность Location вместе с владеющей Base. */
 export async function validateCatchReportLocation(
   database: Prisma.TransactionClient,
   locationId: string,
@@ -80,6 +85,7 @@ export async function validateCatchReportLocation(
   return { fishingBaseId: location.fishingBaseId };
 }
 
+/** Проверяет, что выбранная Fish существует и активна в момент записи. */
 export async function validateCatchReportFish(
   database: Prisma.TransactionClient,
   fishId: string,
@@ -93,6 +99,7 @@ export async function validateCatchReportFish(
   if (!fish.isActive) throw catalogErrors.fishInactive();
 }
 
+/** Проверяет Bait и возвращает его тип для вывода fishingMethod. */
 export async function validateCatchReportBait(
   database: Prisma.TransactionClient,
   baitId: string,
@@ -107,6 +114,11 @@ export async function validateCatchReportBait(
   return { type: bait.type };
 }
 
+/**
+ * Проверяет Base-scoped доступность Fish.
+ *
+ * Связь выводится через Location.fishingBaseId; отдельной Location–Fish membership в домене нет.
+ */
 export async function validateCatchReportFishingBaseFish(
   database: Prisma.TransactionClient,
   fishingBaseId: string,
@@ -120,6 +132,12 @@ export async function validateCatchReportFishingBaseFish(
   if (relation === null) throw catalogErrors.fishNotAvailableAtFishingBase();
 }
 
+/**
+ * Выполняет общий доменный preflight одной записи для HTTP и offline-import.
+ *
+ * Подготовка не пишет в БД: она проверяет активные ссылки и Base–Fish membership, выводит
+ * fishingMethod и возвращает канонические данные для атомарной вставки вызывающим кодом.
+ */
 export async function prepareCatchReportCreate(
   database: Prisma.TransactionClient,
   dto: CreateCatchReportDto,
@@ -131,6 +149,12 @@ export async function prepareCatchReportCreate(
   return buildPreparedCatchReportCreate(dto, location.fishingBaseId, bait.type);
 }
 
+/**
+ * Выполняет общий batch-preflight с дедуплицированными чтениями каталога.
+ *
+ * Результат позиционно связан с DTO: HTTP адресует ошибку как reports.<index>.<field>, а
+ * offline-import может указать точную исходную строку.
+ */
 export async function prepareCatchReportCreates(
   database: Prisma.TransactionClient,
   dtos: readonly CreateCatchReportDto[],
@@ -161,6 +185,7 @@ export async function prepareCatchReportCreates(
   const fishById = new Map(fish.map((item) => [item.id, item]));
   const baitsById = new Map(baits.map((item) => [item.id, item]));
   const fishingBaseIds = [...new Set(locations.map((location) => location.fishingBaseId))];
+  // Membership загружается по Base, полученным из Location, а не по самим Location.
   const memberships = await database.fishingBaseFish.findMany({
     where: {
       fishingBaseId: { in: fishingBaseIds },
@@ -170,6 +195,7 @@ export async function prepareCatchReportCreates(
   });
   const membershipKeys = new Set(memberships.map((item) => `${item.fishingBaseId}:${item.fishId}`));
 
+  // Ошибка одной строки не останавливает preflight и не скрывает ошибки остальных строк batch.
   return dtos.map((dto) => {
     try {
       const location = validateLocationRecord(locationsById.get(dto.locationId));
@@ -185,6 +211,7 @@ export async function prepareCatchReportCreates(
   });
 }
 
+/** Воспроизводит одиночную проверку Location над заранее загруженной batch-записью. */
 function validateLocationRecord(
   location: LocationValidationRecord | undefined,
 ): LocationValidationRecord {
@@ -194,17 +221,20 @@ function validateLocationRecord(
   return location;
 }
 
+/** Воспроизводит одиночную проверку Fish над заранее загруженной batch-записью. */
 function validateFishRecord(fish: ActiveRecord | undefined): void {
   if (fish === undefined) throw catalogErrors.fishNotFound();
   if (!fish.isActive) throw catalogErrors.fishInactive();
 }
 
+/** Воспроизводит одиночную проверку Bait и возвращает его тип для доменного вывода. */
 function validateBaitRecord(bait: BaitValidationRecord | undefined): BaitValidationRecord {
   if (bait === undefined) throw catalogErrors.baitNotFound();
   if (!bait.isActive) throw catalogErrors.baitInactive();
   return bait;
 }
 
+/** Собирает одинаковую сохраняемую форму после одиночного или пакетного preflight. */
 function buildPreparedCatchReportCreate(
   dto: CreateCatchReportDto,
   fishingBaseId: string,
@@ -228,6 +258,7 @@ function buildPreparedCatchReportCreate(
       weightGrams: dto.weightGrams,
       fishingMethod,
       holeDepthCm: observation.holeDepthCm,
+      // Непустые raw-поля сохраняются дословно; нормализатор меняет только пустую строку на null.
       spotPositionRaw: normalizeSpotPositionRaw(dto.spotPositionRaw),
       fishingNote: dto.fishingNote ?? null,
       spinningSize: observation.spinningSize,

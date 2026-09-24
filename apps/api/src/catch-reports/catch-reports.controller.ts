@@ -37,6 +37,12 @@ import { HoleStatisticsService } from './hole-statistics.service.js';
 import { SpotAnalyticsService } from './spot-analytics.service.js';
 import { CatchReportParserService } from './parser/catch-report-parser.service.js';
 
+/**
+ * Описывает публичную HTTP-границу CatchReport и защищённые команды над отчётами.
+ *
+ * Чтение и статистика доступны анонимно, preview требует только подтверждённой сессии, а
+ * сохраняющие команды дополнительно запрещены заблокированному пользователю.
+ */
 @Controller('catch-reports')
 export class CatchReportsController {
   constructor(
@@ -51,6 +57,7 @@ export class CatchReportsController {
     @Inject(CatchReportParserService) private readonly parser: CatchReportParserService,
   ) {}
 
+  /** Возвращает публичную ленту без owner-only полей и фильтрации по активности каталога. */
   @Get()
   list(
     @Query(createApplicationValidationPipe(PublicCatchReportListQueryDto))
@@ -106,6 +113,7 @@ export class CatchReportsController {
     return this.spotAnalytics.listEvidence(query);
   }
 
+  /** Группирует исторические наблюдения Location по рыбе и личности участника. */
   @Get('locations/:locationId/observations')
   listLocationObservations(
     @Param(createApplicationValidationPipe(LocationObservationsParamsDto))
@@ -114,11 +122,17 @@ export class CatchReportsController {
     return this.catchReports.listLocationObservations(params.locationId);
   }
 
+  /** Возвращает публичную проекцию одного исторического отчёта. */
   @Get(':reportId')
   get(@Param(createApplicationValidationPipe(CatchReportParamsDto)) params: CatchReportParamsDto) {
     return this.catchReports.getPublic(params.reportId);
   }
 
+  /**
+   * Строит неперсистентный preview одной строки блокнота.
+   *
+   * Здесь достаточно AuthGuard: заблокированному пользователю разрешены чтение архива и preview.
+   */
   @Post('parse')
   @UseGuards(AuthGuard)
   @HttpCode(HttpStatus.OK)
@@ -126,6 +140,7 @@ export class CatchReportsController {
     return this.parser.parse(dto.rawSourceText);
   }
 
+  /** Строит неперсистентный batch-preview с теми же правами, что и одиночный preview. */
   @Post('parse-batch')
   @UseGuards(AuthGuard)
   @HttpCode(HttpStatus.OK)
@@ -136,6 +151,12 @@ export class CatchReportsController {
     return this.parser.parseBatch(dto.rawSourceText);
   }
 
+  /**
+   * Создаёт batch после полного preflight всех строк.
+   *
+   * AuthGuard подтверждает пользователя, а NotBannedGuard запрещает публичную мутацию; сервис
+   * повторяет проверку ban-состояния внутри транзакции и сохраняет batch атомарно.
+   */
   @Post('batch')
   @UseGuards(AuthGuard, NotBannedGuard)
   @HttpCode(HttpStatus.CREATED)
@@ -147,6 +168,7 @@ export class CatchReportsController {
     return this.catchReports.createBatch(user.id, dto.reports);
   }
 
+  /** Создаёт публичный отчёт от имени аутентифицированного незаблокированного владельца. */
   @Post()
   @UseGuards(AuthGuard, NotBannedGuard)
   @HttpCode(HttpStatus.CREATED)
@@ -157,6 +179,7 @@ export class CatchReportsController {
     return this.catchReports.create(user.id, dto);
   }
 
+  /** Обновляет только принадлежащий актору отчёт после проверки изменённых ссылок. */
   @Patch(':reportId')
   @UseGuards(AuthGuard, NotBannedGuard)
   update(
@@ -167,6 +190,7 @@ export class CatchReportsController {
     return this.catchReports.update(user.id, params.reportId, dto);
   }
 
+  /** Удаляет принадлежащий актору отчёт вместе с атомарной записью ActivityEvent. */
   @Delete(':reportId')
   @UseGuards(AuthGuard, NotBannedGuard)
   @HttpCode(HttpStatus.NO_CONTENT)

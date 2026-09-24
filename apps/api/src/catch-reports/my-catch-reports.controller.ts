@@ -9,6 +9,12 @@ import { OwnerCatchReportListQueryDto } from './dto/owner-catch-report-list-quer
 import { PersonalCatchRecordsQueryDto } from './dto/personal-catch-records-query.dto.js';
 import { PersonalCatchStatisticsService } from './personal-catch-statistics.service.js';
 
+/**
+ * Ограничивает owner-проекции текущим аутентифицированным пользователем.
+ *
+ * NotBannedGuard здесь намеренно отсутствует: ban запрещает публичные мутации, но не чтение
+ * собственного архива. Идентификатор владельца берётся только из проверенной сессии.
+ */
 @Controller('me/catch-reports')
 @UseGuards(AuthGuard)
 export class MyCatchReportsController {
@@ -18,6 +24,7 @@ export class MyCatchReportsController {
     private readonly statistics: PersonalCatchStatisticsService,
   ) {}
 
+  /** Возвращает страницу собственного архива без owner-only поля rawSourceText. */
   @Get()
   list(
     @CurrentUser() user: SafeUser,
@@ -27,11 +34,13 @@ export class MyCatchReportsController {
     return this.catchReports.listMine(user.id, query);
   }
 
+  /** Считает персональную статистику только по отчётам текущего владельца. */
   @Get('statistics')
   getStatistics(@CurrentUser() user: SafeUser) {
     return this.statistics.getStatistics(user.id);
   }
 
+  /** Возвращает персональные рекорды, не раскрывая архив другого пользователя. */
   @Get('records')
   listRecords(
     @CurrentUser() user: SafeUser,
@@ -41,6 +50,7 @@ export class MyCatchReportsController {
     return this.statistics.listRecords(user.id, query);
   }
 
+  /** Возвращает owner-detail, где rawSourceText допустим только после проверки userId. */
   @Get(':reportId')
   get(
     @CurrentUser() user: SafeUser,
