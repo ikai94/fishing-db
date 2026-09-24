@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { decodeRecordsResponse } from './records-api';
+import { decodeAdminRecordNotesResponse, decodeRecordsResponse } from './records-api';
 
 describe('records API decoder', () => {
   test('accepts distinct no-record and unknown states and rejects a record without payload', () => {
@@ -52,5 +52,16 @@ describe('records API decoder', () => {
     expect(() =>
       decodeRecordsResponse({ ...base, items: [{ ...item, contributorKey: 'private' }] }),
     ).toThrow(/Некорректный рекорд/u);
+  });
+
+  test('keeps the ADMIN notes contract separate and exact', () => {
+    expect(
+      decodeAdminRecordNotesResponse({ items: [{ fishId: 'fish', note: 'Проверить базу' }] }),
+    ).toEqual({ items: [{ fishId: 'fish', note: 'Проверить базу' }] });
+    expect(() =>
+      decodeAdminRecordNotesResponse({
+        items: [{ fishId: 'fish', note: 'Проверить базу', private: true }],
+      }),
+    ).toThrow(/Некорректный элемент заметок/u);
   });
 });

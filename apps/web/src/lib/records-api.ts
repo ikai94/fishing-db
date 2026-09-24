@@ -30,6 +30,11 @@ export type RecordsResponse = {
   };
   items: RecordsItem[];
 };
+export type AdminRecordNote = { fishId: string; note: string };
+export type AdminRecordNotesResponse = { items: AdminRecordNote[] };
+export type UpdatedAdminRecordNoteResponse = {
+  note: { fishId: string; note: string | null };
+};
 
 function object(value: unknown, label: string): Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value))
@@ -174,4 +179,48 @@ export function decodeRecordsResponse(value: unknown): RecordsResponse {
 
 export async function getRecords(signal?: AbortSignal): Promise<RecordsResponse> {
   return decodeRecordsResponse(await apiRequest<unknown>('/records', { signal }));
+}
+
+/** Строго декодирует отдельную ADMIN-проекцию заметок, не расширяя публичный records-контракт. */
+export function decodeAdminRecordNotesResponse(value: unknown): AdminRecordNotesResponse {
+  const root = exactObject(value, 'ответ заметок к рекордам', ['items']);
+  if (!Array.isArray(root.items)) throw new Error('Некорректный список заметок к рекордам.');
+  return {
+    items: root.items.map((value) => {
+      const item = exactObject(value, 'элемент заметок к рекордам', ['fishId', 'note']);
+      return {
+        fishId: text(item.fishId, 'ID рыбы заметки'),
+        note: text(item.note, 'текст заметки'),
+      };
+    }),
+  };
+}
+
+/** Читает приватные заметки только через защищённый ADMIN endpoint. */
+export async function getAdminRecordNotes(signal?: AbortSignal): Promise<AdminRecordNotesResponse> {
+  return decodeAdminRecordNotesResponse(
+    await apiRequest<unknown>('/admin/records/notes', { signal }),
+  );
+}
+
+/** Сохраняет одну заметку; null в ответе подтверждает удаление пустого значения. */
+export async function updateAdminRecordNote(
+  fishId: string,
+  note: string,
+): Promise<UpdatedAdminRecordNoteResponse> {
+  const payload = await apiRequest<unknown>(`/admin/records/notes/${fishId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ note }),
+  });
+  const root = exactObject(payload, 'ответ сохранения заметки', ['note']);
+  const saved = exactObject(root.note, 'сохранённая заметка', ['fishId', 'note']);
+  if (saved.note !== null && typeof saved.note !== 'string') {
+    throw new Error('Некорректная сохранённая заметка.');
+  }
+  return {
+    note: {
+      fishId: text(saved.fishId, 'ID рыбы заметки'),
+      note: saved.note === null ? null : text(saved.note, 'текст сохранённой заметки'),
+    },
+  };
 }

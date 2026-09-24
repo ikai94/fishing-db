@@ -2,16 +2,20 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useCallback, useEffect, useMemo } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styles from './records.module.css';
 import { ApplicationShell } from '@/components/application-shell/application-shell';
 import { ShellIcon } from '@/components/application-shell/shell-icon';
 import { formatCompactWeight } from '@/lib/base-fish-weight';
+import { getCurrentUser } from '@/lib/auth-api';
+import { getApiErrorMessage } from '@/lib/api-client';
 import {
+  getAdminRecordNotes,
   getRecords,
   type RecordsItem,
   type RecordsResponse,
   type RecordsStatus,
+  updateAdminRecordNote,
 } from '@/lib/records-api';
 import {
   readRecordsSort,
@@ -48,6 +52,30 @@ const FILTERABLE_STATUSES = [
   'MAXIMUM',
 ] as const satisfies readonly Exclude<RecordsStatus, 'NO_RECORD' | 'MAX_UNKNOWN' | null>[];
 type FilterableStatus = (typeof FILTERABLE_STATUSES)[number];
+type AdminNotesState =
+  | { kind: 'checking' }
+  | { kind: 'hidden' }
+  | { kind: 'loading' }
+  | { kind: 'ready'; notes: Record<string, string> }
+  | { kind: 'error'; message: string };
+type NoteActionIconName = 'add' | 'edit' | 'save' | 'cancel';
+
+/** Рисует компактную декоративную иконку действия без отдельной зависимости. */
+function NoteActionIcon({ name }: { name: NoteActionIconName }) {
+  return (
+    <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
+      {name === 'add' ? <path d="M12 5v14M5 12h14" /> : null}
+      {name === 'edit' ? (
+        <>
+          <path d="m4 20 4.25-1 10.5-10.5a2.12 2.12 0 0 0-3-3L5.25 16Z" />
+          <path d="m14.5 6.5 3 3" />
+        </>
+      ) : null}
+      {name === 'save' ? <path d="m5 12 4 4 10-10" /> : null}
+      {name === 'cancel' ? <path d="m6 6 12 12M18 6 6 18" /> : null}
+    </svg>
+  );
+}
 
 export default function RecordsPage() {
   return (
@@ -71,6 +99,7 @@ function RecordsContent() {
     load,
     'Не удалось загрузить рекорды. Попробуйте ещё раз.',
   );
+  const [adminNotes, setAdminNotes] = useState<AdminNotesState>({ kind: 'checking' });
   const sort = readRecordsSort(searchParams);
   const selectedStatuses = useMemo(() => readStatusFilters(searchParams), [searchParams]);
   const hideRarest = searchParams.get(HIDE_RAREST_FILTER_PARAM) === 'true';
@@ -99,6 +128,57 @@ function RecordsContent() {
       : statusFiltered;
     return sortRecords(rarityFiltered, sort);
   }, [hideRarest, selectedBaseId, selectedStatuses, sort, state]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let adminConfirmed = false;
+
+    /** Не запрашивает приватные заметки, пока сервер не подтвердит активную ADMIN-роль. */
+    async function loadAdminNotes() {
+      try {
+        const user = await getCurrentUser(controller.signal);
+        if (user.role !== 'ADMIN' || user.isBanned) {
+          setAdminNotes({ kind: 'hidden' });
+          return;
+        }
+
+        adminConfirmed = true;
+        setAdminNotes({ kind: 'loading' });
+        const response = await getAdminRecordNotes(controller.signal);
+        if (controller.signal.aborted) return;
+        setAdminNotes({
+          kind: 'ready',
+          notes: Object.fromEntries(response.items.map((item) => [item.fishId, item.note])),
+        });
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        if (adminConfirmed) {
+          setAdminNotes({
+            kind: 'error',
+            message: getApiErrorMessage(error, 'Не удалось загрузить заметки.'),
+          });
+        } else {
+          setAdminNotes({ kind: 'hidden' });
+        }
+      }
+    }
+
+    void loadAdminNotes();
+    return () => controller.abort();
+  }, []);
+
+  /** Обновляет локальную карту только подтверждённым сервером значением заметки. */
+  const saveAdminNote = useCallback(async (fishId: string, note: string) => {
+    const response = await updateAdminRecordNote(fishId, note);
+    setAdminNotes((current) => {
+      if (current.kind !== 'ready') return current;
+      const notes = { ...current.notes };
+      if (response.note.note === null) delete notes[fishId];
+      else notes[fishId] = response.note.note;
+      return { kind: 'ready', notes };
+    });
+    return response.note.note;
+  }, []);
 
   useEffect(() => {
     if (state.kind !== 'ready') return;
@@ -199,6 +279,8 @@ function RecordsContent() {
             onHideRarest={setHideRarest}
             onSort={setSort}
             onReset={resetSort}
+            adminNotes={adminNotes}
+            onSaveNote={saveAdminNote}
           />
         ) : null}
       </div>
@@ -220,6 +302,8 @@ type TableProps = {
   onHideRarest: (hidden: boolean) => void;
   onSort: (key: Exclude<RecordsSortKey, 'default'>) => void;
   onReset: () => void;
+  adminNotes: AdminNotesState;
+  onSaveNote: (fishId: string, note: string) => Promise<string | null>;
 };
 
 function RecordsTable({
@@ -236,6 +320,8 @@ function RecordsTable({
   onHideRarest,
   onSort,
   onReset,
+  adminNotes,
+  onSaveNote,
 }: TableProps) {
   const syncMessage =
     data.sync.status === 'WAITING'
@@ -319,7 +405,9 @@ function RecordsTable({
         aria-label="Таблица официальных рекордов"
         tabIndex={0}
       >
-        <table className={styles.table}>
+        <table
+          className={`${styles.table} ${adminNotes.kind !== 'checking' && adminNotes.kind !== 'hidden' ? styles.adminTable : ''}`}
+        >
           <thead>
             <tr>
               <SortableHeader
@@ -358,13 +446,21 @@ function RecordsTable({
                 direction={sortDirection}
                 onSort={onSort}
               />
+              {adminNotes.kind !== 'checking' && adminNotes.kind !== 'hidden' ? (
+                <th scope="col">Заметка</th>
+              ) : null}
               <th scope="col">Игрок/дата</th>
               <th scope="col">Статус</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => (
-              <RecordRow key={row.fish.id} row={row} />
+              <RecordRow
+                key={row.fish.id}
+                row={row}
+                adminNotes={adminNotes}
+                onSaveNote={onSaveNote}
+              />
             ))}
           </tbody>
         </table>
@@ -400,7 +496,15 @@ function SortableHeader({
   );
 }
 
-function RecordRow({ row }: { row: RecordsItem }) {
+function RecordRow({
+  row,
+  adminNotes,
+  onSaveNote,
+}: {
+  row: RecordsItem;
+  adminNotes: AdminNotesState;
+  onSaveNote: TableProps['onSaveNote'];
+}) {
   return (
     <tr>
       <th scope="row">
@@ -448,6 +552,22 @@ function RecordRow({ row }: { row: RecordsItem }) {
               </span>
             ))}
       </td>
+      {adminNotes.kind !== 'checking' && adminNotes.kind !== 'hidden' ? (
+        <td className={styles.noteCell}>
+          {adminNotes.kind === 'loading' ? (
+            <span className={styles.secondary}>Загружаем…</span>
+          ) : adminNotes.kind === 'error' ? (
+            <span className={styles.noteError}>{adminNotes.message}</span>
+          ) : (
+            <RecordNoteEditor
+              fishId={row.fish.id}
+              fishName={row.fish.name}
+              note={adminNotes.notes[row.fish.id] ?? ''}
+              onSave={onSaveNote}
+            />
+          )}
+        </td>
+      ) : null}
       <td>
         {row.record ? (
           <>
@@ -466,6 +586,119 @@ function RecordRow({ row }: { row: RecordsItem }) {
         </span>
       </td>
     </tr>
+  );
+}
+
+/** Управляет локальным режимом inline-редактирования одной ADMIN-заметки. */
+function RecordNoteEditor({
+  fishId,
+  fishName,
+  note,
+  onSave,
+}: {
+  fishId: string;
+  fishName: string;
+  note: string;
+  onSave: TableProps['onSaveNote'];
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [draft, setDraft] = useState(note);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const savingRef = useRef(false);
+
+  function cancel() {
+    if (isSaving) return;
+    setDraft(note);
+    setError(null);
+    setIsEditing(false);
+  }
+
+  async function save() {
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setIsSaving(true);
+    setError(null);
+    try {
+      const saved = await onSave(fishId, draft);
+      setDraft(saved ?? '');
+      setIsEditing(false);
+    } catch (saveError) {
+      setError(getApiErrorMessage(saveError, 'Не удалось сохранить заметку.'));
+    } finally {
+      savingRef.current = false;
+      setIsSaving(false);
+    }
+  }
+
+  if (!isEditing) {
+    const actionLabel = note === '' ? 'Добавить заметку' : 'Изменить заметку';
+    return (
+      <div className={styles.noteView}>
+        {note === '' ? null : <span>{note}</span>}
+        <button
+          className={styles.noteActionButton}
+          type="button"
+          aria-label={actionLabel}
+          title={actionLabel}
+          onClick={() => {
+            setDraft(note);
+            setError(null);
+            setIsEditing(true);
+          }}
+        >
+          <NoteActionIcon name={note === '' ? 'add' : 'edit'} />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className={styles.noteEditor}>
+      <input
+        type="text"
+        aria-label={`Заметка для ${fishName}`}
+        maxLength={500}
+        value={draft}
+        disabled={isSaving}
+        autoFocus
+        onChange={(event) => setDraft(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            event.preventDefault();
+            cancel();
+          } else if (event.key === 'Enter') {
+            event.preventDefault();
+            void save();
+          }
+        }}
+      />
+      <button
+        className={styles.noteActionButton}
+        type="button"
+        aria-label="Сохранить заметку"
+        title="Сохранить заметку"
+        disabled={isSaving}
+        onClick={() => void save()}
+      >
+        <NoteActionIcon name="save" />
+      </button>
+      <button
+        className={styles.noteActionButton}
+        type="button"
+        aria-label="Отменить редактирование"
+        title="Отменить редактирование"
+        disabled={isSaving}
+        onClick={cancel}
+      >
+        <NoteActionIcon name="cancel" />
+      </button>
+      {error ? (
+        <span className={styles.noteError} role="alert">
+          {error}
+        </span>
+      ) : null}
+    </div>
   );
 }
 

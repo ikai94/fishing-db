@@ -821,6 +821,56 @@ void describe('Catalog API (PostgreSQL e2e)', { concurrency: false }, () => {
     assert.equal(await prisma.fishingBase.count(), 1);
   });
 
+  void test('ADMIN reads, updates and clears private record notes without changing public records', async () => {
+    const admin = await createActor('ADMIN');
+    const fish = await createFish(admin.cookie, 'Рыба с заметкой');
+    const notesPath = '/api/v1/admin/records/notes';
+
+    assert.deepEqual((await api().get(notesPath).set('Cookie', admin.cookie).expect(200)).body, {
+      items: [],
+    });
+
+    const saved = await unsafe(api().patch(`${notesPath}/${fish.id}`), admin.cookie)
+      .send({ note: '  Проверить редкую базу  ' })
+      .expect(200);
+    assert.deepEqual(saved.body, {
+      note: { fishId: fish.id, note: 'Проверить редкую базу' },
+    });
+    assert.deepEqual((await api().get(notesPath).set('Cookie', admin.cookie).expect(200)).body, {
+      items: [{ fishId: fish.id, note: 'Проверить редкую базу' }],
+    });
+
+    const publicRecords = await api().get('/api/v1/records').expect(200);
+    assert.equal(JSON.stringify(publicRecords.body).includes('note'), false);
+
+    const cleared = await unsafe(api().patch(`${notesPath}/${fish.id}`), admin.cookie)
+      .send({ note: '   ' })
+      .expect(200);
+    assert.deepEqual(cleared.body, { note: { fishId: fish.id, note: null } });
+    assert.equal(await prisma.fishRecordNote.count(), 0);
+
+    const tooLong = await unsafe(api().patch(`${notesPath}/${fish.id}`), admin.cookie)
+      .send({ note: 'а'.repeat(501) })
+      .expect(400);
+    assert.equal(readErrorCode(tooLong.body as unknown), 'VALIDATION_ERROR');
+  });
+
+  void test('non-ADMIN receives 403 for record-note reads and updates', async () => {
+    const user = await createActor('USER');
+    const fish = await prisma.fish.create({
+      data: { name: 'Недоступная заметка', nameNormalized: 'недоступная заметка' },
+    });
+    const notesPath = '/api/v1/admin/records/notes';
+
+    const read = await api().get(notesPath).set('Cookie', user.cookie).expect(403);
+    assert.equal(readErrorCode(read.body as unknown), 'ADMIN_REQUIRED');
+    const update = await unsafe(api().patch(`${notesPath}/${fish.id}`), user.cookie)
+      .send({ note: 'Нельзя сохранить' })
+      .expect(403);
+    assert.equal(readErrorCode(update.body as unknown), 'ADMIN_REQUIRED');
+    assert.equal(await prisma.fishRecordNote.count(), 0);
+  });
+
   void test('admin creates, normalizes, filters and deactivates a FishingBase without deleting it', async () => {
     const admin = await createActor('ADMIN');
     const created = await createBase(admin.cookie, '  Озера   Танзании  ');

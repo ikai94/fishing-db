@@ -173,6 +173,15 @@ model Fish {
   fishingBaseLinks     FishingBaseFish[]
   catchReports         CatchReport[]
   officialRecordRows   OfficialRecordSnapshotRow[]
+  recordNote           FishRecordNote?
+}
+
+model FishRecordNote {
+  fishId    String   @id @db.Uuid
+  note      String   @db.VarChar(500)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @db.Timestamptz(3)
+  fish      Fish     @relation(fields: [fishId], references: [id], onDelete: Cascade)
 }
 
 model Bait {

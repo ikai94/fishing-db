@@ -2,7 +2,14 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import type { RecordsResponse } from '@/lib/records-api';
 
-const mocks = vi.hoisted(() => ({ search: '', replace: vi.fn(), getRecords: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  search: '',
+  replace: vi.fn(),
+  getRecords: vi.fn(),
+  getCurrentUser: vi.fn(),
+  getAdminRecordNotes: vi.fn(),
+  updateAdminRecordNote: vi.fn(),
+}));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: mocks.replace }),
   useSearchParams: () => new URLSearchParams(mocks.search),
@@ -13,6 +20,12 @@ vi.mock('@/components/application-shell/application-shell', () => ({
 vi.mock('@/lib/records-api', async () => ({
   ...(await vi.importActual('@/lib/records-api')),
   getRecords: mocks.getRecords,
+  getAdminRecordNotes: mocks.getAdminRecordNotes,
+  updateAdminRecordNote: mocks.updateAdminRecordNote,
+}));
+vi.mock('@/lib/auth-api', async () => ({
+  ...(await vi.importActual('@/lib/auth-api')),
+  getCurrentUser: mocks.getCurrentUser,
 }));
 
 import RecordsPage from './page';
@@ -129,6 +142,18 @@ describe('RecordsPage', () => {
     mocks.search = '';
     mocks.replace.mockReset();
     mocks.getRecords.mockResolvedValue(response);
+    mocks.getCurrentUser.mockReset();
+    mocks.getCurrentUser.mockResolvedValue({
+      id: 'user',
+      email: 'user@example.ru',
+      nickname: 'User',
+      role: 'USER',
+      isBanned: false,
+      createdAt: '2026-09-01T00:00:00Z',
+    });
+    mocks.getAdminRecordNotes.mockReset();
+    mocks.getAdminRecordNotes.mockResolvedValue({ items: [] });
+    mocks.updateAdminRecordNote.mockReset();
   });
 
   test('renders the dense approved columns, default order and record-weight colors without bait', async () => {
@@ -150,6 +175,7 @@ describe('RecordsPage', () => {
       'Статус',
     ]);
     expect(screen.queryByText('Наживка')).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Заметка' })).not.toBeInTheDocument();
     expect(within(table).getAllByRole('row')[1]).toHaveTextContent('Без рекорда');
     expect(screen.getByText('800 г').className).toContain('badgeGreen');
     expect(screen.getByText('995 г').className).toContain('badgeYellow');
@@ -241,6 +267,95 @@ describe('RecordsPage', () => {
       expect(checkbox).toBeChecked();
     }
     expect(screen.getByRole('checkbox', { name: 'Скрыть редчайших' })).not.toBeChecked();
+    await waitFor(() => expect(mocks.getCurrentUser).toHaveBeenCalledOnce());
+    expect(mocks.getAdminRecordNotes).not.toHaveBeenCalled();
+  });
+
+  test('ADMIN sees the note column after max Bases and edits, cancels and clears inline', async () => {
+    mocks.getCurrentUser.mockResolvedValue({
+      id: 'admin',
+      email: 'admin@example.ru',
+      nickname: 'Admin',
+      role: 'ADMIN',
+      isBanned: false,
+      createdAt: '2026-09-01T00:00:00Z',
+    });
+    mocks.getAdminRecordNotes.mockResolvedValue({
+      items: [{ fishId: 'green', note: 'Старая заметка' }],
+    });
+    let resolveSave: (value: { note: { fishId: string; note: string | null } }) => void = () => {
+      throw new Error('Save resolver was not initialized');
+    };
+    mocks.updateAdminRecordNote
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveSave = resolve;
+          }),
+      )
+      .mockResolvedValueOnce({ note: { fishId: 'green', note: null } });
+
+    render(<RecordsPage />);
+    const table = await screen.findByRole('table');
+    await screen.findByText('Старая заметка');
+    expect(
+      within(table)
+        .getAllByRole('columnheader')
+        .map((cell) => cell.textContent),
+    ).toEqual([
+      'Рыба↕',
+      'Рекорд недели↕',
+      'Наш max',
+      'Запас↕',
+      'Где пойман↕',
+      'База(ы) max↕',
+      'Заметка',
+      'Игрок/дата',
+      'Статус',
+    ]);
+    const adminRow = screen.getByRole('link', { name: 'Зелёная' }).closest('tr');
+    expect(adminRow).not.toBeNull();
+    expect(within(adminRow!).getAllByRole('cell')[4]).toHaveTextContent('Волга');
+    expect(within(adminRow!).getAllByRole('cell')[5]).toHaveTextContent('Старая заметка');
+
+    const editButton = screen.getByRole('button', { name: 'Изменить заметку' });
+    expect(editButton).toHaveAttribute('title', 'Изменить заметку');
+    expect(editButton).toHaveTextContent('');
+    fireEvent.click(editButton);
+    const input = screen.getByRole('textbox', { name: 'Заметка для Зелёная' });
+    const saveButton = screen.getByRole('button', { name: 'Сохранить заметку' });
+    const cancelButton = screen.getByRole('button', { name: 'Отменить редактирование' });
+    expect(saveButton).toHaveAttribute('title', 'Сохранить заметку');
+    expect(cancelButton).toHaveAttribute('title', 'Отменить редактирование');
+    expect(saveButton).toHaveTextContent('');
+    expect(cancelButton).toHaveTextContent('');
+    fireEvent.change(input, { target: { value: 'Не сохранять' } });
+    fireEvent.keyDown(input, { key: 'Escape' });
+    expect(screen.getByText('Старая заметка')).toBeVisible();
+    expect(mocks.updateAdminRecordNote).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Изменить заметку' }));
+    const savingInput = screen.getByRole('textbox', { name: 'Заметка для Зелёная' });
+    fireEvent.change(savingInput, { target: { value: 'Новая заметка' } });
+    fireEvent.keyDown(savingInput, { key: 'Enter' });
+    expect(mocks.updateAdminRecordNote).toHaveBeenCalledTimes(1);
+    expect(mocks.updateAdminRecordNote).toHaveBeenCalledWith('green', 'Новая заметка');
+    expect(savingInput).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Сохранить заметку' })).toBeDisabled();
+    fireEvent.keyDown(savingInput, { key: 'Enter' });
+    expect(mocks.updateAdminRecordNote).toHaveBeenCalledTimes(1);
+    resolveSave({ note: { fishId: 'green', note: 'Новая заметка' } });
+    await screen.findByText('Новая заметка');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Изменить заметку' }));
+    const clearingInput = screen.getByRole('textbox', { name: 'Заметка для Зелёная' });
+    fireEvent.change(clearingInput, { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить заметку' }));
+    await waitFor(() => expect(mocks.updateAdminRecordNote).toHaveBeenCalledTimes(2));
+    expect(mocks.updateAdminRecordNote).toHaveBeenLastCalledWith('green', '');
+    const addButton = await within(adminRow!).findByRole('button', { name: 'Добавить заметку' });
+    expect(addButton).toHaveAttribute('title', 'Добавить заметку');
+    expect(addButton).toHaveTextContent('');
   });
 
   test('hides rarest Fish only when the URL-backed toggle is enabled', async () => {
