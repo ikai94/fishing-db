@@ -62,6 +62,7 @@ export class RecordsQueryService {
           id: true,
           name: true,
           isRarest: true,
+          isNightBiting: true,
           fishingBaseLinks: {
             select: {
               maxWeightGrams: true,
@@ -135,7 +136,12 @@ export class RecordsQueryService {
             ? { headroomGrams: null, headroomPercent: null, status: null }
             : assessOfficialRecord(record?.weightGrams ?? null, normalMaxWeightGrams);
         return {
-          fish: { id: item.id, name: item.name, isRarest: item.isRarest },
+          fish: {
+            id: item.id,
+            name: item.name,
+            isRarest: item.isRarest,
+            isNightBiting: item.isNightBiting,
+          },
           state,
           record:
             record === null

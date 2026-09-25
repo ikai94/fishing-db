@@ -6,6 +6,7 @@ import { AuthModule } from './auth/auth.module.js';
 import { CatchReportsModule } from './catch-reports/catch-reports.module.js';
 import { CatalogModule } from './catalog/catalog.module.js';
 import { validateEnvironment } from './config/environment.js';
+import { FishFavoritesModule } from './fish-favorites/fish-favorites.module.js';
 import { HealthModule } from './health/health.module.js';
 import { RecordsModule } from './records/records.module.js';
 import { OriginGuard } from './security/origin.guard.js';
@@ -21,6 +22,7 @@ import { OriginGuard } from './security/origin.guard.js';
     AuthModule,
     CatchReportsModule,
     CatalogModule,
+    FishFavoritesModule,
     HealthModule,
     RecordsModule,
   ],

@@ -9,13 +9,19 @@ import { ShellIcon } from '@/components/application-shell/shell-icon';
 import { formatCompactWeight } from '@/lib/base-fish-weight';
 import { getCurrentUser } from '@/lib/auth-api';
 import { getApiErrorMessage } from '@/lib/api-client';
+import { addFavoriteFish, getFavoriteFish, removeFavoriteFish } from '@/lib/fish-favorites-api';
 import {
+  clearAdminWrongMaxIssue,
   getAdminRecordNotes,
+  getAdminWrongMaxIssues,
   getRecords,
+  type AdminWrongMaxIssue,
   type RecordsItem,
   type RecordsResponse,
   type RecordsStatus,
+  updateAdminNightMark,
   updateAdminRecordNote,
+  updateAdminWrongMaxIssue,
 } from '@/lib/records-api';
 import {
   readRecordsSort,
@@ -45,6 +51,9 @@ const STATUS_LABELS: Record<Exclude<RecordsStatus, null>, string> = {
 const BASE_FILTER_PARAM = 'baseId';
 const STATUS_FILTER_PARAM = 'status';
 const HIDE_RAREST_FILTER_PARAM = 'hideRarest';
+const FAVORITES_FILTER_PARAM = 'favorites';
+const NIGHT_FILTER_PARAM = 'night';
+const WRONG_MAX_FILTER_PARAM = 'wrongMax';
 const FILTERABLE_STATUSES = [
   'MUTANT',
   'NEAR_MAX',
@@ -58,6 +67,23 @@ type AdminNotesState =
   | { kind: 'loading' }
   | { kind: 'ready'; notes: Record<string, string> }
   | { kind: 'error'; message: string };
+type FavoriteFishState =
+  | { kind: 'checking' }
+  | { kind: 'hidden' }
+  | { kind: 'loading' }
+  | { kind: 'error'; message: string }
+  | {
+      kind: 'ready';
+      fishIds: ReadonlySet<string>;
+      pendingFishIds: ReadonlySet<string>;
+      error: string | null;
+    };
+type WrongMaxIssuesState =
+  | { kind: 'checking' }
+  | { kind: 'hidden' }
+  | { kind: 'loading' }
+  | { kind: 'error'; message: string }
+  | { kind: 'ready'; issues: ReadonlyMap<string, AdminWrongMaxIssue> };
 type NoteActionIconName = 'add' | 'edit' | 'save' | 'cancel';
 
 /** Рисует компактную декоративную иконку действия без отдельной зависимости. */
@@ -100,9 +126,19 @@ function RecordsContent() {
     'Не удалось загрузить рекорды. Попробуйте ещё раз.',
   );
   const [adminNotes, setAdminNotes] = useState<AdminNotesState>({ kind: 'checking' });
+  const [favoriteFish, setFavoriteFish] = useState<FavoriteFishState>({ kind: 'checking' });
+  const [wrongMaxIssues, setWrongMaxIssues] = useState<WrongMaxIssuesState>({ kind: 'checking' });
+  const [nightOverrides, setNightOverrides] = useState<ReadonlyMap<string, boolean>>(new Map());
+  const [pendingNightFishIds, setPendingNightFishIds] = useState<ReadonlySet<string>>(new Set());
+  const [nightMarkError, setNightMarkError] = useState<string | null>(null);
+  const pendingFavoriteIds = useRef(new Set<string>());
+  const pendingNightIds = useRef(new Set<string>());
   const sort = readRecordsSort(searchParams);
   const selectedStatuses = useMemo(() => readStatusFilters(searchParams), [searchParams]);
   const hideRarest = searchParams.get(HIDE_RAREST_FILTER_PARAM) === 'true';
+  const favoritesOnly = searchParams.get(FAVORITES_FILTER_PARAM) === 'true';
+  const nightOnly = searchParams.get(NIGHT_FILTER_PARAM) === 'true';
+  const wrongMaxOnly = searchParams.get(WRONG_MAX_FILTER_PARAM) === 'true';
   const baseOptions = useMemo(
     () => (state.kind === 'ready' ? caughtAtBaseOptions(state.data.items) : []),
     [state],
@@ -126,44 +162,112 @@ function RecordsContent() {
     const rarityFiltered = hideRarest
       ? statusFiltered.filter((item) => !item.fish.isRarest)
       : statusFiltered;
-    return sortRecords(rarityFiltered, sort);
-  }, [hideRarest, selectedBaseId, selectedStatuses, sort, state]);
+    const favoritesFiltered =
+      favoritesOnly && favoriteFish.kind === 'ready'
+        ? rarityFiltered.filter((item) => favoriteFish.fishIds.has(item.fish.id))
+        : rarityFiltered;
+    const nightFiltered = nightOnly
+      ? favoritesFiltered.filter(
+          (item) => nightOverrides.get(item.fish.id) ?? item.fish.isNightBiting,
+        )
+      : favoritesFiltered;
+    const wrongMaxFiltered =
+      wrongMaxOnly && wrongMaxIssues.kind === 'ready'
+        ? nightFiltered.filter((item) => wrongMaxIssues.issues.has(item.fish.id))
+        : nightFiltered;
+    return sortRecords(wrongMaxFiltered, sort);
+  }, [
+    favoriteFish,
+    favoritesOnly,
+    hideRarest,
+    nightOnly,
+    nightOverrides,
+    selectedBaseId,
+    selectedStatuses,
+    sort,
+    state,
+    wrongMaxIssues,
+    wrongMaxOnly,
+  ]);
 
   useEffect(() => {
     const controller = new AbortController();
-    let adminConfirmed = false;
 
-    /** Не запрашивает приватные заметки, пока сервер не подтвердит активную ADMIN-роль. */
-    async function loadAdminNotes() {
+    /** После единственной проверки сессии загружает разрешённые персональные ресурсы. */
+    async function loadAuthenticatedResources() {
       try {
         const user = await getCurrentUser(controller.signal);
+        if (controller.signal.aborted) return;
+
+        setFavoriteFish({ kind: 'loading' });
+        void getFavoriteFish(controller.signal).then(
+          (response) => {
+            if (controller.signal.aborted) return;
+            setFavoriteFish({
+              kind: 'ready',
+              fishIds: new Set(response.items.map((item) => item.fishId)),
+              pendingFishIds: new Set(),
+              error: null,
+            });
+          },
+          () => {
+            if (!controller.signal.aborted) {
+              setFavoriteFish({ kind: 'error', message: 'Не удалось загрузить избранное.' });
+            }
+          },
+        );
+
         if (user.role !== 'ADMIN' || user.isBanned) {
           setAdminNotes({ kind: 'hidden' });
+          setWrongMaxIssues({ kind: 'hidden' });
           return;
         }
 
-        adminConfirmed = true;
         setAdminNotes({ kind: 'loading' });
-        const response = await getAdminRecordNotes(controller.signal);
+        setWrongMaxIssues({ kind: 'loading' });
+        void getAdminRecordNotes(controller.signal).then(
+          (response) => {
+            if (controller.signal.aborted) return;
+            setAdminNotes({
+              kind: 'ready',
+              notes: Object.fromEntries(response.items.map((item) => [item.fishId, item.note])),
+            });
+          },
+          (error: unknown) => {
+            if (!controller.signal.aborted) {
+              setAdminNotes({
+                kind: 'error',
+                message: getApiErrorMessage(error, 'Не удалось загрузить заметки.'),
+              });
+            }
+          },
+        );
+        void getAdminWrongMaxIssues(controller.signal).then(
+          (response) => {
+            if (controller.signal.aborted) return;
+            setWrongMaxIssues({
+              kind: 'ready',
+              issues: new Map(response.items.map((item) => [item.fishId, item])),
+            });
+          },
+          (error: unknown) => {
+            if (!controller.signal.aborted) {
+              setWrongMaxIssues({
+                kind: 'error',
+                message: getApiErrorMessage(error, 'Не удалось загрузить отметки неверного max.'),
+              });
+            }
+          },
+        );
+      } catch {
         if (controller.signal.aborted) return;
-        setAdminNotes({
-          kind: 'ready',
-          notes: Object.fromEntries(response.items.map((item) => [item.fishId, item.note])),
-        });
-      } catch (error) {
-        if (controller.signal.aborted) return;
-        if (adminConfirmed) {
-          setAdminNotes({
-            kind: 'error',
-            message: getApiErrorMessage(error, 'Не удалось загрузить заметки.'),
-          });
-        } else {
-          setAdminNotes({ kind: 'hidden' });
-        }
+        setFavoriteFish({ kind: 'hidden' });
+        setAdminNotes({ kind: 'hidden' });
+        setWrongMaxIssues({ kind: 'hidden' });
       }
     }
 
-    void loadAdminNotes();
+    void loadAuthenticatedResources();
     return () => controller.abort();
   }, []);
 
@@ -178,6 +282,100 @@ function RecordsContent() {
       return { kind: 'ready', notes };
     });
     return response.note.note;
+  }, []);
+
+  /** Оптимистично меняет одну звезду, блокирует повтор и откатывает только эту Fish при ошибке. */
+  const toggleFavorite = useCallback(async (fishId: string, selected: boolean) => {
+    if (pendingFavoriteIds.current.has(fishId)) return;
+    pendingFavoriteIds.current.add(fishId);
+    setFavoriteFish((current) => {
+      if (current.kind !== 'ready') return current;
+      const fishIds = new Set(current.fishIds);
+      if (selected) fishIds.add(fishId);
+      else fishIds.delete(fishId);
+      return {
+        ...current,
+        fishIds,
+        pendingFishIds: new Set([...current.pendingFishIds, fishId]),
+        error: null,
+      };
+    });
+
+    try {
+      if (selected) await addFavoriteFish(fishId);
+      else await removeFavoriteFish(fishId);
+    } catch (error) {
+      setFavoriteFish((current) => {
+        if (current.kind !== 'ready') return current;
+        const fishIds = new Set(current.fishIds);
+        if (selected) fishIds.delete(fishId);
+        else fishIds.add(fishId);
+        return {
+          ...current,
+          fishIds,
+          error: getApiErrorMessage(error, 'Не удалось обновить избранное.'),
+        };
+      });
+    } finally {
+      pendingFavoriteIds.current.delete(fishId);
+      setFavoriteFish((current) => {
+        if (current.kind !== 'ready') return current;
+        const pendingFishIds = new Set(current.pendingFishIds);
+        pendingFishIds.delete(fishId);
+        return { ...current, pendingFishIds };
+      });
+    }
+  }, []);
+
+  /** Оптимистично меняет ночную метку и откатывает её при ошибке ADMIN-запроса. */
+  const toggleNightMark = useCallback(async (fishId: string, selected: boolean) => {
+    if (pendingNightIds.current.has(fishId)) return;
+    pendingNightIds.current.add(fishId);
+    setPendingNightFishIds((current) => new Set([...current, fishId]));
+    setNightMarkError(null);
+    setNightOverrides((current) => new Map(current).set(fishId, selected));
+
+    try {
+      const response = await updateAdminNightMark(fishId, selected);
+      setNightOverrides((current) => new Map(current).set(fishId, response.fish.isNightBiting));
+    } catch (error) {
+      setNightOverrides((current) => new Map(current).set(fishId, !selected));
+      setNightMarkError(getApiErrorMessage(error, 'Не удалось обновить ночную метку.'));
+    } finally {
+      pendingNightIds.current.delete(fishId);
+      setPendingNightFishIds((current) => {
+        const next = new Set(current);
+        next.delete(fishId);
+        return next;
+      });
+    }
+  }, []);
+
+  /** Сохраняет подтверждённую сервером проблему в общей ADMIN-карте. */
+  const saveWrongMaxIssue = useCallback(
+    async (fishId: string, expectedWeightGrams: number | null, note: string | null) => {
+      const response = await updateAdminWrongMaxIssue(fishId, expectedWeightGrams, note);
+      setWrongMaxIssues((current) => {
+        if (current.kind !== 'ready') return current;
+        return {
+          kind: 'ready',
+          issues: new Map(current.issues).set(fishId, response.issue),
+        };
+      });
+      return response.issue;
+    },
+    [],
+  );
+
+  /** Снимает проблему только после успешного ответа сервера. */
+  const clearWrongMaxIssue = useCallback(async (fishId: string) => {
+    await clearAdminWrongMaxIssue(fishId);
+    setWrongMaxIssues((current) => {
+      if (current.kind !== 'ready') return current;
+      const issues = new Map(current.issues);
+      issues.delete(fishId);
+      return { kind: 'ready', issues };
+    });
   }, []);
 
   useEffect(() => {
@@ -237,6 +435,13 @@ function RecordsContent() {
     router.replace(recordsHref(params), { scroll: false });
   }
 
+  function setMarkFilter(param: string, selected: boolean) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (selected) params.set(param, 'true');
+    else params.delete(param);
+    router.replace(recordsHref(params), { scroll: false });
+  }
+
   return (
     <ApplicationShell>
       <div className={styles.page}>
@@ -272,15 +477,28 @@ function RecordsContent() {
             selectedBaseId={selectedBaseId}
             selectedStatuses={selectedStatuses}
             hideRarest={hideRarest}
+            favoriteFish={favoriteFish}
+            favoritesOnly={favoritesOnly}
+            nightOnly={nightOnly}
+            wrongMaxOnly={wrongMaxOnly}
+            wrongMaxIssues={wrongMaxIssues}
+            nightOverrides={nightOverrides}
+            pendingNightFishIds={pendingNightFishIds}
+            nightMarkError={nightMarkError}
             sortKey={sort.key}
             sortDirection={sort.direction}
             onBaseFilter={setBaseFilter}
             onStatusFilter={setStatusFilter}
             onHideRarest={setHideRarest}
+            onMarkFilter={setMarkFilter}
             onSort={setSort}
             onReset={resetSort}
             adminNotes={adminNotes}
             onSaveNote={saveAdminNote}
+            onToggleFavorite={toggleFavorite}
+            onToggleNightMark={toggleNightMark}
+            onSaveWrongMaxIssue={saveWrongMaxIssue}
+            onClearWrongMaxIssue={clearWrongMaxIssue}
           />
         ) : null}
       </div>
@@ -295,15 +513,32 @@ type TableProps = {
   selectedBaseId: string;
   selectedStatuses: readonly FilterableStatus[];
   hideRarest: boolean;
+  favoriteFish: FavoriteFishState;
+  favoritesOnly: boolean;
+  nightOnly: boolean;
+  wrongMaxOnly: boolean;
+  wrongMaxIssues: WrongMaxIssuesState;
+  nightOverrides: ReadonlyMap<string, boolean>;
+  pendingNightFishIds: ReadonlySet<string>;
+  nightMarkError: string | null;
   sortKey: RecordsSortKey;
   sortDirection: RecordsSortDirection;
   onBaseFilter: (baseId: string) => void;
   onStatusFilter: (status: FilterableStatus, selected: boolean) => void;
   onHideRarest: (hidden: boolean) => void;
   onSort: (key: Exclude<RecordsSortKey, 'default'>) => void;
+  onMarkFilter: (param: string, selected: boolean) => void;
   onReset: () => void;
   adminNotes: AdminNotesState;
   onSaveNote: (fishId: string, note: string) => Promise<string | null>;
+  onToggleFavorite: (fishId: string, selected: boolean) => Promise<void>;
+  onToggleNightMark: (fishId: string, selected: boolean) => Promise<void>;
+  onSaveWrongMaxIssue: (
+    fishId: string,
+    expectedWeightGrams: number | null,
+    note: string | null,
+  ) => Promise<AdminWrongMaxIssue>;
+  onClearWrongMaxIssue: (fishId: string) => Promise<void>;
 };
 
 function RecordsTable({
@@ -314,14 +549,27 @@ function RecordsTable({
   selectedStatuses,
   hideRarest,
   sortKey,
+  favoriteFish,
+  favoritesOnly,
+  nightOnly,
+  wrongMaxOnly,
+  wrongMaxIssues,
+  nightOverrides,
+  pendingNightFishIds,
+  nightMarkError,
   sortDirection,
   onBaseFilter,
   onStatusFilter,
   onHideRarest,
   onSort,
   onReset,
+  onMarkFilter,
   adminNotes,
   onSaveNote,
+  onToggleFavorite,
+  onToggleNightMark,
+  onSaveWrongMaxIssue,
+  onClearWrongMaxIssue,
 }: TableProps) {
   const syncMessage =
     data.sync.status === 'WAITING'
@@ -331,6 +579,16 @@ function RecordsTable({
         : data.sync.lastSuccessAt
           ? `Проверено ${DATE_FORMATTER.format(new Date(data.sync.lastSuccessAt))} МСК`
           : null;
+  const favoriteError =
+    favoriteFish.kind === 'error'
+      ? favoriteFish.message
+      : favoriteFish.kind === 'ready'
+        ? favoriteFish.error
+        : null;
+  const isAdmin = wrongMaxIssues.kind !== 'checking' && wrongMaxIssues.kind !== 'hidden';
+  const issueError = wrongMaxIssues.kind === 'error' ? wrongMaxIssues.message : null;
+  const selectedMarksCount =
+    Number(favoritesOnly) + Number(nightOnly) + Number(isAdmin && wrongMaxOnly);
   return (
     <section aria-label="Рекорды недели">
       <div className={styles.toolbar}>
@@ -373,6 +631,41 @@ function RecordsTable({
               ))}
             </div>
           </div>
+          {favoriteFish.kind === 'ready' ? (
+            <details className={styles.marksFilter}>
+              <summary>Метки{selectedMarksCount > 0 ? ` · ${selectedMarksCount}` : ''}</summary>
+              <div className={styles.marksOptions} role="group" aria-label="Метки">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={favoritesOnly}
+                    onChange={(event) => onMarkFilter(FAVORITES_FILTER_PARAM, event.target.checked)}
+                  />
+                  <span>★ Избранные</span>
+                </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={nightOnly}
+                    onChange={(event) => onMarkFilter(NIGHT_FILTER_PARAM, event.target.checked)}
+                  />
+                  <span>🌙 Ночные</span>
+                </label>
+                {wrongMaxIssues.kind === 'ready' ? (
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={wrongMaxOnly}
+                      onChange={(event) =>
+                        onMarkFilter(WRONG_MAX_FILTER_PARAM, event.target.checked)
+                      }
+                    />
+                    <span>⚠ Неверный наш max</span>
+                  </label>
+                ) : null}
+              </div>
+            </details>
+          ) : null}
           <label className={styles.rarityFilter}>
             <input
               type="checkbox"
@@ -391,6 +684,11 @@ function RecordsTable({
           </button>
         </div>
       </div>
+      {favoriteError || issueError || nightMarkError ? (
+        <p className={styles.favoriteError} role="alert">
+          {favoriteError ?? issueError ?? nightMarkError}
+        </p>
+      ) : null}
       {syncMessage ? (
         <p
           className={`${styles.syncMessage} ${data.sync.status === 'STALE' ? styles.syncWarning : ''}`}
@@ -459,7 +757,25 @@ function RecordsTable({
                 key={row.fish.id}
                 row={row}
                 adminNotes={adminNotes}
+                favorite={
+                  favoriteFish.kind === 'ready' ? favoriteFish.fishIds.has(row.fish.id) : null
+                }
+                favoritePending={
+                  favoriteFish.kind === 'ready' && favoriteFish.pendingFishIds.has(row.fish.id)
+                }
+                isAdmin={isAdmin}
+                isNightBiting={nightOverrides.get(row.fish.id) ?? row.fish.isNightBiting}
+                nightPending={pendingNightFishIds.has(row.fish.id)}
+                wrongMaxIssue={
+                  wrongMaxIssues.kind === 'ready'
+                    ? (wrongMaxIssues.issues.get(row.fish.id) ?? null)
+                    : undefined
+                }
                 onSaveNote={onSaveNote}
+                onToggleFavorite={onToggleFavorite}
+                onToggleNightMark={onToggleNightMark}
+                onSaveWrongMaxIssue={onSaveWrongMaxIssue}
+                onClearWrongMaxIssue={onClearWrongMaxIssue}
               />
             ))}
           </tbody>
@@ -499,28 +815,99 @@ function SortableHeader({
 function RecordRow({
   row,
   adminNotes,
+  favorite,
+  favoritePending,
+  isAdmin,
+  isNightBiting,
+  nightPending,
+  wrongMaxIssue,
   onSaveNote,
+  onToggleFavorite,
+  onToggleNightMark,
+  onSaveWrongMaxIssue,
+  onClearWrongMaxIssue,
 }: {
   row: RecordsItem;
   adminNotes: AdminNotesState;
+  favorite: boolean | null;
+  favoritePending: boolean;
+  isAdmin: boolean;
+  isNightBiting: boolean;
+  nightPending: boolean;
+  wrongMaxIssue: AdminWrongMaxIssue | null | undefined;
   onSaveNote: TableProps['onSaveNote'];
+  onToggleFavorite: TableProps['onToggleFavorite'];
+  onToggleNightMark: TableProps['onToggleNightMark'];
+  onSaveWrongMaxIssue: TableProps['onSaveWrongMaxIssue'];
+  onClearWrongMaxIssue: TableProps['onClearWrongMaxIssue'];
 }) {
   return (
     <tr>
       <th scope="row">
-        <Link
-          className={`${styles.fishLink} ${row.fish.isRarest ? styles.rarestFishLink : ''}`}
-          href={`/fish/${row.fish.id}`}
-        >
-          {row.fish.name}
-          {row.fish.isRarest ? (
-            <span className={styles.rarestDot} aria-hidden="true" title="Редчайший вид" />
+        <div className={styles.fishCell}>
+          <Link
+            className={`${styles.fishLink} ${row.fish.isRarest ? styles.rarestFishLink : ''}`}
+            href={`/fish/${row.fish.id}`}
+          >
+            {row.fish.name}
+            {row.fish.isRarest ? (
+              <span className={styles.rarestDot} aria-hidden="true" title="Редчайший вид" />
+            ) : null}
+          </Link>
+          {favorite !== null ? (
+            <button
+              className={`${styles.favoriteButton} ${favorite ? styles.favoriteButtonActive : ''}`}
+              type="button"
+              aria-label={`${favorite ? 'Удалить' : 'Добавить'} ${row.fish.name} ${favorite ? 'из избранного' : 'в избранное'}`}
+              aria-pressed={favorite}
+              title={favorite ? 'Удалить из избранного' : 'Добавить в избранное'}
+              disabled={favoritePending}
+              onClick={() => void onToggleFavorite(row.fish.id, !favorite)}
+            >
+              <span aria-hidden="true">★</span>
+            </button>
           ) : null}
-        </Link>
+          {isAdmin ? (
+            <button
+              className={`${styles.nightButton} ${isNightBiting ? styles.nightButtonActive : ''}`}
+              type="button"
+              aria-label={`${isNightBiting ? 'Снять ночную метку с' : 'Отметить как ночную'} ${row.fish.name}`}
+              title={isNightBiting ? 'Ночная рыба' : 'Отметить как ночную'}
+              aria-pressed={isNightBiting}
+              disabled={nightPending}
+              onClick={() => void onToggleNightMark(row.fish.id, !isNightBiting)}
+            >
+              <span aria-hidden="true">🌙</span>
+            </button>
+          ) : isNightBiting ? (
+            <span
+              className={styles.nightMark}
+              aria-label={`Ночная рыба: ${row.fish.name}`}
+              title="Ночная рыба"
+            >
+              🌙
+            </span>
+          ) : null}
+        </div>
       </th>
       <td>{recordWeight(row)}</td>
       <td className={styles.numeric}>
-        {row.normalMaxWeightGrams === null ? '—' : formatCompactWeight(row.normalMaxWeightGrams)}
+        <div className={styles.maxCell}>
+          <span>
+            {row.normalMaxWeightGrams === null
+              ? '—'
+              : formatCompactWeight(row.normalMaxWeightGrams)}
+          </span>
+          {wrongMaxIssue !== undefined ? (
+            <WrongMaxIssueEditor
+              fishId={row.fish.id}
+              fishName={row.fish.name}
+              issue={wrongMaxIssue}
+              onSave={onSaveWrongMaxIssue}
+              onClear={onClearWrongMaxIssue}
+            />
+          ) : null}
+        </div>
       </td>
       <td className={styles.numeric}>{formatHeadroom(row)}</td>
       <td>
@@ -586,6 +973,186 @@ function RecordRow({
         </span>
       </td>
     </tr>
+  );
+}
+
+/** Редактирует приватную проблему max, сохраняя исходное вычисленное значение рядом. */
+function WrongMaxIssueEditor({
+  fishId,
+  fishName,
+  issue,
+  onSave,
+  onClear,
+}: {
+  fishId: string;
+  fishName: string;
+  issue: AdminWrongMaxIssue | null;
+  onSave: TableProps['onSaveWrongMaxIssue'];
+  onClear: TableProps['onClearWrongMaxIssue'];
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [draftWeight, setDraftWeight] = useState(issue?.expectedWeightGrams?.toString() ?? '');
+  const [draftNote, setDraftNote] = useState(issue?.note ?? '');
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const savingRef = useRef(false);
+
+  function openEditor() {
+    setDraftWeight(issue?.expectedWeightGrams?.toString() ?? '');
+    setDraftNote(issue?.note ?? '');
+    setError(null);
+    setIsEditing(true);
+  }
+
+  function cancel() {
+    if (isSaving) return;
+    setIsEditing(false);
+    setError(null);
+  }
+
+  async function save() {
+    if (savingRef.current) return;
+    const normalizedWeight = draftWeight.trim();
+    const expectedWeightGrams = normalizedWeight === '' ? null : Number(normalizedWeight);
+    if (
+      expectedWeightGrams !== null &&
+      (!Number.isInteger(expectedWeightGrams) || expectedWeightGrams <= 0)
+    ) {
+      setError('Укажите положительный целый вес в граммах.');
+      return;
+    }
+
+    savingRef.current = true;
+    setIsSaving(true);
+    setError(null);
+    try {
+      const saved = await onSave(fishId, expectedWeightGrams, draftNote.trim() || null);
+      setDraftWeight(saved.expectedWeightGrams?.toString() ?? '');
+      setDraftNote(saved.note ?? '');
+      setIsEditing(false);
+    } catch (saveError) {
+      setError(getApiErrorMessage(saveError, 'Не удалось сохранить проблему max.'));
+    } finally {
+      savingRef.current = false;
+      setIsSaving(false);
+    }
+  }
+
+  async function clear() {
+    if (savingRef.current || issue === null) return;
+    savingRef.current = true;
+    setIsSaving(true);
+    setError(null);
+    try {
+      await onClear(fishId);
+      setIsEditing(false);
+    } catch (clearError) {
+      setError(getApiErrorMessage(clearError, 'Не удалось снять проблему max.'));
+    } finally {
+      savingRef.current = false;
+      setIsSaving(false);
+    }
+  }
+
+  if (!isEditing) {
+    const actionLabel =
+      issue === null
+        ? `Отметить неверный Наш max для ${fishName}`
+        : `Изменить проблему Наш max для ${fishName}`;
+    const issueTitle =
+      issue === null
+        ? actionLabel
+        : [
+            'Неверный Наш max',
+            issue.expectedWeightGrams === null
+              ? null
+              : `ожидается ${formatCompactWeight(issue.expectedWeightGrams)}`,
+            issue.note,
+          ]
+            .filter(Boolean)
+            .join(' · ');
+    return (
+      <button
+        className={`${styles.issueMarkButton} ${issue ? styles.issueMarkButtonActive : ''}`}
+        type="button"
+        aria-label={actionLabel}
+        title={issueTitle}
+        onClick={openEditor}
+      >
+        <span aria-hidden="true">{issue ? '⚠' : '+'}</span>
+      </button>
+    );
+  }
+
+  return (
+    <div
+      className={styles.wrongMaxEditor}
+      role="group"
+      aria-label={`Проблема Наш max для ${fishName}`}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          cancel();
+        }
+      }}
+    >
+      <input
+        type="number"
+        min="1"
+        step="1"
+        inputMode="numeric"
+        aria-label={`Ожидаемый правильный вес для ${fishName}`}
+        placeholder="Вес, г"
+        value={draftWeight}
+        disabled={isSaving}
+        onChange={(event) => setDraftWeight(event.target.value)}
+      />
+      <input
+        type="text"
+        maxLength={500}
+        aria-label={`Пояснение проблемы max для ${fishName}`}
+        placeholder="Пояснение"
+        value={draftNote}
+        disabled={isSaving}
+        onChange={(event) => setDraftNote(event.target.value)}
+      />
+      <div className={styles.wrongMaxActions}>
+        <button
+          type="button"
+          disabled={isSaving}
+          aria-label="Сохранить проблему max"
+          title="Сохранить проблему max"
+          onClick={() => void save()}
+        >
+          ✓
+        </button>
+        {issue ? (
+          <button
+            type="button"
+            disabled={isSaving}
+            aria-label="Снять проблему max"
+            title="Снять проблему max"
+            onClick={() => void clear()}
+          >
+            −
+          </button>
+        ) : null}
+        <button
+          type="button"
+          disabled={isSaving}
+          aria-label="Отменить проблему max"
+          title="Отменить проблему max"
+          onClick={cancel}
+        >
+          ×
+        </button>
+      </div>
+      {error ? (
+        <span className={styles.noteError} role="alert">
+          {error}
+        </span>
+      ) : null}
+    </div>
   );
 }
 

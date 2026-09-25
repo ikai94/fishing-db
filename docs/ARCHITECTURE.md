@@ -36,7 +36,8 @@ Browser
 | Database         | `apps/api/src/prisma`                                   | Prisma lifecycle, adapter, seeds, and audit command     |
 | Schema           | `apps/api/prisma/schema.prisma`                         | PostgreSQL models, relations, enums, indexes            |
 | Health           | `apps/api/src/health`                                   | Application/database health response                    |
-| Records          | `apps/api/src/records`                                  | Official snapshot sync and weekly public projection     |
+| Records          | `apps/api/src/records`                                  | Official snapshots, weekly projection, record metadata  |
+| Fish favorites   | `apps/api/src/fish-favorites`                           | Generic authenticated User–Fish preferences             |
 | Request security | `apps/api/src/security/origin.guard.ts`                 | Origin/Referer checks for unsafe methods                |
 
 Controller entry points:
@@ -47,8 +48,11 @@ Controller entry points:
 - `catalog/admin-catalog.controller.ts` — `/api/v1/admin/catalog`.
 - `catch-reports/catch-reports.controller.ts` — public reads, statistics, parser, mutations.
 - `catch-reports/my-catch-reports.controller.ts` — owner reads under `/api/v1/me`.
+- `fish-favorites/fish-favorites.controller.ts` — owner-only `/api/v1/me/favorite-fish`.
 - `health/health.controller.ts` — `/api/v1/health`.
 - `records/records.controller.ts` — anonymous `/api/v1/records`.
+- `records/admin-records.controller.ts` — guarded notes and record-mark metadata under
+  `/api/v1/admin/records`.
 
 ## Frontend route/module map
 

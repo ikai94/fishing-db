@@ -871,6 +871,115 @@ void describe('Catalog API (PostgreSQL e2e)', { concurrency: false }, () => {
     assert.equal(await prisma.fishRecordNote.count(), 0);
   });
 
+  void test('record marks require an active ADMIN session', async () => {
+    const user = await createActor('USER');
+    const admin = await createActor('ADMIN');
+    const bannedAdmin = await createActor('ADMIN', true);
+    const fish = await prisma.fish.create({
+      data: { name: 'Защищённые метки', nameNormalized: 'защищённые метки' },
+    });
+    const nightPath = `/api/v1/admin/records/night-marks/${fish.id}`;
+    const issuesPath = '/api/v1/admin/records/wrong-max-issues';
+
+    await unsafe(api().patch(nightPath)).send({ isNightBiting: true }).expect(401);
+    const userNight = await unsafe(api().patch(nightPath), user.cookie)
+      .send({ isNightBiting: true })
+      .expect(403);
+    assert.equal(readErrorCode(userNight.body as unknown), 'ADMIN_REQUIRED');
+    await api().get(issuesPath).set('Cookie', user.cookie).expect(403);
+    await unsafe(api().patch(`${issuesPath}/${fish.id}`), user.cookie)
+      .send({ expectedWeightGrams: 1200, note: null })
+      .expect(403);
+    await unsafe(api().patch(nightPath), bannedAdmin.cookie)
+      .send({ isNightBiting: true })
+      .expect(403);
+    await api().get(issuesPath).set('Cookie', bannedAdmin.cookie).expect(403);
+
+    assert.equal(
+      (await prisma.fish.findUniqueOrThrow({ where: { id: fish.id } })).isNightBiting,
+      false,
+    );
+    assert.equal(await prisma.fishWrongMaxIssue.count(), 0);
+    await unsafe(api().patch(nightPath), admin.cookie).send({ isNightBiting: 'yes' }).expect(400);
+  });
+
+  void test('ADMIN persists night and wrong-max marks without changing the calculated max or public privacy', async () => {
+    const admin = await createActor('ADMIN');
+    const fish = await createFish(admin.cookie, 'Рыба с метками рекорда');
+    const base = await prisma.fishingBase.create({
+      data: { name: 'База меток', nameNormalized: 'база меток' },
+    });
+    await prisma.fishingBaseFish.create({
+      data: { fishingBaseId: base.id, fishId: fish.id, maxWeightGrams: 1000 },
+    });
+    const nightPath = `/api/v1/admin/records/night-marks/${fish.id}`;
+    const issuesPath = '/api/v1/admin/records/wrong-max-issues';
+
+    const beforeResponse = asObject((await api().get('/api/v1/records').expect(200)).body);
+    const before = asObject(
+      asArray(beforeResponse.items).find((item) => asObject(asObject(item).fish).id === fish.id),
+    );
+    assert.equal(asObject(before.fish).isNightBiting, false);
+    assert.equal(before.normalMaxWeightGrams, 1000);
+
+    assert.deepEqual(
+      (await unsafe(api().patch(nightPath), admin.cookie).send({ isNightBiting: true }).expect(200))
+        .body,
+      { fish: { fishId: fish.id, isNightBiting: true } },
+    );
+    assert.deepEqual((await api().get(issuesPath).set('Cookie', admin.cookie).expect(200)).body, {
+      items: [],
+    });
+
+    const created = readEnvelope(
+      (
+        await unsafe(api().patch(`${issuesPath}/${fish.id}`), admin.cookie)
+          .send({ expectedWeightGrams: 1200, note: '  Проверить источник  ' })
+          .expect(200)
+      ).body as unknown,
+      'issue',
+    );
+    assert.equal(created.fishId, fish.id);
+    assert.equal(created.expectedWeightGrams, 1200);
+    assert.equal(created.note, 'Проверить источник');
+    assert.equal(typeof created.createdAt, 'string');
+    assert.equal(typeof created.updatedAt, 'string');
+    const storedCreated = await prisma.fishWrongMaxIssue.findUniqueOrThrow({
+      where: { fishId: fish.id },
+    });
+    assert.equal(storedCreated.expectedWeightGrams, 1200);
+    assert.equal(storedCreated.note, 'Проверить источник');
+
+    const edited = readEnvelope(
+      (
+        await unsafe(api().patch(`${issuesPath}/${fish.id}`), admin.cookie)
+          .send({ expectedWeightGrams: null, note: null })
+          .expect(200)
+      ).body as unknown,
+      'issue',
+    );
+    assert.equal(edited.expectedWeightGrams, null);
+    assert.equal(edited.note, null);
+    const storedEdited = await prisma.fishWrongMaxIssue.findUniqueOrThrow({
+      where: { fishId: fish.id },
+    });
+    assert.equal(storedEdited.expectedWeightGrams, null);
+    assert.equal(storedEdited.note, null);
+
+    const publicResponse = await api().get('/api/v1/records').expect(200);
+    const publicRoot = asObject(publicResponse.body);
+    const publicItem = asObject(
+      asArray(publicRoot.items).find((item) => asObject(asObject(item).fish).id === fish.id),
+    );
+    assert.equal(asObject(publicItem.fish).isNightBiting, true);
+    assert.equal(publicItem.normalMaxWeightGrams, 1000);
+    assert.equal(JSON.stringify(publicResponse.body).includes('expectedWeightGrams'), false);
+    assert.equal(JSON.stringify(publicResponse.body).includes('wrongMaxIssue'), false);
+
+    await unsafe(api().delete(`${issuesPath}/${fish.id}`), admin.cookie).expect(204);
+    assert.equal(await prisma.fishWrongMaxIssue.count({ where: { fishId: fish.id } }), 0);
+  });
+
   void test('admin creates, normalizes, filters and deactivates a FishingBase without deleting it', async () => {
     const admin = await createActor('ADMIN');
     const created = await createBase(admin.cookie, '  Озера   Танзании  ');

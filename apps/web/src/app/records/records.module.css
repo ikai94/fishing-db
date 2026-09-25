@@ -119,6 +119,63 @@
   margin: 0;
   accent-color: var(--app-accent-strong);
 }
+.marksFilter {
+  position: relative;
+}
+.marksFilter summary {
+  display: flex;
+  min-height: 30px;
+  align-items: center;
+  padding: 5px 24px 4px 9px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+  color: var(--app-text);
+  background: #fff;
+  font-weight: 650;
+  white-space: nowrap;
+  cursor: pointer;
+  list-style: none;
+}
+.marksFilter summary::after {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  content: '▾';
+  color: var(--app-text-muted);
+  font-size: 0.7rem;
+}
+.marksFilter summary::-webkit-details-marker {
+  display: none;
+}
+.marksOptions {
+  position: absolute;
+  z-index: 6;
+  top: calc(100% + 4px);
+  right: 0;
+  display: grid;
+  min-width: 190px;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+  box-shadow: 0 8px 20px rgb(24 48 58 / 16%);
+  color: var(--app-text);
+  background: #fff;
+  font-weight: 500;
+}
+.marksOptions label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.marksOptions input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--app-accent-strong);
+}
 .resetButton,
 .message button {
   min-height: 30px;
@@ -143,6 +200,14 @@
   border-radius: var(--app-radius-sm);
   color: #405965;
   background: #f1f7fa;
+}
+.favoriteError {
+  margin: 0 0 8px;
+  padding: 6px 9px;
+  border: 1px solid #dea0a0;
+  border-radius: var(--app-radius-sm);
+  color: #8a2525;
+  background: #fff4f4;
 }
 .syncWarning {
   border-color: #dec88e;
@@ -202,6 +267,62 @@
   font: inherit;
   font-weight: 750;
   cursor: pointer;
+}
+.fishCell {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.favoriteButton,
+.nightButton {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--app-radius-sm);
+  color: #91a0a7;
+  background: transparent;
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.favoriteButton:hover,
+.favoriteButton:focus-visible {
+  color: #987000;
+  background: #fff7d6;
+}
+.favoriteButtonActive {
+  color: #b58100;
+}
+.favoriteButton:disabled,
+.nightButton:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+.nightButton {
+  font-size: 0.9rem;
+  filter: grayscale(1);
+}
+.nightButton:hover,
+.nightButton:focus-visible {
+  color: #3d4f86;
+  background: #eef1ff;
+  filter: none;
+}
+.nightButtonActive {
+  background: #eef1ff;
+  filter: none;
+}
+.nightMark {
+  display: inline-grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  font-size: 0.85rem;
 }
 .fishLink,
 .baseLink {
@@ -293,6 +414,84 @@
 .numeric {
   text-align: right !important;
   white-space: nowrap;
+}
+.maxCell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  min-width: 100%;
+}
+.issueMarkButton {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--app-radius-sm);
+  color: #7a8a91;
+  background: transparent;
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+.issueMarkButton:hover,
+.issueMarkButton:focus-visible {
+  border-color: #dec468;
+  color: #7a5700;
+  background: #fff8df;
+}
+.issueMarkButtonActive {
+  color: #9b5b00;
+}
+.wrongMaxEditor {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 4px);
+  right: 0;
+  display: grid;
+  width: 260px;
+  gap: 5px;
+  padding: 8px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+  box-shadow: 0 8px 20px rgb(24 48 58 / 16%);
+  background: #fff;
+  text-align: left;
+}
+.wrongMaxEditor input {
+  width: 100%;
+  min-width: 0;
+  min-height: 28px;
+  padding: 3px 6px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+  color: var(--app-text);
+  background: #fff;
+  font: inherit;
+}
+.wrongMaxActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+}
+.wrongMaxActions button {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+  color: var(--app-accent-strong);
+  background: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+.wrongMaxActions button:disabled {
+  cursor: wait;
+  opacity: 0.55;
 }
 .noteCell {
   min-width: 210px;

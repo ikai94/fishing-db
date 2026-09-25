@@ -70,21 +70,22 @@ enum ActivitySubjectType {
 }
 
 model User {
-  id                 String           @id @default(uuid()) @db.Uuid
-  email              String           @unique @db.VarChar(254)
-  nickname           String           @db.VarChar(32)
-  nicknameNormalized String           @unique @db.VarChar(32)
-  passwordHash       String           @db.VarChar(255)
-  role               UserRole         @default(USER)
-  isBanned           Boolean          @default(false)
-  emailVerifiedAt    DateTime?        @db.Timestamptz(3)
-  createdAt          DateTime         @default(now()) @db.Timestamptz(3)
-  updatedAt          DateTime         @default(now()) @updatedAt @db.Timestamptz(3)
+  id                 String             @id @default(uuid()) @db.Uuid
+  email              String             @unique @db.VarChar(254)
+  nickname           String             @db.VarChar(32)
+  nicknameNormalized String             @unique @db.VarChar(32)
+  passwordHash       String             @db.VarChar(255)
+  role               UserRole           @default(USER)
+  isBanned           Boolean            @default(false)
+  emailVerifiedAt    DateTime?          @db.Timestamptz(3)
+  createdAt          DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime           @default(now()) @updatedAt @db.Timestamptz(3)
   sessions           Session[]
   authTokens         AuthToken[]
   catchReports       CatchReport[]
   catchImportRuns    CatchImportRun[]
   activityEvents     ActivityEvent[]
+  favoriteFish       UserFavoriteFish[]
 }
 
 model Session {
@@ -167,6 +168,7 @@ model Fish {
   forumTopicId         String?                     @unique @db.VarChar(32)
   officialFishImageKey Int?                        @unique
   isRarest             Boolean                     @default(false)
+  isNightBiting        Boolean                     @default(false)
   isActive             Boolean                     @default(true)
   createdAt            DateTime                    @default(now()) @db.Timestamptz(3)
   updatedAt            DateTime                    @default(now()) @updatedAt @db.Timestamptz(3)
@@ -174,6 +176,19 @@ model Fish {
   catchReports         CatchReport[]
   officialRecordRows   OfficialRecordSnapshotRow[]
   recordNote           FishRecordNote?
+  wrongMaxIssue        FishWrongMaxIssue?
+  favoritedBy          UserFavoriteFish[]
+}
+
+model UserFavoriteFish {
+  userId    String   @db.Uuid
+  fishId    String   @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fish      Fish     @relation(fields: [fishId], references: [id], onDelete: Cascade)
+
+  @@id([userId, fishId])
+  @@index([fishId])
 }
 
 model FishRecordNote {
@@ -182,6 +197,15 @@ model FishRecordNote {
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   updatedAt DateTime @default(now()) @updatedAt @db.Timestamptz(3)
   fish      Fish     @relation(fields: [fishId], references: [id], onDelete: Cascade)
+}
+
+model FishWrongMaxIssue {
+  fishId              String   @id @db.Uuid
+  expectedWeightGrams Int?
+  note                String?  @db.VarChar(500)
+  createdAt           DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime @default(now()) @updatedAt @db.Timestamptz(3)
+  fish                Fish     @relation(fields: [fishId], references: [id], onDelete: Cascade)
 }
 
 model Bait {

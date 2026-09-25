@@ -11,7 +11,7 @@ function row(
   fishingBase: NonNullable<RecordsItem['record']>['fishingBase'] = null,
 ): RecordsItem {
   return {
-    fish: { id: name, name, isRarest: false },
+    fish: { id: name, name, isRarest: false, isNightBiting: false },
     state,
     record:
       weight === null

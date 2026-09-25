@@ -5,7 +5,7 @@ export type RecordsStatus =
   'NO_RECORD' | 'CAN_BEAT' | 'NEAR_MAX' | 'MAXIMUM' | 'MUTANT' | 'MAX_UNKNOWN' | null;
 export type RecordsBase = { id: string; name: string; isActive: boolean };
 export type RecordsItem = {
-  fish: { id: string; name: string; isRarest: boolean };
+  fish: { id: string; name: string; isRarest: boolean; isNightBiting: boolean };
   state: RecordsState;
   record: null | {
     weightGrams: number;
@@ -35,6 +35,16 @@ export type AdminRecordNotesResponse = { items: AdminRecordNote[] };
 export type UpdatedAdminRecordNoteResponse = {
   note: { fishId: string; note: string | null };
 };
+export type AdminWrongMaxIssue = {
+  fishId: string;
+  expectedWeightGrams: number | null;
+  note: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+export type AdminWrongMaxIssuesResponse = { items: AdminWrongMaxIssue[] };
+export type UpdatedNightMarkResponse = { fish: { fishId: string; isNightBiting: boolean } };
+export type UpdatedWrongMaxIssueResponse = { issue: AdminWrongMaxIssue };
 
 function object(value: unknown, label: string): Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value))
@@ -80,6 +90,10 @@ function boolean(value: unknown, label: string): boolean {
   if (typeof value !== 'boolean') throw new Error(`Некорректный ${label}.`);
   return value;
 }
+function nullableText(value: unknown, label: string): string | null {
+  if (value === null) return null;
+  return text(value, label);
+}
 function decodeBase(value: unknown): RecordsBase {
   const row = exactObject(value, 'водоём', ['id', 'name', 'isActive']);
   if (typeof row.isActive !== 'boolean') throw new Error('Некорректный водоём.');
@@ -100,7 +114,7 @@ function decodeItem(value: unknown): RecordsItem {
     'headroomPercent',
     'status',
   ]);
-  const fish = exactObject(row.fish, 'рыба', ['id', 'name', 'isRarest']);
+  const fish = exactObject(row.fish, 'рыба', ['id', 'name', 'isRarest', 'isNightBiting']);
   if (!['RECORD', 'NO_RECORD', 'UNKNOWN'].includes(String(row.state)))
     throw new Error('Некорректное состояние рекорда.');
   const statuses = [null, 'NO_RECORD', 'CAN_BEAT', 'NEAR_MAX', 'MAXIMUM', 'MUTANT', 'MAX_UNKNOWN'];
@@ -133,6 +147,7 @@ function decodeItem(value: unknown): RecordsItem {
       id: text(fish.id, 'ID рыбы'),
       name: text(fish.name, 'название рыбы'),
       isRarest: boolean(fish.isRarest, 'признак редчайшего вида'),
+      isNightBiting: boolean(fish.isNightBiting, 'признак ночного клёва'),
     },
     state: row.state as RecordsState,
     record,
@@ -223,4 +238,85 @@ export async function updateAdminRecordNote(
       note: saved.note === null ? null : text(saved.note, 'текст сохранённой заметки'),
     },
   };
+}
+
+/** Строго декодирует одну приватную проблему неверного «Наш max». */
+function decodeWrongMaxIssue(value: unknown): AdminWrongMaxIssue {
+  const item = exactObject(value, 'элемент проблемы нашего max', [
+    'fishId',
+    'expectedWeightGrams',
+    'note',
+    'createdAt',
+    'updatedAt',
+  ]);
+  return {
+    fishId: text(item.fishId, 'ID рыбы проблемы'),
+    expectedWeightGrams:
+      item.expectedWeightGrams === null
+        ? null
+        : positiveInteger(item.expectedWeightGrams, 'ожидаемый вес'),
+    note: nullableText(item.note, 'пояснение проблемы'),
+    createdAt: instant(item.createdAt, 'время создания проблемы'),
+    updatedAt: instant(item.updatedAt, 'время обновления проблемы'),
+  };
+}
+
+/** Декодирует отдельную ADMIN-проекцию проблем, не смешивая её с публичными рекордами. */
+export function decodeAdminWrongMaxIssuesResponse(value: unknown): AdminWrongMaxIssuesResponse {
+  const root = exactObject(value, 'ответ проблем нашего max', ['items']);
+  if (!Array.isArray(root.items)) throw new Error('Некорректный список проблем нашего max.');
+  return { items: root.items.map(decodeWrongMaxIssue) };
+}
+
+/** Загружает все проблемы неверного «Наш max» одним ADMIN-запросом. */
+export async function getAdminWrongMaxIssues(
+  signal?: AbortSignal,
+): Promise<AdminWrongMaxIssuesResponse> {
+  return decodeAdminWrongMaxIssuesResponse(
+    await apiRequest<unknown>('/admin/records/wrong-max-issues', { signal }),
+  );
+}
+
+/** Сохраняет общую ночную метку Fish через защищённый ADMIN endpoint. */
+export async function updateAdminNightMark(
+  fishId: string,
+  isNightBiting: boolean,
+): Promise<UpdatedNightMarkResponse> {
+  const root = exactObject(
+    await apiRequest<unknown>(`/admin/records/night-marks/${fishId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ isNightBiting }),
+    }),
+    'ответ ночной метки',
+    ['fish'],
+  );
+  const fish = exactObject(root.fish, 'ночная метка', ['fishId', 'isNightBiting']);
+  return {
+    fish: {
+      fishId: text(fish.fishId, 'ID рыбы ночной метки'),
+      isNightBiting: boolean(fish.isNightBiting, 'ночная метка'),
+    },
+  };
+}
+
+/** Создаёт или обновляет приватную проблему неверного «Наш max». */
+export async function updateAdminWrongMaxIssue(
+  fishId: string,
+  expectedWeightGrams: number | null,
+  note: string | null,
+): Promise<UpdatedWrongMaxIssueResponse> {
+  const root = exactObject(
+    await apiRequest<unknown>(`/admin/records/wrong-max-issues/${fishId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ expectedWeightGrams, note }),
+    }),
+    'ответ сохранения проблемы нашего max',
+    ['issue'],
+  );
+  return { issue: decodeWrongMaxIssue(root.issue) };
+}
+
+/** Полностью снимает приватную проблему неверного «Наш max». */
+export async function clearAdminWrongMaxIssue(fishId: string): Promise<void> {
+  await apiRequest<void>(`/admin/records/wrong-max-issues/${fishId}`, { method: 'DELETE' });
 }

@@ -43,7 +43,15 @@ void describe('public records projection', () => {
       fish: {
         findMany: (query: unknown) => {
           assert.deepEqual((query as { where: unknown }).where, { isActive: true });
-          assert.equal((query as { select: { isRarest?: boolean } }).select.isRarest, true);
+          const select = (
+            query as {
+              select: { isRarest?: boolean; isNightBiting?: boolean };
+            }
+          ).select;
+          assert.deepEqual(
+            { isRarest: select.isRarest, isNightBiting: select.isNightBiting },
+            { isRarest: true, isNightBiting: true },
+          );
           return Promise.resolve([
             {
               id: 'fish-a',

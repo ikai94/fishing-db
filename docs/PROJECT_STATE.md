@@ -124,6 +124,10 @@ The workspace currently includes only `apps/*`; there is no accepted `packages/s
   homepage.
 - Public dense weekly records table synchronized from the official rus-fishsoft table, with
   catalog maxima, tied Bases, headroom, status, sorting, and an exact default-order reset.
+  Authenticated users can mark Fish as favorites. Fish has an ADMIN-maintained public night-biting
+  mark, while wrong-«Наш max» issues are separate ADMIN-only metadata that never replace the
+  calculated maximum. The compact URL-backed marks filter combines selections with AND semantics
+  alongside the existing records filters and sorting.
 
 ## Public routes
 
@@ -148,8 +152,11 @@ Important REST families, all below `/api/v1`:
 - `/admin/catalog` — ADMIN catalog reads/mutations and Base–Fish membership.
 - `/catch-reports` — public feed/detail/statistics, parser preview, and guarded mutations.
 - `/me/catch-reports` — authenticated owner list/detail.
+- `/me/favorite-fish` — authenticated list/add/remove for the current User's favorite Fish.
 - `/activity` — anonymous append-only activity feed with versioned opaque cursor pagination.
-- `/records` — anonymous current-week records projection and catalog headroom assessment.
+- `/records` — anonymous current-week records projection, public night marks, and catalog headroom
+  assessment.
+- `/admin/records` — guarded record notes, night-mark mutations, and private wrong-max issue metadata.
 
 ## Important accepted decisions
 

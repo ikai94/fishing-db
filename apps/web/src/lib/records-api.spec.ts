@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'vitest';
-import { decodeAdminRecordNotesResponse, decodeRecordsResponse } from './records-api';
+import {
+  decodeAdminRecordNotesResponse,
+  decodeAdminWrongMaxIssuesResponse,
+  decodeRecordsResponse,
+} from './records-api';
 
 describe('records API decoder', () => {
   test('accepts distinct no-record and unknown states and rejects a record without payload', () => {
@@ -13,7 +17,7 @@ describe('records API decoder', () => {
       sync: { status: 'WAITING', observedAt: null, lastAttemptAt: null, lastSuccessAt: null },
     };
     const item = {
-      fish: { id: 'fish', name: 'Рыба', isRarest: true },
+      fish: { id: 'fish', name: 'Рыба', isRarest: true, isNightBiting: true },
       state: 'UNKNOWN',
       record: null,
       normalMaxWeightGrams: null,
@@ -63,5 +67,24 @@ describe('records API decoder', () => {
         items: [{ fishId: 'fish', note: 'Проверить базу', private: true }],
       }),
     ).toThrow(/Некорректный элемент заметок/u);
+  });
+
+  test('keeps wrong-max metadata in a strict ADMIN-only contract', () => {
+    const issue = {
+      fishId: 'fish',
+      expectedWeightGrams: 1234,
+      note: 'Проверить',
+      createdAt: '2026-09-20T00:00:00Z',
+      updatedAt: '2026-09-25T00:00:00Z',
+    };
+    expect(decodeAdminWrongMaxIssuesResponse({ items: [issue] })).toEqual({ items: [issue] });
+    expect(() =>
+      decodeAdminWrongMaxIssuesResponse({ items: [{ ...issue, updatedByUserId: 'private' }] }),
+    ).toThrow(/Некорректный элемент проблемы нашего max/u);
+    expect(() =>
+      decodeAdminWrongMaxIssuesResponse({
+        items: [{ ...issue, expectedWeightGrams: 0 }],
+      }),
+    ).toThrow(/ожидаемый вес/u);
   });
 });
