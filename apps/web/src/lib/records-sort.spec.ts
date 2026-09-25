@@ -20,6 +20,7 @@ function row(
             weightGrams: weight,
             waterbody: 'База',
             fishingBase,
+            bait: 'Червь',
             playerName: 'Игрок',
             caughtAt: '2026-09-09T10:00:00Z',
           },

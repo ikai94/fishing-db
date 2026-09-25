@@ -4,7 +4,7 @@ export const RECORDS_TIME_ZONE = 'Europe/Moscow';
 
 // Версии входят в снимок и заставляют сохранить новый результат после изменения правил разбора
 // или сопоставления, даже если сами строки официальной таблицы не изменились.
-export const RECORDS_PARSER_VERSION = 1;
+export const RECORDS_PARSER_VERSION = 2;
 export const RECORDS_MAPPING_VERSION = 1;
 
 // Интервал задаёт штатную частоту обновления, а более короткая аренда освобождает синхронизацию,

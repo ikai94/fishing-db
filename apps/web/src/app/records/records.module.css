@@ -222,13 +222,13 @@
 }
 .table {
   width: 100%;
-  min-width: 1120px;
+  min-width: 1220px;
   border-collapse: separate;
   border-spacing: 0;
   font-variant-numeric: tabular-nums;
 }
 .adminTable {
-  min-width: 1320px;
+  min-width: 1420px;
 }
 .table th,
 .table td {

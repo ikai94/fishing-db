@@ -39,6 +39,7 @@ describe('records API decoder', () => {
               weightGrams: 1_000,
               waterbody: 'База',
               fishingBase: null,
+              bait: 'Червь',
               playerName: 'Игрок',
               caughtAt: '2026-09-09T10:00:00Z',
             },
@@ -50,6 +51,29 @@ describe('records API decoder', () => {
         ],
       }).items[0]?.status,
     ).toBe('MAXIMUM');
+    expect(
+      decodeRecordsResponse({
+        ...base,
+        items: [
+          {
+            ...item,
+            state: 'RECORD',
+            record: {
+              weightGrams: 1_000,
+              waterbody: 'База',
+              fishingBase: null,
+              bait: null,
+              playerName: 'Игрок',
+              caughtAt: '2026-09-09T10:00:00Z',
+            },
+            normalMaxWeightGrams: 1_000,
+            headroomGrams: 0,
+            headroomPercent: 0,
+            status: 'MAXIMUM',
+          },
+        ],
+      }).items[0]?.record?.bait,
+    ).toBeNull();
     expect(() => decodeRecordsResponse({ ...base, items: [{ ...item, state: 'RECORD' }] })).toThrow(
       /Несогласованное/u,
     );

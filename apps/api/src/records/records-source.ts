@@ -12,6 +12,7 @@ export type OfficialRecordSourceRow = {
   imageKey: number;
   weightGrams: number;
   waterbody: string;
+  baitRaw: string | null;
   playerName: string;
   caughtAt: Date;
   caughtAtRaw: string;
@@ -94,7 +95,9 @@ export function parseOfficialRecordsHtml(html: string): ParsedOfficialRecords {
   const table = $('table')
     .filter((_, element) => {
       const text = compactText($(element).find('tr').first().text());
-      return ['Рыба', 'Вес', 'Водоем', 'Игрок', 'Дата'].every((label) => text.includes(label));
+      return ['Рыба', 'Вес', 'Водоем', 'Прим-ка', 'Игрок', 'Дата'].every((label) =>
+        text.includes(label),
+      );
     })
     .first();
   if (table.length === 0 || table.find('tbody').length === 0) {
@@ -112,6 +115,8 @@ export function parseOfficialRecordsHtml(html: string): ParsedOfficialRecords {
     const imageMatch = /\/small\/(\d+)\.png(?:\?.*)?$/u.exec(imagePath);
     const fishName = compactText(fishCell.text());
     const waterbody = compactText(cells.eq(3).text());
+    const baitTitle = cells.eq(4).find('img').attr('title');
+    const baitRaw = baitTitle === undefined || baitTitle.length === 0 ? null : baitTitle;
     const playerName = compactText(cells.eq(5).text());
     const caughtAtRaw = compactText(cells.eq(6).text());
 
@@ -125,6 +130,8 @@ export function parseOfficialRecordsHtml(html: string): ParsedOfficialRecords {
       imageKey: Number(imageMatch[1]),
       weightGrams: parseOfficialRecordWeight(cells.eq(2).text()),
       waterbody,
+      // RR3 публикует название только в title картинки; сохраняем его без каталожного сопоставления.
+      baitRaw,
       playerName,
       caughtAt: parseOfficialRecordDate(caughtAtRaw),
       caughtAtRaw,

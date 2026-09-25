@@ -11,6 +11,7 @@ export type RecordsItem = {
     weightGrams: number;
     waterbody: string;
     fishingBase: RecordsBase | null;
+    bait: string | null;
     playerName: string;
     caughtAt: string;
   };
@@ -126,6 +127,7 @@ function decodeItem(value: unknown): RecordsItem {
           'weightGrams',
           'waterbody',
           'fishingBase',
+          'bait',
           'playerName',
           'caughtAt',
         ]);
@@ -136,6 +138,7 @@ function decodeItem(value: unknown): RecordsItem {
           weightGrams: positiveInteger(recordRaw.weightGrams, 'вес рекорда'),
           waterbody: text(recordRaw.waterbody, 'место рекорда'),
           fishingBase: recordRaw.fishingBase === null ? null : decodeBase(recordRaw.fishingBase),
+          bait: nullableText(recordRaw.bait, 'наживка'),
           playerName: text(recordRaw.playerName, 'игрок'),
           caughtAt: instant(recordRaw.caughtAt, 'дата рекорда'),
         };

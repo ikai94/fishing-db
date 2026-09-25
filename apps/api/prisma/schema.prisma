@@ -264,6 +264,7 @@ model OfficialRecordSnapshotRow {
   sourceFishName String                 @db.VarChar(128)
   sourceFishPath String                 @db.VarChar(255)
   waterbodyRaw   String                 @db.VarChar(128)
+  baitRaw        String?                @db.VarChar(128)
   playerNameRaw  String                 @db.VarChar(128)
   caughtAt       DateTime               @db.Timestamptz(3)
   caughtAtRaw    String                 @db.VarChar(32)

@@ -81,6 +81,7 @@ void describe('public records projection', () => {
                 fishId: 'fish-a',
                 weightGrams: 900,
                 waterbodyRaw: 'База А',
+                baitRaw: 'Червь',
                 playerNameRaw: 'Игрок',
                 caughtAt: new Date('2026-09-09T09:00:00Z'),
                 fishingBase: null,
@@ -98,6 +99,7 @@ void describe('public records projection', () => {
     );
     assert.equal(response.items.length, 2);
     assert.equal(response.items[0]?.state, 'RECORD');
+    assert.equal(response.items[0]?.record?.bait, 'Червь');
     assert.equal(response.items[0]?.fish.isRarest, true);
     assert.equal(response.items[1]?.fish.isRarest, false);
     assert.deepEqual(

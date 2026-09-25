@@ -8,6 +8,7 @@ const source = {
   imageKey: 7,
   weightGrams: 900,
   waterbody: 'База',
+  baitRaw: 'Червь',
   playerName: 'Игрок',
   caughtAt: new Date('2026-09-09T10:00:00Z'),
   caughtAtRaw: '09.09.2026 13:00',

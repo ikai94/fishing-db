@@ -5,10 +5,10 @@ import { parseOfficialRecordsHtml, parseOfficialRecordWeight } from './records-s
 const HTML = `
 <table><thead><tr><th>Другое</th></tr></thead><tbody></tbody></table>
 <table><thead><tr><th></th><th>Рыба:</th><th>Вес:</th><th>Водоем:</th><th>Прим-ка:</th><th>Игрок:</th><th>Дата:</th></tr></thead>
-<tbody><tr><td><img src="assets/images/fish/small/2334.png"></td><td><a href="abramites.html"> Абрамитес  мраморный </a></td><td>1,632 кг</td><td>Амазония</td><td>Червь</td><td>NVS2111</td><td>09.09.2026 12:41</td></tr></tbody></table>`;
+<tbody><tr><td><img src="assets/images/fish/small/2334.png"></td><td><a href="abramites.html"> Абрамитес  мраморный </a></td><td>1,632 кг</td><td>Амазония</td><td><span><img src="assets/images/baits/worm.png" title=" Червь &amp; мотыль "></span></td><td>NVS2111</td><td>09.09.2026 12:41</td></tr></tbody></table>`;
 
 void describe('official records parser', () => {
-  void it('parses the identified table without persisting bait', () => {
+  void it('reads the exact bait title published by RR3', () => {
     const result = parseOfficialRecordsHtml(HTML);
     assert.equal(result.rows.length, 1);
     assert.deepEqual(result.rows[0], {
@@ -17,10 +17,16 @@ void describe('official records parser', () => {
       imageKey: 2334,
       weightGrams: 1632,
       waterbody: 'Амазония',
+      baitRaw: ' Червь & мотыль ',
       playerName: 'NVS2111',
       caughtAt: new Date('2026-09-09T09:41:00.000Z'),
       caughtAtRaw: '09.09.2026 12:41',
     });
+  });
+
+  void it('uses null when the RR3 bait image has no title', () => {
+    const result = parseOfficialRecordsHtml(HTML.replace(' title=" Червь &amp; мотыль "', ''));
+    assert.equal(result.rows[0]?.baitRaw, null);
   });
 
   void it('parses grams and exact kilogram thousandths', () => {

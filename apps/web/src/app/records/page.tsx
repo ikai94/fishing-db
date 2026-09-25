@@ -748,6 +748,7 @@ function RecordsTable({
                 <th scope="col">Заметка</th>
               ) : null}
               <th scope="col">Игрок/дата</th>
+              <th scope="col">Наживка</th>
               <th scope="col">Статус</th>
             </tr>
           </thead>
@@ -967,6 +968,7 @@ function RecordRow({
           '—'
         )}
       </td>
+      <td>{row.record?.bait ?? '—'}</td>
       <td>
         <span className={`${styles.status} ${statusClass(row.status)}`}>
           {row.status === null ? '—' : STATUS_LABELS[row.status]}

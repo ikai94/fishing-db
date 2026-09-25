@@ -67,6 +67,7 @@ const response: RecordsResponse = {
         weightGrams: 800,
         waterbody: 'Волга',
         fishingBase: { id: 'base', name: 'Волга', isActive: true },
+        bait: 'Червь',
         playerName: 'Игрок',
         caughtAt: '2026-09-09T10:00:00Z',
       },
@@ -93,6 +94,7 @@ const response: RecordsResponse = {
         weightGrams: 995,
         waterbody: 'Неизвестная база',
         fishingBase: null,
+        bait: null,
         playerName: 'Player',
         caughtAt: '2026-09-09T10:00:00Z',
       },
@@ -109,6 +111,7 @@ const response: RecordsResponse = {
         weightGrams: 1001,
         waterbody: 'Волга',
         fishingBase: { id: 'base', name: 'Волга', isActive: true },
+        bait: 'Твистер',
         playerName: 'Player',
         caughtAt: '2026-09-09T10:00:00Z',
       },
@@ -125,6 +128,7 @@ const response: RecordsResponse = {
         weightGrams: 1000,
         waterbody: 'Волга',
         fishingBase: { id: 'base', name: 'Волга', isActive: true },
+        bait: 'Мотыль',
         playerName: 'Player',
         caughtAt: '2026-09-09T10:00:00Z',
       },
@@ -141,6 +145,7 @@ const response: RecordsResponse = {
         weightGrams: 500,
         waterbody: 'Волга',
         fishingBase: null,
+        bait: 'Икра',
         playerName: 'Player',
         caughtAt: '2026-09-09T10:00:00Z',
       },
@@ -187,7 +192,7 @@ describe('RecordsPage', () => {
     mocks.removeFavoriteFish.mockResolvedValue(undefined);
   });
 
-  test('renders the dense approved columns, default order and record-weight colors without bait', async () => {
+  test('renders the dense approved columns, bait and record-weight colors', async () => {
     render(<RecordsPage />);
     const table = await screen.findByRole('table');
     expect(within(table).getAllByRole('row')).toHaveLength(7);
@@ -203,9 +208,13 @@ describe('RecordsPage', () => {
       'Где пойман↕',
       'База(ы) max↕',
       'Игрок/дата',
+      'Наживка',
       'Статус',
     ]);
-    expect(screen.queryByText('Наживка')).not.toBeInTheDocument();
+    expect(screen.getByText('Червь')).toBeVisible();
+    const missingBaitRow = screen.getByRole('link', { name: 'Жёлтая' }).closest('tr');
+    expect(missingBaitRow).not.toBeNull();
+    expect(within(missingBaitRow!).getAllByRole('cell')[6]).toHaveTextContent('—');
     expect(screen.queryByRole('columnheader', { name: 'Заметка' })).not.toBeInTheDocument();
     expect(within(table).getAllByRole('row')[1]).toHaveTextContent('Без рекорда');
     expect(screen.getByText('800 г').className).toContain('badgeGreen');
@@ -344,6 +353,7 @@ describe('RecordsPage', () => {
       'База(ы) max↕',
       'Заметка',
       'Игрок/дата',
+      'Наживка',
       'Статус',
     ]);
     const adminRow = screen.getByRole('link', { name: 'Зелёная' }).closest('tr');
