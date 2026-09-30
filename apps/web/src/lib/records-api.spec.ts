@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import {
+  decodeAdminRarityReviewsResponse,
   decodeAdminRecordNotesResponse,
   decodeAdminWrongMaxIssuesResponse,
   decodeRecordsResponse,
@@ -110,5 +111,14 @@ describe('records API decoder', () => {
         items: [{ ...issue, expectedWeightGrams: 0 }],
       }),
     ).toThrow(/ожидаемый вес/u);
+  });
+
+  test('keeps rarity-review metadata in a minimal strict ADMIN-only contract', () => {
+    expect(decodeAdminRarityReviewsResponse({ items: [{ fishId: 'fish' }] })).toEqual({
+      items: [{ fishId: 'fish' }],
+    });
+    expect(() =>
+      decodeAdminRarityReviewsResponse({ items: [{ fishId: 'fish', isRarest: true }] }),
+    ).toThrow(/Некорректный элемент проверки редкости/u);
   });
 });

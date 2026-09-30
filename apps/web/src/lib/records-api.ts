@@ -44,7 +44,11 @@ export type AdminWrongMaxIssue = {
   updatedAt: string;
 };
 export type AdminWrongMaxIssuesResponse = { items: AdminWrongMaxIssue[] };
+export type AdminRarityReviewsResponse = { items: Array<{ fishId: string }> };
 export type UpdatedNightMarkResponse = { fish: { fishId: string; isNightBiting: boolean } };
+export type UpdatedRarityReviewResponse = {
+  review: { fishId: string; needsCorrection: boolean };
+};
 export type UpdatedWrongMaxIssueResponse = { issue: AdminWrongMaxIssue };
 
 function object(value: unknown, label: string): Record<string, unknown> {
@@ -280,6 +284,27 @@ export async function getAdminWrongMaxIssues(
   );
 }
 
+/** Декодирует изолированный ADMIN-список отметок проверки редкости. */
+export function decodeAdminRarityReviewsResponse(value: unknown): AdminRarityReviewsResponse {
+  const root = exactObject(value, 'ответ проверки редкости', ['items']);
+  if (!Array.isArray(root.items)) throw new Error('Некорректный список проверки редкости.');
+  return {
+    items: root.items.map((value) => {
+      const item = exactObject(value, 'элемент проверки редкости', ['fishId']);
+      return { fishId: text(item.fishId, 'ID рыбы проверки редкости') };
+    }),
+  };
+}
+
+/** Загружает все приватные отметки проверки редкости одним ADMIN-запросом. */
+export async function getAdminRarityReviews(
+  signal?: AbortSignal,
+): Promise<AdminRarityReviewsResponse> {
+  return decodeAdminRarityReviewsResponse(
+    await apiRequest<unknown>('/admin/records/rarity-reviews', { signal }),
+  );
+}
+
 /** Сохраняет общую ночную метку Fish через защищённый ADMIN endpoint. */
 export async function updateAdminNightMark(
   fishId: string,
@@ -298,6 +323,31 @@ export async function updateAdminNightMark(
     fish: {
       fishId: text(fish.fishId, 'ID рыбы ночной метки'),
       isNightBiting: boolean(fish.isNightBiting, 'ночная метка'),
+    },
+  };
+}
+
+/** Создаёт или снимает приватную отметку проверки редкости. */
+export async function updateAdminRarityReview(
+  fishId: string,
+  needsCorrection: boolean,
+): Promise<UpdatedRarityReviewResponse> {
+  const root = exactObject(
+    await apiRequest<unknown>(`/admin/records/rarity-reviews/${fishId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ needsCorrection }),
+    }),
+    'ответ отметки проверки редкости',
+    ['review'],
+  );
+  const review = exactObject(root.review, 'отметка проверки редкости', [
+    'fishId',
+    'needsCorrection',
+  ]);
+  return {
+    review: {
+      fishId: text(review.fishId, 'ID рыбы проверки редкости'),
+      needsCorrection: boolean(review.needsCorrection, 'отметка проверки редкости'),
     },
   };
 }

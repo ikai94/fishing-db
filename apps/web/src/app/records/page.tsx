@@ -12,6 +12,7 @@ import { getApiErrorMessage } from '@/lib/api-client';
 import { addFavoriteFish, getFavoriteFish, removeFavoriteFish } from '@/lib/fish-favorites-api';
 import {
   clearAdminWrongMaxIssue,
+  getAdminRarityReviews,
   getAdminRecordNotes,
   getAdminWrongMaxIssues,
   getRecords,
@@ -20,6 +21,7 @@ import {
   type RecordsResponse,
   type RecordsStatus,
   updateAdminNightMark,
+  updateAdminRarityReview,
   updateAdminRecordNote,
   updateAdminWrongMaxIssue,
 } from '@/lib/records-api';
@@ -54,6 +56,7 @@ const HIDE_RAREST_FILTER_PARAM = 'hideRarest';
 const FAVORITES_FILTER_PARAM = 'favorites';
 const NIGHT_FILTER_PARAM = 'night';
 const WRONG_MAX_FILTER_PARAM = 'wrongMax';
+const RARITY_REVIEW_FILTER_PARAM = 'rarityReview';
 const FILTERABLE_STATUSES = [
   'MUTANT',
   'NEAR_MAX',
@@ -84,6 +87,17 @@ type WrongMaxIssuesState =
   | { kind: 'loading' }
   | { kind: 'error'; message: string }
   | { kind: 'ready'; issues: ReadonlyMap<string, AdminWrongMaxIssue> };
+type RarityReviewsState =
+  | { kind: 'checking' }
+  | { kind: 'hidden' }
+  | { kind: 'loading' }
+  | { kind: 'error'; message: string }
+  | {
+      kind: 'ready';
+      fishIds: ReadonlySet<string>;
+      pendingFishIds: ReadonlySet<string>;
+      error: string | null;
+    };
 type NoteActionIconName = 'add' | 'edit' | 'save' | 'cancel';
 
 /** Рисует компактную декоративную иконку действия без отдельной зависимости. */
@@ -128,17 +142,20 @@ function RecordsContent() {
   const [adminNotes, setAdminNotes] = useState<AdminNotesState>({ kind: 'checking' });
   const [favoriteFish, setFavoriteFish] = useState<FavoriteFishState>({ kind: 'checking' });
   const [wrongMaxIssues, setWrongMaxIssues] = useState<WrongMaxIssuesState>({ kind: 'checking' });
+  const [rarityReviews, setRarityReviews] = useState<RarityReviewsState>({ kind: 'checking' });
   const [nightOverrides, setNightOverrides] = useState<ReadonlyMap<string, boolean>>(new Map());
   const [pendingNightFishIds, setPendingNightFishIds] = useState<ReadonlySet<string>>(new Set());
   const [nightMarkError, setNightMarkError] = useState<string | null>(null);
   const pendingFavoriteIds = useRef(new Set<string>());
   const pendingNightIds = useRef(new Set<string>());
+  const pendingRarityReviewIds = useRef(new Set<string>());
   const sort = readRecordsSort(searchParams);
   const selectedStatuses = useMemo(() => readStatusFilters(searchParams), [searchParams]);
   const hideRarest = searchParams.get(HIDE_RAREST_FILTER_PARAM) === 'true';
   const favoritesOnly = searchParams.get(FAVORITES_FILTER_PARAM) === 'true';
   const nightOnly = searchParams.get(NIGHT_FILTER_PARAM) === 'true';
   const wrongMaxOnly = searchParams.get(WRONG_MAX_FILTER_PARAM) === 'true';
+  const rarityReviewOnly = searchParams.get(RARITY_REVIEW_FILTER_PARAM) === 'true';
   const baseOptions = useMemo(
     () => (state.kind === 'ready' ? caughtAtBaseOptions(state.data.items) : []),
     [state],
@@ -175,13 +192,19 @@ function RecordsContent() {
       wrongMaxOnly && wrongMaxIssues.kind === 'ready'
         ? nightFiltered.filter((item) => wrongMaxIssues.issues.has(item.fish.id))
         : nightFiltered;
-    return sortRecords(wrongMaxFiltered, sort);
+    const rarityReviewFiltered =
+      rarityReviewOnly && rarityReviews.kind === 'ready'
+        ? wrongMaxFiltered.filter((item) => rarityReviews.fishIds.has(item.fish.id))
+        : wrongMaxFiltered;
+    return sortRecords(rarityReviewFiltered, sort);
   }, [
     favoriteFish,
     favoritesOnly,
     hideRarest,
     nightOnly,
     nightOverrides,
+    rarityReviewOnly,
+    rarityReviews,
     selectedBaseId,
     selectedStatuses,
     sort,
@@ -220,11 +243,13 @@ function RecordsContent() {
         if (user.role !== 'ADMIN' || user.isBanned) {
           setAdminNotes({ kind: 'hidden' });
           setWrongMaxIssues({ kind: 'hidden' });
+          setRarityReviews({ kind: 'hidden' });
           return;
         }
 
         setAdminNotes({ kind: 'loading' });
         setWrongMaxIssues({ kind: 'loading' });
+        setRarityReviews({ kind: 'loading' });
         void getAdminRecordNotes(controller.signal).then(
           (response) => {
             if (controller.signal.aborted) return;
@@ -259,11 +284,31 @@ function RecordsContent() {
             }
           },
         );
+        void getAdminRarityReviews(controller.signal).then(
+          (response) => {
+            if (controller.signal.aborted) return;
+            setRarityReviews({
+              kind: 'ready',
+              fishIds: new Set(response.items.map((item) => item.fishId)),
+              pendingFishIds: new Set(),
+              error: null,
+            });
+          },
+          (error: unknown) => {
+            if (!controller.signal.aborted) {
+              setRarityReviews({
+                kind: 'error',
+                message: getApiErrorMessage(error, 'Не удалось загрузить проверки редкости.'),
+              });
+            }
+          },
+        );
       } catch {
         if (controller.signal.aborted) return;
         setFavoriteFish({ kind: 'hidden' });
         setAdminNotes({ kind: 'hidden' });
         setWrongMaxIssues({ kind: 'hidden' });
+        setRarityReviews({ kind: 'hidden' });
       }
     }
 
@@ -347,6 +392,55 @@ function RecordsContent() {
         const next = new Set(current);
         next.delete(fishId);
         return next;
+      });
+    }
+  }, []);
+
+  /** Оптимистично меняет проверку редкости, блокируя повторную мутацию той же Fish. */
+  const toggleRarityReview = useCallback(async (fishId: string, selected: boolean) => {
+    if (pendingRarityReviewIds.current.has(fishId)) return;
+    pendingRarityReviewIds.current.add(fishId);
+    setRarityReviews((current) => {
+      if (current.kind !== 'ready') return current;
+      const fishIds = new Set(current.fishIds);
+      if (selected) fishIds.add(fishId);
+      else fishIds.delete(fishId);
+      return {
+        kind: 'ready',
+        fishIds,
+        pendingFishIds: new Set([...current.pendingFishIds, fishId]),
+        error: null,
+      };
+    });
+
+    try {
+      const response = await updateAdminRarityReview(fishId, selected);
+      setRarityReviews((current) => {
+        if (current.kind !== 'ready') return current;
+        const fishIds = new Set(current.fishIds);
+        if (response.review.needsCorrection) fishIds.add(fishId);
+        else fishIds.delete(fishId);
+        return { ...current, fishIds };
+      });
+    } catch (error) {
+      setRarityReviews((current) => {
+        if (current.kind !== 'ready') return current;
+        const fishIds = new Set(current.fishIds);
+        if (selected) fishIds.delete(fishId);
+        else fishIds.add(fishId);
+        return {
+          ...current,
+          fishIds,
+          error: getApiErrorMessage(error, 'Не удалось обновить проверку редкости.'),
+        };
+      });
+    } finally {
+      pendingRarityReviewIds.current.delete(fishId);
+      setRarityReviews((current) => {
+        if (current.kind !== 'ready') return current;
+        const pendingFishIds = new Set(current.pendingFishIds);
+        pendingFishIds.delete(fishId);
+        return { ...current, pendingFishIds };
       });
     }
   }, []);
@@ -482,6 +576,8 @@ function RecordsContent() {
             nightOnly={nightOnly}
             wrongMaxOnly={wrongMaxOnly}
             wrongMaxIssues={wrongMaxIssues}
+            rarityReviewOnly={rarityReviewOnly}
+            rarityReviews={rarityReviews}
             nightOverrides={nightOverrides}
             pendingNightFishIds={pendingNightFishIds}
             nightMarkError={nightMarkError}
@@ -497,6 +593,7 @@ function RecordsContent() {
             onSaveNote={saveAdminNote}
             onToggleFavorite={toggleFavorite}
             onToggleNightMark={toggleNightMark}
+            onToggleRarityReview={toggleRarityReview}
             onSaveWrongMaxIssue={saveWrongMaxIssue}
             onClearWrongMaxIssue={clearWrongMaxIssue}
           />
@@ -518,6 +615,8 @@ type TableProps = {
   nightOnly: boolean;
   wrongMaxOnly: boolean;
   wrongMaxIssues: WrongMaxIssuesState;
+  rarityReviewOnly: boolean;
+  rarityReviews: RarityReviewsState;
   nightOverrides: ReadonlyMap<string, boolean>;
   pendingNightFishIds: ReadonlySet<string>;
   nightMarkError: string | null;
@@ -533,6 +632,7 @@ type TableProps = {
   onSaveNote: (fishId: string, note: string) => Promise<string | null>;
   onToggleFavorite: (fishId: string, selected: boolean) => Promise<void>;
   onToggleNightMark: (fishId: string, selected: boolean) => Promise<void>;
+  onToggleRarityReview: (fishId: string, selected: boolean) => Promise<void>;
   onSaveWrongMaxIssue: (
     fishId: string,
     expectedWeightGrams: number | null,
@@ -554,6 +654,8 @@ function RecordsTable({
   nightOnly,
   wrongMaxOnly,
   wrongMaxIssues,
+  rarityReviewOnly,
+  rarityReviews,
   nightOverrides,
   pendingNightFishIds,
   nightMarkError,
@@ -568,6 +670,7 @@ function RecordsTable({
   onSaveNote,
   onToggleFavorite,
   onToggleNightMark,
+  onToggleRarityReview,
   onSaveWrongMaxIssue,
   onClearWrongMaxIssue,
 }: TableProps) {
@@ -587,8 +690,17 @@ function RecordsTable({
         : null;
   const isAdmin = wrongMaxIssues.kind !== 'checking' && wrongMaxIssues.kind !== 'hidden';
   const issueError = wrongMaxIssues.kind === 'error' ? wrongMaxIssues.message : null;
+  const rarityReviewError =
+    rarityReviews.kind === 'error'
+      ? rarityReviews.message
+      : rarityReviews.kind === 'ready'
+        ? rarityReviews.error
+        : null;
   const selectedMarksCount =
-    Number(favoritesOnly) + Number(nightOnly) + Number(isAdmin && wrongMaxOnly);
+    Number(favoritesOnly) +
+    Number(nightOnly) +
+    Number(isAdmin && wrongMaxOnly) +
+    Number(rarityReviews.kind === 'ready' && rarityReviewOnly);
   return (
     <section aria-label="Рекорды недели">
       <div className={styles.toolbar}>
@@ -663,6 +775,18 @@ function RecordsTable({
                     <span>⚠ Неверный наш max</span>
                   </label>
                 ) : null}
+                {rarityReviews.kind === 'ready' ? (
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={rarityReviewOnly}
+                      onChange={(event) =>
+                        onMarkFilter(RARITY_REVIEW_FILTER_PARAM, event.target.checked)
+                      }
+                    />
+                    <span>Редкость: исправить</span>
+                  </label>
+                ) : null}
               </div>
             </details>
           ) : null}
@@ -684,9 +808,9 @@ function RecordsTable({
           </button>
         </div>
       </div>
-      {favoriteError || issueError || nightMarkError ? (
+      {favoriteError || issueError || rarityReviewError || nightMarkError ? (
         <p className={styles.favoriteError} role="alert">
-          {favoriteError ?? issueError ?? nightMarkError}
+          {favoriteError ?? issueError ?? rarityReviewError ?? nightMarkError}
         </p>
       ) : null}
       {syncMessage ? (
@@ -767,6 +891,12 @@ function RecordsTable({
                 isAdmin={isAdmin}
                 isNightBiting={nightOverrides.get(row.fish.id) ?? row.fish.isNightBiting}
                 nightPending={pendingNightFishIds.has(row.fish.id)}
+                rarityReview={
+                  rarityReviews.kind === 'ready' ? rarityReviews.fishIds.has(row.fish.id) : null
+                }
+                rarityReviewPending={
+                  rarityReviews.kind === 'ready' && rarityReviews.pendingFishIds.has(row.fish.id)
+                }
                 wrongMaxIssue={
                   wrongMaxIssues.kind === 'ready'
                     ? (wrongMaxIssues.issues.get(row.fish.id) ?? null)
@@ -775,6 +905,7 @@ function RecordsTable({
                 onSaveNote={onSaveNote}
                 onToggleFavorite={onToggleFavorite}
                 onToggleNightMark={onToggleNightMark}
+                onToggleRarityReview={onToggleRarityReview}
                 onSaveWrongMaxIssue={onSaveWrongMaxIssue}
                 onClearWrongMaxIssue={onClearWrongMaxIssue}
               />
@@ -821,10 +952,13 @@ function RecordRow({
   isAdmin,
   isNightBiting,
   nightPending,
+  rarityReview,
+  rarityReviewPending,
   wrongMaxIssue,
   onSaveNote,
   onToggleFavorite,
   onToggleNightMark,
+  onToggleRarityReview,
   onSaveWrongMaxIssue,
   onClearWrongMaxIssue,
 }: {
@@ -835,10 +969,13 @@ function RecordRow({
   isAdmin: boolean;
   isNightBiting: boolean;
   nightPending: boolean;
+  rarityReview: boolean | null;
+  rarityReviewPending: boolean;
   wrongMaxIssue: AdminWrongMaxIssue | null | undefined;
   onSaveNote: TableProps['onSaveNote'];
   onToggleFavorite: TableProps['onToggleFavorite'];
   onToggleNightMark: TableProps['onToggleNightMark'];
+  onToggleRarityReview: TableProps['onToggleRarityReview'];
   onSaveWrongMaxIssue: TableProps['onSaveWrongMaxIssue'];
   onClearWrongMaxIssue: TableProps['onClearWrongMaxIssue'];
 }) {
@@ -888,6 +1025,21 @@ function RecordRow({
             >
               🌙
             </span>
+          ) : null}
+          {rarityReview !== null ? (
+            <button
+              className={`${styles.rarityReviewButton} ${rarityReview ? styles.rarityReviewButtonActive : ''}`}
+              type="button"
+              aria-label={`${rarityReview ? 'Снять отметку исправления редкости с' : 'Отметить редкость для исправления:'} ${row.fish.name}`}
+              title={
+                rarityReview ? 'Редкость требует исправления' : 'Отметить редкость для исправления'
+              }
+              aria-pressed={rarityReview}
+              disabled={rarityReviewPending}
+              onClick={() => void onToggleRarityReview(row.fish.id, !rarityReview)}
+            >
+              <span aria-hidden="true">◆</span>
+            </button>
           ) : null}
         </div>
       </th>

@@ -177,6 +177,7 @@ model Fish {
   officialRecordRows   OfficialRecordSnapshotRow[]
   recordNote           FishRecordNote?
   wrongMaxIssue        FishWrongMaxIssue?
+  rarityReview         FishRarityReview?
   favoritedBy          UserFavoriteFish[]
 }
 
@@ -206,6 +207,12 @@ model FishWrongMaxIssue {
   createdAt           DateTime @default(now()) @db.Timestamptz(3)
   updatedAt           DateTime @default(now()) @updatedAt @db.Timestamptz(3)
   fish                Fish     @relation(fields: [fishId], references: [id], onDelete: Cascade)
+}
+
+model FishRarityReview {
+  fishId    String   @id @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  fish      Fish     @relation(fields: [fishId], references: [id], onDelete: Cascade)
 }
 
 model Bait {

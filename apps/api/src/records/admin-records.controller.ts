@@ -14,6 +14,7 @@ import { AuthGuard } from '../auth/auth.guard.js';
 import { createApplicationValidationPipe } from '../common/validation/validation-exception.factory.js';
 import { RecordNoteParamsDto } from './dto/record-note-params.dto.js';
 import { UpdateNightMarkDto } from './dto/update-night-mark.dto.js';
+import { UpdateRarityReviewDto } from './dto/update-rarity-review.dto.js';
 import { UpdateRecordNoteDto } from './dto/update-record-note.dto.js';
 import { UpdateWrongMaxIssueDto } from './dto/update-wrong-max-issue.dto.js';
 import { RecordMarksService } from './record-marks.service.js';
@@ -56,6 +57,21 @@ export class AdminRecordsController {
   @Get('wrong-max-issues')
   listWrongMaxIssues() {
     return this.marks.listWrongMaxIssues();
+  }
+
+  /** Возвращает все приватные отметки будущей проверки редкости одним ADMIN-запросом. */
+  @Get('rarity-reviews')
+  listRarityReviews() {
+    return this.marks.listRarityReviews();
+  }
+
+  /** Меняет существование приватной отметки, не затрагивая публичную редкость Fish. */
+  @Patch('rarity-reviews/:fishId')
+  updateRarityReview(
+    @Param(createApplicationValidationPipe(RecordNoteParamsDto)) params: RecordNoteParamsDto,
+    @Body(createApplicationValidationPipe(UpdateRarityReviewDto)) dto: UpdateRarityReviewDto,
+  ) {
+    return this.marks.updateRarityReview(params.fishId, dto.needsCorrection);
   }
 
   /** Создаёт или заменяет приватные сведения о неверном «Наш max» одной Fish. */

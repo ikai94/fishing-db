@@ -880,13 +880,22 @@ void describe('Catalog API (PostgreSQL e2e)', { concurrency: false }, () => {
     });
     const nightPath = `/api/v1/admin/records/night-marks/${fish.id}`;
     const issuesPath = '/api/v1/admin/records/wrong-max-issues';
+    const reviewsPath = '/api/v1/admin/records/rarity-reviews';
 
     await unsafe(api().patch(nightPath)).send({ isNightBiting: true }).expect(401);
+    await api().get(reviewsPath).expect(401);
+    await unsafe(api().patch(`${reviewsPath}/${fish.id}`))
+      .send({ needsCorrection: true })
+      .expect(401);
     const userNight = await unsafe(api().patch(nightPath), user.cookie)
       .send({ isNightBiting: true })
       .expect(403);
     assert.equal(readErrorCode(userNight.body as unknown), 'ADMIN_REQUIRED');
     await api().get(issuesPath).set('Cookie', user.cookie).expect(403);
+    await api().get(reviewsPath).set('Cookie', user.cookie).expect(403);
+    await unsafe(api().patch(`${reviewsPath}/${fish.id}`), user.cookie)
+      .send({ needsCorrection: true })
+      .expect(403);
     await unsafe(api().patch(`${issuesPath}/${fish.id}`), user.cookie)
       .send({ expectedWeightGrams: 1200, note: null })
       .expect(403);
@@ -894,16 +903,24 @@ void describe('Catalog API (PostgreSQL e2e)', { concurrency: false }, () => {
       .send({ isNightBiting: true })
       .expect(403);
     await api().get(issuesPath).set('Cookie', bannedAdmin.cookie).expect(403);
+    await api().get(reviewsPath).set('Cookie', bannedAdmin.cookie).expect(403);
+    await unsafe(api().patch(`${reviewsPath}/${fish.id}`), bannedAdmin.cookie)
+      .send({ needsCorrection: true })
+      .expect(403);
 
     assert.equal(
       (await prisma.fish.findUniqueOrThrow({ where: { id: fish.id } })).isNightBiting,
       false,
     );
     assert.equal(await prisma.fishWrongMaxIssue.count(), 0);
+    assert.equal(await prisma.fishRarityReview.count(), 0);
     await unsafe(api().patch(nightPath), admin.cookie).send({ isNightBiting: 'yes' }).expect(400);
+    await unsafe(api().patch(`${reviewsPath}/${fish.id}`), admin.cookie)
+      .send({ needsCorrection: 'yes' })
+      .expect(400);
   });
 
-  void test('ADMIN persists night and wrong-max marks without changing the calculated max or public privacy', async () => {
+  void test('ADMIN persists record marks without changing rarity, calculated max or public privacy', async () => {
     const admin = await createActor('ADMIN');
     const fish = await createFish(admin.cookie, 'Рыба с метками рекорда');
     const base = await prisma.fishingBase.create({
@@ -914,6 +931,7 @@ void describe('Catalog API (PostgreSQL e2e)', { concurrency: false }, () => {
     });
     const nightPath = `/api/v1/admin/records/night-marks/${fish.id}`;
     const issuesPath = '/api/v1/admin/records/wrong-max-issues';
+    const reviewsPath = '/api/v1/admin/records/rarity-reviews';
 
     const beforeResponse = asObject((await api().get('/api/v1/records').expect(200)).body);
     const before = asObject(
@@ -930,6 +948,26 @@ void describe('Catalog API (PostgreSQL e2e)', { concurrency: false }, () => {
     assert.deepEqual((await api().get(issuesPath).set('Cookie', admin.cookie).expect(200)).body, {
       items: [],
     });
+    assert.deepEqual((await api().get(reviewsPath).set('Cookie', admin.cookie).expect(200)).body, {
+      items: [],
+    });
+
+    assert.deepEqual(
+      (
+        await unsafe(api().patch(`${reviewsPath}/${fish.id}`), admin.cookie)
+          .send({ needsCorrection: true })
+          .expect(200)
+      ).body,
+      { review: { fishId: fish.id, needsCorrection: true } },
+    );
+    await unsafe(api().patch(`${reviewsPath}/${fish.id}`), admin.cookie)
+      .send({ needsCorrection: true })
+      .expect(200);
+    assert.equal(await prisma.fishRarityReview.count({ where: { fishId: fish.id } }), 1);
+    assert.deepEqual((await api().get(reviewsPath).set('Cookie', admin.cookie).expect(200)).body, {
+      items: [{ fishId: fish.id }],
+    });
+    assert.equal((await prisma.fish.findUniqueOrThrow({ where: { id: fish.id } })).isRarest, false);
 
     const created = readEnvelope(
       (
@@ -975,6 +1013,18 @@ void describe('Catalog API (PostgreSQL e2e)', { concurrency: false }, () => {
     assert.equal(publicItem.normalMaxWeightGrams, 1000);
     assert.equal(JSON.stringify(publicResponse.body).includes('expectedWeightGrams'), false);
     assert.equal(JSON.stringify(publicResponse.body).includes('wrongMaxIssue'), false);
+    assert.equal(JSON.stringify(publicResponse.body).includes('needsCorrection'), false);
+    assert.equal(JSON.stringify(publicResponse.body).includes('rarityReview'), false);
+
+    assert.deepEqual(
+      (
+        await unsafe(api().patch(`${reviewsPath}/${fish.id}`), admin.cookie)
+          .send({ needsCorrection: false })
+          .expect(200)
+      ).body,
+      { review: { fishId: fish.id, needsCorrection: false } },
+    );
+    assert.equal(await prisma.fishRarityReview.count({ where: { fishId: fish.id } }), 0);
 
     await unsafe(api().delete(`${issuesPath}/${fish.id}`), admin.cookie).expect(204);
     assert.equal(await prisma.fishWrongMaxIssue.count({ where: { fishId: fish.id } }), 0);

@@ -274,7 +274,8 @@
   gap: 5px;
 }
 .favoriteButton,
-.nightButton {
+.nightButton,
+.rarityReviewButton {
   display: grid;
   width: 24px;
   height: 24px;
@@ -299,7 +300,8 @@
   color: #b58100;
 }
 .favoriteButton:disabled,
-.nightButton:disabled {
+.nightButton:disabled,
+.rarityReviewButton:disabled {
   cursor: wait;
   opacity: 0.55;
 }
@@ -316,6 +318,18 @@
 .nightButtonActive {
   background: #eef1ff;
   filter: none;
+}
+.rarityReviewButton {
+  font-size: 0.8rem;
+}
+.rarityReviewButton:hover,
+.rarityReviewButton:focus-visible {
+  color: #8b5300;
+  background: #fff3dc;
+}
+.rarityReviewButtonActive {
+  color: #a55e00;
+  background: #fff3dc;
 }
 .nightMark {
   display: inline-grid;

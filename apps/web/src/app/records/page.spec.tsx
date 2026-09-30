@@ -10,7 +10,9 @@ const mocks = vi.hoisted(() => ({
   getAdminRecordNotes: vi.fn(),
   updateAdminRecordNote: vi.fn(),
   getAdminWrongMaxIssues: vi.fn(),
+  getAdminRarityReviews: vi.fn(),
   updateAdminNightMark: vi.fn(),
+  updateAdminRarityReview: vi.fn(),
   updateAdminWrongMaxIssue: vi.fn(),
   clearAdminWrongMaxIssue: vi.fn(),
   getFavoriteFish: vi.fn(),
@@ -30,7 +32,9 @@ vi.mock('@/lib/records-api', async () => ({
   getAdminRecordNotes: mocks.getAdminRecordNotes,
   updateAdminRecordNote: mocks.updateAdminRecordNote,
   getAdminWrongMaxIssues: mocks.getAdminWrongMaxIssues,
+  getAdminRarityReviews: mocks.getAdminRarityReviews,
   updateAdminNightMark: mocks.updateAdminNightMark,
+  updateAdminRarityReview: mocks.updateAdminRarityReview,
   updateAdminWrongMaxIssue: mocks.updateAdminWrongMaxIssue,
   clearAdminWrongMaxIssue: mocks.clearAdminWrongMaxIssue,
 }));
@@ -177,9 +181,15 @@ describe('RecordsPage', () => {
     mocks.updateAdminRecordNote.mockReset();
     mocks.getAdminWrongMaxIssues.mockReset();
     mocks.getAdminWrongMaxIssues.mockResolvedValue({ items: [] });
+    mocks.getAdminRarityReviews.mockReset();
+    mocks.getAdminRarityReviews.mockResolvedValue({ items: [] });
     mocks.updateAdminNightMark.mockReset();
     mocks.updateAdminNightMark.mockImplementation((fishId: string, isNightBiting: boolean) =>
       Promise.resolve({ fish: { fishId, isNightBiting } }),
+    );
+    mocks.updateAdminRarityReview.mockReset();
+    mocks.updateAdminRarityReview.mockImplementation((fishId: string, needsCorrection: boolean) =>
+      Promise.resolve({ review: { fishId, needsCorrection } }),
     );
     mocks.updateAdminWrongMaxIssue.mockReset();
     mocks.clearAdminWrongMaxIssue.mockReset();
@@ -628,12 +638,14 @@ describe('RecordsPage', () => {
     expect(screen.getByLabelText('Ночная рыба: Красная')).toBeVisible();
     expect(screen.queryByRole('button', { name: /ночную метку/u })).not.toBeInTheDocument();
     expect(mocks.getAdminWrongMaxIssues).not.toHaveBeenCalled();
+    expect(mocks.getAdminRarityReviews).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByText(/^Метки/u));
     const marks = within(screen.getByRole('group', { name: 'Метки' }));
     expect(marks.getByRole('checkbox', { name: '★ Избранные' })).not.toBeChecked();
     expect(marks.getByRole('checkbox', { name: '🌙 Ночные' })).not.toBeChecked();
     expect(marks.queryByRole('checkbox', { name: '⚠ Неверный наш max' })).not.toBeInTheDocument();
+    expect(marks.queryByRole('checkbox', { name: 'Редкость: исправить' })).not.toBeInTheDocument();
   });
 
   test('ADMIN toggles a moon optimistically, blocks duplicates and rolls back on failure', async () => {
@@ -671,6 +683,56 @@ describe('RecordsPage', () => {
     rejectUpdate(new Error('offline'));
     expect(await screen.findByRole('alert')).toHaveTextContent('Не удалось обновить ночную метку.');
     expect(screen.getByRole('button', { name: 'Снять ночную метку с Зелёная' })).toBeEnabled();
+  });
+
+  test('ADMIN toggles rarity review after the night icon, blocks duplicates and rolls back', async () => {
+    mocks.getCurrentUser.mockResolvedValue({
+      id: 'admin',
+      email: 'admin@example.ru',
+      nickname: 'Admin',
+      role: 'ADMIN',
+      isBanned: false,
+      createdAt: '2026-09-01T00:00:00Z',
+    });
+    let rejectUpdate: (reason?: unknown) => void = () => {
+      throw new Error('Rarity review rejecter was not initialized');
+    };
+    mocks.updateAdminRarityReview.mockImplementation(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectUpdate = reject;
+        }),
+    );
+
+    render(<RecordsPage />);
+    const reviewButton = await screen.findByRole('button', {
+      name: 'Отметить редкость для исправления: Зелёная',
+    });
+    const greenRow = screen.getByRole('link', { name: 'Зелёная' }).closest('tr');
+    expect(greenRow).not.toBeNull();
+    const rowButtons = within(greenRow!).getAllByRole('button');
+    expect(rowButtons.indexOf(reviewButton)).toBeGreaterThan(
+      rowButtons.indexOf(
+        within(greenRow!).getByRole('button', { name: 'Снять ночную метку с Зелёная' }),
+      ),
+    );
+
+    fireEvent.click(reviewButton);
+    const optimisticButton = screen.getByRole('button', {
+      name: 'Снять отметку исправления редкости с Зелёная',
+    });
+    expect(optimisticButton).toBeDisabled();
+    fireEvent.click(optimisticButton);
+    expect(mocks.updateAdminRarityReview).toHaveBeenCalledTimes(1);
+    expect(mocks.updateAdminRarityReview).toHaveBeenCalledWith('green', true);
+
+    rejectUpdate(new Error('offline'));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Не удалось обновить проверку редкости.',
+    );
+    expect(
+      screen.getByRole('button', { name: 'Отметить редкость для исправления: Зелёная' }),
+    ).toBeEnabled();
   });
 
   test('ADMIN edits and clears a wrong-max issue without replacing the displayed max', async () => {
@@ -745,7 +807,8 @@ describe('RecordsPage', () => {
   });
 
   test('combines all ADMIN marks with AND semantics and preserves URL state', async () => {
-    mocks.search = 'sort=weight&direction=desc&favorites=true&night=true&wrongMax=true';
+    mocks.search =
+      'sort=weight&direction=desc&favorites=true&night=true&wrongMax=true&rarityReview=true';
     mocks.getCurrentUser.mockResolvedValue({
       id: 'admin',
       email: 'admin@example.ru',
@@ -768,6 +831,7 @@ describe('RecordsPage', () => {
         },
       ],
     });
+    mocks.getAdminRarityReviews.mockResolvedValue({ items: [{ fishId: 'red' }] });
 
     render(<RecordsPage />);
     fireEvent.click(await screen.findByText(/^Метки/u));
@@ -775,6 +839,7 @@ describe('RecordsPage', () => {
     expect(marks.getByRole('checkbox', { name: '★ Избранные' })).toBeChecked();
     expect(marks.getByRole('checkbox', { name: '🌙 Ночные' })).toBeChecked();
     expect(marks.getByRole('checkbox', { name: '⚠ Неверный наш max' })).toBeChecked();
+    expect(marks.getByRole('checkbox', { name: 'Редкость: исправить' })).toBeChecked();
     const table = screen.getByRole('table');
     expect(within(table).getAllByRole('row')).toHaveLength(2);
     expect(within(table).getByText('Красная')).toBeVisible();
@@ -782,7 +847,7 @@ describe('RecordsPage', () => {
 
     fireEvent.click(marks.getByRole('checkbox', { name: '🌙 Ночные' }));
     expect(mocks.replace).toHaveBeenCalledWith(
-      '/records?sort=weight&direction=desc&favorites=true&wrongMax=true',
+      '/records?sort=weight&direction=desc&favorites=true&wrongMax=true&rarityReview=true',
       { scroll: false },
     );
   });

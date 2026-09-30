@@ -10,7 +10,7 @@ function fishNotFoundException(): NotFoundException {
   });
 }
 
-/** Управляет общей ночной меткой и приватными ADMIN-проблемами рекордного максимума. */
+/** Управляет общей ночной меткой и приватными ADMIN-метаданными проверки рекордов. */
 @Injectable()
 export class RecordMarksService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
@@ -44,6 +44,35 @@ export class RecordMarksService {
       },
     });
     return { items };
+  }
+
+  /** Читает все приватные отметки проверки редкости одним запросом. */
+  async listRarityReviews() {
+    const items = await this.prisma.fishRarityReview.findMany({
+      orderBy: { fishId: 'asc' },
+      select: { fishId: true },
+    });
+    return { items };
+  }
+
+  /** Создаёт или снимает отдельную отметку, не меняя публичный признак Fish.isRarest. */
+  async updateRarityReview(fishId: string, needsCorrection: boolean) {
+    const fish = await this.prisma.fish.findUnique({
+      where: { id: fishId },
+      select: { id: true },
+    });
+    if (fish === null) throw fishNotFoundException();
+
+    if (needsCorrection) {
+      await this.prisma.fishRarityReview.upsert({
+        where: { fishId },
+        create: { fishId },
+        update: {},
+      });
+    } else {
+      await this.prisma.fishRarityReview.deleteMany({ where: { fishId } });
+    }
+    return { review: { fishId, needsCorrection } };
   }
 
   /** Создаёт или обновляет проблему, не меняя Fish, CatchReport или вычисленный максимум. */

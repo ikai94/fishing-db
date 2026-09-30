@@ -25,6 +25,7 @@ const FISH_IMAGE_METADATA_MIGRATION = '20260828190000_add_fish_image_metadata';
 const BASE_FISH_WEIGHT_MIGRATION = '20260901120000_add_fishing_base_fish_weights';
 const ACTIVITY_EVENT_MIGRATION = '20260904120000_add_activity_events';
 const EMAIL_AUTH_MIGRATION = '20260904160000_add_email_auth_foundation';
+const RARITY_REVIEW_MIGRATION = '20260925180000_add_fish_rarity_reviews';
 
 loadEnvironmentFile({ path: `${API_DIRECTORY}/.env`, quiet: true });
 loadEnvironmentFile({ path: `${API_DIRECTORY}/test/.env`, quiet: true });
@@ -1167,6 +1168,55 @@ void describe('Email auth migration semantics', () => {
         `DROP SCHEMA IF EXISTS ${quotedIdentifier(emailAuthSchema)} CASCADE`,
       );
       await emailAuthClient.end();
+    }
+  });
+});
+
+void describe('Fish rarity review migration semantics', () => {
+  void test('adds one cascade-owned review row per Fish without backfill', async () => {
+    const configuration = getTestDatabaseConfiguration(process.env);
+    const reviewSchema = `rarity_reviews_${randomUUID().replaceAll('-', '')}`;
+    const reviewClient = new Client({ connectionString: configuration.testDatabaseUrl });
+    await reviewClient.connect();
+
+    try {
+      await reviewClient.query(`CREATE SCHEMA ${quotedIdentifier(reviewSchema)}`);
+      await reviewClient.query(`SET search_path TO ${quotedIdentifier(reviewSchema)}`);
+      await applyMigration(PHASE_FOUR_MIGRATIONS[0], reviewClient);
+      await applyMigration(PHASE_FOUR_MIGRATIONS[1], reviewClient);
+      await reviewClient.query(`
+        INSERT INTO "Fish" ("id", "name", "nameNormalized") VALUES
+          ('80000000-0000-4000-8000-000000000001', 'Review Fish', 'review fish')
+      `);
+
+      await applyMigration(RARITY_REVIEW_MIGRATION, reviewClient);
+      const initiallyEmpty = await reviewClient.query<{ count: string }>(
+        `SELECT COUNT(*)::text AS "count" FROM "FishRarityReview"`,
+      );
+      assert.equal(initiallyEmpty.rows[0]?.count, '0');
+
+      await reviewClient.query(`
+        INSERT INTO "FishRarityReview" ("fishId")
+        VALUES ('80000000-0000-4000-8000-000000000001')
+      `);
+      await assert.rejects(
+        reviewClient.query(`
+          INSERT INTO "FishRarityReview" ("fishId")
+          VALUES ('80000000-0000-4000-8000-000000000001')
+        `),
+        /FishRarityReview_pkey/u,
+      );
+
+      await reviewClient.query(`
+        DELETE FROM "Fish" WHERE "id" = '80000000-0000-4000-8000-000000000001'
+      `);
+      const cascaded = await reviewClient.query<{ count: string }>(
+        `SELECT COUNT(*)::text AS "count" FROM "FishRarityReview"`,
+      );
+      assert.equal(cascaded.rows[0]?.count, '0');
+    } finally {
+      await reviewClient.query(`DROP SCHEMA IF EXISTS ${quotedIdentifier(reviewSchema)} CASCADE`);
+      await reviewClient.end();
     }
   });
 });
