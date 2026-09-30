@@ -4,11 +4,13 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styles from './records.module.css';
+import { FishImage } from '@/app/fish/_components/fish-image';
 import { ApplicationShell } from '@/components/application-shell/application-shell';
 import { ShellIcon } from '@/components/application-shell/shell-icon';
 import { formatCompactWeight } from '@/lib/base-fish-weight';
 import { getCurrentUser } from '@/lib/auth-api';
 import { getApiErrorMessage } from '@/lib/api-client';
+import { listFish, type PublicFishImage } from '@/lib/catalog-api';
 import { addFavoriteFish, getFavoriteFish, removeFavoriteFish } from '@/lib/fish-favorites-api';
 import {
   clearAdminWrongMaxIssue,
@@ -135,9 +137,14 @@ function RecordsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const load = useCallback((signal: AbortSignal) => getRecords(signal), []);
+  const loadFish = useCallback((signal: AbortSignal) => listFish(signal), []);
   const { state, reload } = useApiResource(
     load,
     'Не удалось загрузить рекорды. Попробуйте ещё раз.',
+  );
+  const { state: fishState } = useApiResource(
+    loadFish,
+    'Не удалось загрузить изображения рыб.',
   );
   const [adminNotes, setAdminNotes] = useState<AdminNotesState>({ kind: 'checking' });
   const [favoriteFish, setFavoriteFish] = useState<FavoriteFishState>({ kind: 'checking' });
@@ -163,6 +170,13 @@ function RecordsContent() {
   const selectedBaseId = baseOptions.some((base) => base.id === searchParams.get(BASE_FILTER_PARAM))
     ? (searchParams.get(BASE_FILTER_PARAM) ?? '')
     : '';
+  const fishImages = useMemo(
+    () =>
+      fishState.kind === 'ready'
+        ? new Map(fishState.data.map((fish) => [fish.id, fish.image] as const))
+        : new Map<string, PublicFishImage | null>(),
+    [fishState],
+  );
   const rows = useMemo(() => {
     if (state.kind !== 'ready') return [];
     const baseFiltered =
@@ -567,6 +581,7 @@ function RecordsContent() {
           <RecordsTable
             data={state.data}
             rows={rows}
+            fishImages={fishImages}
             baseOptions={baseOptions}
             selectedBaseId={selectedBaseId}
             selectedStatuses={selectedStatuses}
@@ -606,6 +621,7 @@ function RecordsContent() {
 type TableProps = {
   data: RecordsResponse;
   rows: RecordsItem[];
+  fishImages: ReadonlyMap<string, PublicFishImage | null>;
   baseOptions: Array<{ id: string; name: string }>;
   selectedBaseId: string;
   selectedStatuses: readonly FilterableStatus[];
@@ -644,6 +660,7 @@ type TableProps = {
 function RecordsTable({
   data,
   rows,
+  fishImages,
   baseOptions,
   selectedBaseId,
   selectedStatuses,
@@ -830,8 +847,26 @@ function RecordsTable({
         <table
           className={`${styles.table} ${adminNotes.kind !== 'checking' && adminNotes.kind !== 'hidden' ? styles.adminTable : ''}`}
         >
+          <colgroup>
+            <col className={styles.numberColumn} />
+            <col className={styles.fishColumn} />
+            <col className={styles.recordColumn} />
+            <col className={styles.maxColumn} />
+            <col className={styles.headroomColumn} />
+            <col className={styles.caughtAtColumn} />
+            <col className={styles.maxBasesColumn} />
+            {adminNotes.kind !== 'checking' && adminNotes.kind !== 'hidden' ? (
+              <col className={styles.noteColumn} />
+            ) : null}
+            <col className={styles.playerColumn} />
+            <col className={styles.baitColumn} />
+            <col className={styles.statusColumn} />
+          </colgroup>
           <thead>
             <tr>
+              <th className={styles.numberHeader} scope="col">
+                #
+              </th>
               <SortableHeader
                 label="Рыба"
                 sortName="name"
@@ -877,10 +912,12 @@ function RecordsTable({
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
+            {rows.map((row, index) => (
               <RecordRow
                 key={row.fish.id}
+                position={index + 1}
                 row={row}
+                image={fishImages.get(row.fish.id) ?? null}
                 adminNotes={adminNotes}
                 favorite={
                   favoriteFish.kind === 'ready' ? favoriteFish.fishIds.has(row.fish.id) : null
@@ -945,7 +982,9 @@ function SortableHeader({
 }
 
 function RecordRow({
+  position,
   row,
+  image,
   adminNotes,
   favorite,
   favoritePending,
@@ -962,7 +1001,9 @@ function RecordRow({
   onSaveWrongMaxIssue,
   onClearWrongMaxIssue,
 }: {
+  position: number;
   row: RecordsItem;
+  image: PublicFishImage | null;
   adminNotes: AdminNotesState;
   favorite: boolean | null;
   favoritePending: boolean;
@@ -981,66 +1022,78 @@ function RecordRow({
 }) {
   return (
     <tr>
-      <th scope="row">
+      <td className={styles.rowNumber} data-row-number={position}>
+        {position}
+      </td>
+      <th className={styles.fishRowHeader} scope="row">
         <div className={styles.fishCell}>
-          <Link
-            className={`${styles.fishLink} ${row.fish.isRarest ? styles.rarestFishLink : ''}`}
-            href={`/fish/${row.fish.id}`}
-          >
-            {row.fish.name}
-            {row.fish.isRarest ? (
-              <span className={styles.rarestDot} aria-hidden="true" title="Редчайший вид" />
-            ) : null}
-          </Link>
-          {favorite !== null ? (
-            <button
-              className={`${styles.favoriteButton} ${favorite ? styles.favoriteButtonActive : ''}`}
-              type="button"
-              aria-label={`${favorite ? 'Удалить' : 'Добавить'} ${row.fish.name} ${favorite ? 'из избранного' : 'в избранное'}`}
-              aria-pressed={favorite}
-              title={favorite ? 'Удалить из избранного' : 'Добавить в избранное'}
-              disabled={favoritePending}
-              onClick={() => void onToggleFavorite(row.fish.id, !favorite)}
+          <span className={styles.fishThumbnail}>
+            <FishImage fishName={row.fish.name} image={image} variant="thumbnail" />
+          </span>
+          <div className={styles.fishDetails}>
+            <Link
+              className={`${styles.fishLink} ${row.fish.isRarest ? styles.rarestFishLink : ''}`}
+              href={`/fish/${row.fish.id}`}
             >
-              <span aria-hidden="true">★</span>
-            </button>
-          ) : null}
-          {isAdmin ? (
-            <button
-              className={`${styles.nightButton} ${isNightBiting ? styles.nightButtonActive : ''}`}
-              type="button"
-              aria-label={`${isNightBiting ? 'Снять ночную метку с' : 'Отметить как ночную'} ${row.fish.name}`}
-              title={isNightBiting ? 'Ночная рыба' : 'Отметить как ночную'}
-              aria-pressed={isNightBiting}
-              disabled={nightPending}
-              onClick={() => void onToggleNightMark(row.fish.id, !isNightBiting)}
-            >
-              <span aria-hidden="true">🌙</span>
-            </button>
-          ) : isNightBiting ? (
-            <span
-              className={styles.nightMark}
-              aria-label={`Ночная рыба: ${row.fish.name}`}
-              title="Ночная рыба"
-            >
-              🌙
-            </span>
-          ) : null}
-          {rarityReview !== null ? (
-            <button
-              className={`${styles.rarityReviewButton} ${rarityReview ? styles.rarityReviewButtonActive : ''}`}
-              type="button"
-              aria-label={`${rarityReview ? 'Снять отметку исправления редкости с' : 'Отметить редкость для исправления:'} ${row.fish.name}`}
-              title={
-                rarityReview ? 'Редкость требует исправления' : 'Отметить редкость для исправления'
-              }
-              aria-pressed={rarityReview}
-              disabled={rarityReviewPending}
-              onClick={() => void onToggleRarityReview(row.fish.id, !rarityReview)}
-            >
-              <span aria-hidden="true">◆</span>
-            </button>
-          ) : null}
+              <span className={styles.fishName}>{row.fish.name}</span>
+              {row.fish.isRarest ? (
+                <span className={styles.rarestDot} aria-hidden="true" title="Редчайший вид" />
+              ) : null}
+            </Link>
+            <div className={styles.fishMarks}>
+              {favorite !== null ? (
+                <button
+                  className={`${styles.favoriteButton} ${favorite ? styles.favoriteButtonActive : ''}`}
+                  type="button"
+                  aria-label={`${favorite ? 'Удалить' : 'Добавить'} ${row.fish.name} ${favorite ? 'из избранного' : 'в избранное'}`}
+                  aria-pressed={favorite}
+                  title={favorite ? 'Удалить из избранного' : 'Добавить в избранное'}
+                  disabled={favoritePending}
+                  onClick={() => void onToggleFavorite(row.fish.id, !favorite)}
+                >
+                  <span aria-hidden="true">{favorite ? '★' : '☆'}</span>
+                </button>
+              ) : null}
+              {isAdmin ? (
+                <button
+                  className={`${styles.nightButton} ${isNightBiting ? styles.nightButtonActive : ''}`}
+                  type="button"
+                  aria-label={`${isNightBiting ? 'Снять ночную метку с' : 'Отметить как ночную'} ${row.fish.name}`}
+                  title={isNightBiting ? 'Ночная рыба' : 'Отметить как ночную'}
+                  aria-pressed={isNightBiting}
+                  disabled={nightPending}
+                  onClick={() => void onToggleNightMark(row.fish.id, !isNightBiting)}
+                >
+                  <span aria-hidden="true">☾</span>
+                </button>
+              ) : isNightBiting ? (
+                <span
+                  className={styles.nightMark}
+                  aria-label={`Ночная рыба: ${row.fish.name}`}
+                  title="Ночная рыба"
+                >
+                  ☾
+                </span>
+              ) : null}
+              {rarityReview !== null ? (
+                <button
+                  className={`${styles.rarityReviewButton} ${rarityReview ? styles.rarityReviewButtonActive : ''}`}
+                  type="button"
+                  aria-label={`${rarityReview ? 'Снять отметку исправления редкости с' : 'Отметить редкость для исправления:'} ${row.fish.name}`}
+                  title={
+                    rarityReview
+                      ? 'Редкость требует исправления'
+                      : 'Отметить редкость для исправления'
+                  }
+                  aria-pressed={rarityReview}
+                  disabled={rarityReviewPending}
+                  onClick={() => void onToggleRarityReview(row.fish.id, !rarityReview)}
+                >
+                  <span aria-hidden="true">{rarityReview ? '◆' : '◇'}</span>
+                </button>
+              ) : null}
+            </div>
+          </div>
         </div>
       </th>
       <td>{recordWeight(row)}</td>
@@ -1121,7 +1174,7 @@ function RecordRow({
         )}
       </td>
       <td>{row.record?.bait ?? '—'}</td>
-      <td>
+      <td className={styles.statusCell}>
         <span className={`${styles.status} ${statusClass(row.status)}`}>
           {row.status === null ? '—' : STATUS_LABELS[row.status]}
         </span>

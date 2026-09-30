@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   search: '',
   replace: vi.fn(),
   getRecords: vi.fn(),
+  listFish: vi.fn(),
   getCurrentUser: vi.fn(),
   getAdminRecordNotes: vi.fn(),
   updateAdminRecordNote: vi.fn(),
@@ -37,6 +38,10 @@ vi.mock('@/lib/records-api', async () => ({
   updateAdminRarityReview: mocks.updateAdminRarityReview,
   updateAdminWrongMaxIssue: mocks.updateAdminWrongMaxIssue,
   clearAdminWrongMaxIssue: mocks.clearAdminWrongMaxIssue,
+}));
+vi.mock('@/lib/catalog-api', async () => ({
+  ...(await vi.importActual('@/lib/catalog-api')),
+  listFish: mocks.listFish,
 }));
 vi.mock('@/lib/fish-favorites-api', () => ({
   getFavoriteFish: mocks.getFavoriteFish,
@@ -167,6 +172,14 @@ describe('RecordsPage', () => {
     mocks.search = '';
     mocks.replace.mockReset();
     mocks.getRecords.mockResolvedValue(response);
+    mocks.listFish.mockReset();
+    mocks.listFish.mockResolvedValue(
+      response.items.map((item) => ({
+        id: item.fish.id,
+        name: item.fish.name,
+        image: { url: `https://api.example.test/fish-images/${item.fish.id}.png` },
+      })),
+    );
     mocks.getCurrentUser.mockReset();
     mocks.getCurrentUser.mockResolvedValue({
       id: 'user',
@@ -211,6 +224,7 @@ describe('RecordsPage', () => {
         .getAllByRole('columnheader')
         .map((cell) => cell.textContent),
     ).toEqual([
+      '#',
       'Рыба↕',
       'Рекорд недели↕',
       'Наш max',
@@ -224,7 +238,7 @@ describe('RecordsPage', () => {
     expect(screen.getByText('Червь')).toBeVisible();
     const missingBaitRow = screen.getByRole('link', { name: 'Жёлтая' }).closest('tr');
     expect(missingBaitRow).not.toBeNull();
-    expect(within(missingBaitRow!).getAllByRole('cell')[6]).toHaveTextContent('—');
+    expect(within(missingBaitRow!).getAllByRole('cell')[7]).toHaveTextContent('—');
     expect(screen.queryByRole('columnheader', { name: 'Заметка' })).not.toBeInTheDocument();
     expect(within(table).getAllByRole('row')[1]).toHaveTextContent('Без рекорда');
     expect(screen.getByText('800 г').className).toContain('badgeGreen');
@@ -242,6 +256,19 @@ describe('RecordsPage', () => {
     expect(within(table).getByText('Мутант').className).toContain('statusRed');
     expect(within(table).getByText('Максимал').className).toContain('statusYellow');
     const rareFishLink = screen.getByRole('link', { name: 'Зелёная' });
+    await waitFor(() =>
+      expect(rareFishLink.closest('th')?.querySelector('img')).toHaveAttribute(
+        'src',
+        'https://api.example.test/fish-images/green.png',
+      ),
+    );
+    expect(table.querySelectorAll('[data-fish-image="thumbnail"]')).toHaveLength(6);
+    expect(
+      within(table)
+        .getAllByRole('row')
+        .slice(1)
+        .map((row) => row.querySelector('[data-row-number]')?.textContent),
+    ).toEqual(['1', '2', '3', '4', '5', '6']);
     expect(rareFishLink.className).toContain('rarestFishLink');
     expect(within(rareFishLink).getByTitle('Редчайший вид').className).toContain('rarestDot');
     expect(rareFishLink.closest('tr')?.className).not.toContain('rarest');
@@ -277,6 +304,7 @@ describe('RecordsPage', () => {
     const table = await screen.findByRole('table');
     expect(within(table).getAllByRole('row')).toHaveLength(2);
     expect(within(table).getByText('Красная')).toBeVisible();
+    expect(within(table).getByText('Красная').closest('tr')).toHaveTextContent(/^1/u);
     expect(within(table).queryByText('Без рекорда')).not.toBeInTheDocument();
 
     expect(screen.getByRole('checkbox', { name: 'Мутант' })).toBeChecked();
@@ -355,6 +383,7 @@ describe('RecordsPage', () => {
         .getAllByRole('columnheader')
         .map((cell) => cell.textContent),
     ).toEqual([
+      '#',
       'Рыба↕',
       'Рекорд недели↕',
       'Наш max',
@@ -368,8 +397,8 @@ describe('RecordsPage', () => {
     ]);
     const adminRow = screen.getByRole('link', { name: 'Зелёная' }).closest('tr');
     expect(adminRow).not.toBeNull();
-    expect(within(adminRow!).getAllByRole('cell')[4]).toHaveTextContent('Волга');
-    expect(within(adminRow!).getAllByRole('cell')[5]).toHaveTextContent('Старая заметка');
+    expect(within(adminRow!).getAllByRole('cell')[5]).toHaveTextContent('Волга');
+    expect(within(adminRow!).getAllByRole('cell')[6]).toHaveTextContent('Старая заметка');
 
     const editButton = screen.getByRole('button', { name: 'Изменить заметку' });
     expect(editButton).toHaveAttribute('title', 'Изменить заметку');
