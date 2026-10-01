@@ -849,6 +849,7 @@ function RecordsTable({
         >
           <colgroup>
             <col className={styles.numberColumn} />
+            <col className={styles.marksColumn} />
             <col className={styles.fishColumn} />
             <col className={styles.recordColumn} />
             <col className={styles.maxColumn} />
@@ -866,6 +867,9 @@ function RecordsTable({
             <tr>
               <th className={styles.numberHeader} scope="col">
                 #
+              </th>
+              <th className={styles.marksHeader} scope="col">
+                Метки
               </th>
               <SortableHeader
                 label="Рыба"
@@ -1025,78 +1029,82 @@ function RecordRow({
       <td className={styles.rowNumber} data-row-number={position}>
         {position}
       </td>
+      <td className={styles.marksCell}>
+        <div className={styles.fishMarks}>
+          <span className={styles.markSlot}>
+            {favorite !== null ? (
+              <button
+                className={`${styles.favoriteButton} ${favorite ? styles.favoriteButtonActive : ''}`}
+                type="button"
+                aria-label={`${favorite ? 'Удалить' : 'Добавить'} ${row.fish.name} ${favorite ? 'из избранного' : 'в избранное'}`}
+                aria-pressed={favorite}
+                title={favorite ? 'Удалить из избранного' : 'Добавить в избранное'}
+                disabled={favoritePending}
+                onClick={() => void onToggleFavorite(row.fish.id, !favorite)}
+              >
+                <span aria-hidden="true">{favorite ? '★' : '☆'}</span>
+              </button>
+            ) : null}
+          </span>
+          <span className={styles.markSlot}>
+            {isAdmin ? (
+              <button
+                className={`${styles.nightButton} ${isNightBiting ? styles.nightButtonActive : ''}`}
+                type="button"
+                aria-label={`${isNightBiting ? 'Снять ночную метку с' : 'Отметить как ночную'} ${row.fish.name}`}
+                title={isNightBiting ? 'Ночная рыба' : 'Отметить как ночную'}
+                aria-pressed={isNightBiting}
+                disabled={nightPending}
+                onClick={() => void onToggleNightMark(row.fish.id, !isNightBiting)}
+              >
+                <span aria-hidden="true">☾</span>
+              </button>
+            ) : isNightBiting ? (
+              <span
+                className={styles.nightMark}
+                aria-label={`Ночная рыба: ${row.fish.name}`}
+                title="Ночная рыба"
+              >
+                ☾
+              </span>
+            ) : null}
+          </span>
+          <span className={styles.markSlot}>
+            {rarityReview !== null ? (
+              <button
+                className={`${styles.rarityReviewButton} ${rarityReview ? styles.rarityReviewButtonActive : ''}`}
+                type="button"
+                aria-label={`${rarityReview ? 'Снять отметку исправления редкости с' : 'Отметить редкость для исправления:'} ${row.fish.name}`}
+                title={
+                  rarityReview
+                    ? 'Редкость требует исправления'
+                    : 'Отметить редкость для исправления'
+                }
+                aria-pressed={rarityReview}
+                disabled={rarityReviewPending}
+                onClick={() => void onToggleRarityReview(row.fish.id, !rarityReview)}
+              >
+                <span aria-hidden="true">{rarityReview ? '◆' : '◇'}</span>
+              </button>
+            ) : null}
+          </span>
+        </div>
+      </td>
       <th className={styles.fishRowHeader} scope="row">
         <div className={styles.fishCell}>
           <span className={styles.fishThumbnail}>
             <FishImage fishName={row.fish.name} image={image} variant="thumbnail" />
           </span>
-          <div className={styles.fishDetails}>
-            <Link
-              className={`${styles.fishLink} ${row.fish.isRarest ? styles.rarestFishLink : ''}`}
-              href={`/fish/${row.fish.id}`}
-            >
-              <span className={styles.fishName}>{row.fish.name}</span>
-              {row.fish.isRarest ? (
-                <span className={styles.rarestDot} aria-hidden="true" title="Редчайший вид" />
-              ) : null}
-            </Link>
-            <div className={styles.fishMarks}>
-              {favorite !== null ? (
-                <button
-                  className={`${styles.favoriteButton} ${favorite ? styles.favoriteButtonActive : ''}`}
-                  type="button"
-                  aria-label={`${favorite ? 'Удалить' : 'Добавить'} ${row.fish.name} ${favorite ? 'из избранного' : 'в избранное'}`}
-                  aria-pressed={favorite}
-                  title={favorite ? 'Удалить из избранного' : 'Добавить в избранное'}
-                  disabled={favoritePending}
-                  onClick={() => void onToggleFavorite(row.fish.id, !favorite)}
-                >
-                  <span aria-hidden="true">{favorite ? '★' : '☆'}</span>
-                </button>
-              ) : null}
-              {isAdmin ? (
-                <button
-                  className={`${styles.nightButton} ${isNightBiting ? styles.nightButtonActive : ''}`}
-                  type="button"
-                  aria-label={`${isNightBiting ? 'Снять ночную метку с' : 'Отметить как ночную'} ${row.fish.name}`}
-                  title={isNightBiting ? 'Ночная рыба' : 'Отметить как ночную'}
-                  aria-pressed={isNightBiting}
-                  disabled={nightPending}
-                  onClick={() => void onToggleNightMark(row.fish.id, !isNightBiting)}
-                >
-                  <span aria-hidden="true">☾</span>
-                </button>
-              ) : isNightBiting ? (
-                <span
-                  className={styles.nightMark}
-                  aria-label={`Ночная рыба: ${row.fish.name}`}
-                  title="Ночная рыба"
-                >
-                  ☾
-                </span>
-              ) : null}
-              {rarityReview !== null ? (
-                <button
-                  className={`${styles.rarityReviewButton} ${rarityReview ? styles.rarityReviewButtonActive : ''}`}
-                  type="button"
-                  aria-label={`${rarityReview ? 'Снять отметку исправления редкости с' : 'Отметить редкость для исправления:'} ${row.fish.name}`}
-                  title={
-                    rarityReview
-                      ? 'Редкость требует исправления'
-                      : 'Отметить редкость для исправления'
-                  }
-                  aria-pressed={rarityReview}
-                  disabled={rarityReviewPending}
-                  onClick={() => void onToggleRarityReview(row.fish.id, !rarityReview)}
-                >
-                  <span aria-hidden="true">{rarityReview ? '◆' : '◇'}</span>
-                </button>
-              ) : null}
-            </div>
-          </div>
+          <Link
+            className={`${styles.fishLink} ${row.fish.isRarest ? styles.rarestFishLink : ''}`}
+            href={`/fish/${row.fish.id}`}
+            title={row.fish.name}
+          >
+            <span className={styles.fishName}>{row.fish.name}</span>
+          </Link>
         </div>
       </th>
-      <td>{recordWeight(row)}</td>
+      <td className={styles.numeric}>{recordWeight(row)}</td>
       <td className={styles.numeric}>
         <div className={styles.maxCell}>
           <span>
@@ -1115,24 +1123,31 @@ function RecordRow({
           ) : null}
         </div>
       </td>
-      <td className={styles.numeric}>{formatHeadroom(row)}</td>
-      <td>
+      <td className={`${styles.numeric} ${styles.headroomCell}`}>{formatHeadroom(row)}</td>
+      <td className={styles.textCell}>
         {row.record ? (
-          row.record.fishingBase?.isActive ? (
-            <Link className={styles.baseLink} href={`/bases/${row.record.fishingBase.id}`}>
-              {row.record.waterbody}
-            </Link>
-          ) : (
-            row.record.waterbody
-          )
+          <span className={styles.cellText} title={row.record.waterbody}>
+            {row.record.fishingBase?.isActive ? (
+              <Link className={styles.baseLink} href={`/bases/${row.record.fishingBase.id}`}>
+                {row.record.waterbody}
+              </Link>
+            ) : (
+              row.record.waterbody
+            )}
+          </span>
         ) : (
           '—'
         )}
       </td>
-      <td>
-        {row.maxBases.length === 0
-          ? '—'
-          : row.maxBases.map((base, index) => (
+      <td className={styles.textCell}>
+        {row.maxBases.length === 0 ? (
+          '—'
+        ) : (
+          <span
+            className={styles.cellText}
+            title={row.maxBases.map((base) => base.name).join(', ')}
+          >
+            {row.maxBases.map((base, index) => (
               <span key={base.id}>
                 {index > 0 ? ', ' : ''}
                 {base.isActive ? (
@@ -1144,6 +1159,8 @@ function RecordRow({
                 )}
               </span>
             ))}
+          </span>
+        )}
       </td>
       {adminNotes.kind !== 'checking' && adminNotes.kind !== 'hidden' ? (
         <td className={styles.noteCell}>
@@ -1164,7 +1181,9 @@ function RecordRow({
       <td>
         {row.record ? (
           <>
-            <span className={styles.player}>{row.record.playerName}</span>
+            <span className={styles.player} title={row.record.playerName}>
+              {row.record.playerName}
+            </span>
             <span className={styles.secondary}>
               {DATE_FORMATTER.format(new Date(row.record.caughtAt))}
             </span>
@@ -1173,7 +1192,11 @@ function RecordRow({
           '—'
         )}
       </td>
-      <td>{row.record?.bait ?? '—'}</td>
+      <td className={styles.textCell}>
+        <span className={styles.cellText} title={row.record?.bait ?? undefined}>
+          {row.record?.bait ?? '—'}
+        </span>
+      </td>
       <td className={styles.statusCell}>
         <span className={`${styles.status} ${statusClass(row.status)}`}>
           {row.status === null ? '—' : STATUS_LABELS[row.status]}
@@ -1524,12 +1547,26 @@ function recordWeight(row: RecordsItem) {
   );
 }
 
-function formatHeadroom(row: RecordsItem): string {
+function formatHeadroom(row: RecordsItem) {
   if (row.headroomGrams === null || row.headroomPercent === null) return '—';
   const sign = row.headroomGrams > 0 ? '+' : row.headroomGrams < 0 ? '−' : '';
   const percentSign = row.headroomPercent > 0 ? '+' : row.headroomPercent < 0 ? '−' : '';
   const weight = row.headroomGrams === 0 ? '0 г' : formatCompactWeight(Math.abs(row.headroomGrams));
-  return `${sign}${weight} · ${percentSign}${Math.abs(row.headroomPercent).toLocaleString('ru-RU', { maximumFractionDigits: 2 })}%`;
+  const percent = Math.abs(row.headroomPercent).toLocaleString('ru-RU', {
+    maximumFractionDigits: 2,
+  });
+  return (
+    <>
+      <span className={styles.headroomWeight}>
+        {sign}
+        {weight}
+      </span>
+      <span className={styles.headroomPercent}>
+        {percentSign}
+        {percent}%
+      </span>
+    </>
+  );
 }
 
 function statusClass(status: RecordsStatus): string {

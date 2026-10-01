@@ -225,6 +225,7 @@ describe('RecordsPage', () => {
         .map((cell) => cell.textContent),
     ).toEqual([
       '#',
+      'Метки',
       'Рыба↕',
       'Рекорд недели↕',
       'Наш max',
@@ -238,7 +239,7 @@ describe('RecordsPage', () => {
     expect(screen.getByText('Червь')).toBeVisible();
     const missingBaitRow = screen.getByRole('link', { name: 'Жёлтая' }).closest('tr');
     expect(missingBaitRow).not.toBeNull();
-    expect(within(missingBaitRow!).getAllByRole('cell')[7]).toHaveTextContent('—');
+    expect(within(missingBaitRow!).getAllByRole('cell')[8]).toHaveTextContent('—');
     expect(screen.queryByRole('columnheader', { name: 'Заметка' })).not.toBeInTheDocument();
     expect(within(table).getAllByRole('row')[1]).toHaveTextContent('Без рекорда');
     expect(screen.getByText('800 г').className).toContain('badgeGreen');
@@ -270,8 +271,19 @@ describe('RecordsPage', () => {
         .map((row) => row.querySelector('[data-row-number]')?.textContent),
     ).toEqual(['1', '2', '3', '4', '5', '6']);
     expect(rareFishLink.className).toContain('rarestFishLink');
-    expect(within(rareFishLink).getByTitle('Редчайший вид').className).toContain('rarestDot');
-    expect(rareFishLink.closest('tr')?.className).not.toContain('rarest');
+    expect(rareFishLink).toHaveAttribute('title', 'Зелёная');
+    expect(within(rareFishLink).queryByTitle('Редчайший вид')).not.toBeInTheDocument();
+    expect(rareFishLink).toHaveTextContent('Зелёная');
+    const rareRow = rareFishLink.closest('tr');
+    expect(rareRow).not.toBeNull();
+    expect(within(rareFishLink.closest('th')!).queryByRole('button')).not.toBeInTheDocument();
+    const rareRowCells = within(rareRow!).getAllByRole('cell');
+    expect(
+      within(rareRowCells[1]).getByRole('button', { name: 'Добавить Зелёная в избранное' }),
+    ).toHaveAttribute('title', 'Добавить в избранное');
+    expect(within(rareRowCells[4]).getByText('+200 г').className).toContain('headroomWeight');
+    expect(within(rareRowCells[4]).getByText('+20%').className).toContain('headroomPercent');
+    expect(rareRow?.className).not.toContain('rarest');
     const baseFilter = screen.getByRole('combobox', { name: 'Где пойман' });
     expect(baseFilter).toHaveValue('');
     expect(
@@ -384,6 +396,7 @@ describe('RecordsPage', () => {
         .map((cell) => cell.textContent),
     ).toEqual([
       '#',
+      'Метки',
       'Рыба↕',
       'Рекорд недели↕',
       'Наш max',
@@ -397,8 +410,8 @@ describe('RecordsPage', () => {
     ]);
     const adminRow = screen.getByRole('link', { name: 'Зелёная' }).closest('tr');
     expect(adminRow).not.toBeNull();
-    expect(within(adminRow!).getAllByRole('cell')[5]).toHaveTextContent('Волга');
-    expect(within(adminRow!).getAllByRole('cell')[6]).toHaveTextContent('Старая заметка');
+    expect(within(adminRow!).getAllByRole('cell')[6]).toHaveTextContent('Волга');
+    expect(within(adminRow!).getAllByRole('cell')[7]).toHaveTextContent('Старая заметка');
 
     const editButton = screen.getByRole('button', { name: 'Изменить заметку' });
     expect(editButton).toHaveAttribute('title', 'Изменить заметку');
@@ -576,7 +589,7 @@ describe('RecordsPage', () => {
     });
 
     render(<RecordsPage />);
-    fireEvent.click(await screen.findByText(/^Метки/u));
+    fireEvent.click(await screen.findByText(/^Метки/u, { selector: 'summary' }));
     const favoritesFilter = screen.getByRole('checkbox', { name: '★ Избранные' });
     expect(favoritesFilter).toBeChecked();
     const table = screen.getByRole('table');
@@ -669,7 +682,7 @@ describe('RecordsPage', () => {
     expect(mocks.getAdminWrongMaxIssues).not.toHaveBeenCalled();
     expect(mocks.getAdminRarityReviews).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByText(/^Метки/u));
+    fireEvent.click(screen.getByText(/^Метки/u, { selector: 'summary' }));
     const marks = within(screen.getByRole('group', { name: 'Метки' }));
     expect(marks.getByRole('checkbox', { name: '★ Избранные' })).not.toBeChecked();
     expect(marks.getByRole('checkbox', { name: '🌙 Ночные' })).not.toBeChecked();
@@ -863,7 +876,7 @@ describe('RecordsPage', () => {
     mocks.getAdminRarityReviews.mockResolvedValue({ items: [{ fishId: 'red' }] });
 
     render(<RecordsPage />);
-    fireEvent.click(await screen.findByText(/^Метки/u));
+    fireEvent.click(await screen.findByText(/^Метки/u, { selector: 'summary' }));
     const marks = within(screen.getByRole('group', { name: 'Метки' }));
     expect(marks.getByRole('checkbox', { name: '★ Избранные' })).toBeChecked();
     expect(marks.getByRole('checkbox', { name: '🌙 Ночные' })).toBeChecked();

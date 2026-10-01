@@ -229,33 +229,34 @@
 }
 .table {
   width: 100%;
-  min-width: 1300px;
+  min-width: 1450px;
   table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0;
   font-variant-numeric: tabular-nums;
 }
 .adminTable {
-  min-width: 1530px;
+  min-width: 1680px;
 }
 .numberColumn {
   width: 38px;
 }
+.marksColumn {
+  width: 82px;
+}
 .fishColumn {
-  width: 250px;
+  width: 220px;
 }
-.recordColumn {
-  width: 200px;
-}
+.recordColumn,
 .maxColumn {
-  width: 96px;
+  width: 150px;
 }
 .headroomColumn {
-  width: 104px;
+  width: 112px;
 }
 .caughtAtColumn,
 .maxBasesColumn {
-  width: 132px;
+  width: 150px;
 }
 .noteColumn {
   width: 230px;
@@ -264,10 +265,10 @@
   width: 132px;
 }
 .baitColumn {
-  width: 112px;
+  width: 120px;
 }
 .statusColumn {
-  width: 132px;
+  width: 140px;
 }
 .table th,
 .table td {
@@ -316,6 +317,12 @@
   font-size: 0.75rem;
   font-weight: 650;
 }
+.marksHeader {
+  text-align: center !important;
+}
+.marksCell {
+  padding-inline: 5px !important;
+}
 .fishRowHeader {
   min-width: 0;
 }
@@ -334,19 +341,17 @@
   width: 40px;
   height: 28px;
 }
-.fishDetails {
-  display: flex;
-  min-width: 0;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 3px 5px;
-}
 .fishMarks {
-  display: inline-flex;
-  min-width: 0;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(3, 22px);
   align-items: center;
   gap: 3px;
+}
+.markSlot {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
 }
 .favoriteButton,
 .nightButton,
@@ -431,29 +436,23 @@
   text-decoration: none;
 }
 .fishLink {
+  display: block;
   max-width: 100%;
   min-width: 0;
 }
 .fishName {
+  display: block;
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .fishLink:hover,
 .baseLink:hover {
   text-decoration: underline;
 }
 .rarestFishLink {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
   color: #b42318;
-}
-.rarestDot {
-  width: 6px;
-  height: 6px;
-  flex: 0 0 6px;
-  border-radius: 50%;
-  background: #d92d20;
 }
 .recordBadge,
 .status {
@@ -505,6 +504,7 @@
 }
 .statusCell {
   min-width: 0;
+  overflow: hidden;
 }
 .statusGreen {
   color: #176033;
@@ -537,6 +537,29 @@
 }
 .numeric {
   text-align: right !important;
+  white-space: nowrap;
+}
+.headroomCell {
+  line-height: 1.15;
+}
+.headroomWeight,
+.headroomPercent {
+  display: block;
+}
+.headroomPercent {
+  margin-top: 2px;
+  color: var(--app-text-muted);
+  font-size: 0.7rem;
+}
+.textCell {
+  min-width: 0;
+  overflow: hidden;
+}
+.cellText {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 .maxCell {
