@@ -70,7 +70,13 @@ const response: RecordsResponse = {
   },
   items: [
     {
-      fish: { id: 'green', name: 'Зелёная', isRarest: true, isNightBiting: true },
+      fish: {
+        id: 'green',
+        name: 'Зелёная',
+        isRarest: true,
+        isNightBiting: true,
+        catchReportsCount: 12438,
+      },
       state: 'RECORD',
       record: {
         weightGrams: 800,
@@ -87,7 +93,13 @@ const response: RecordsResponse = {
       status: 'CAN_BEAT',
     },
     {
-      fish: { id: 'none', name: 'Без рекорда', isRarest: false, isNightBiting: false },
+      fish: {
+        id: 'none',
+        name: 'Без рекорда',
+        isRarest: false,
+        isNightBiting: false,
+        catchReportsCount: 0,
+      },
       state: 'NO_RECORD',
       record: null,
       normalMaxWeightGrams: 1000,
@@ -97,10 +109,16 @@ const response: RecordsResponse = {
       status: 'NO_RECORD',
     },
     {
-      fish: { id: 'yellow', name: 'Жёлтая', isRarest: false, isNightBiting: false },
+      fish: {
+        id: 'yellow',
+        name: 'Жёлтая',
+        isRarest: false,
+        isNightBiting: false,
+        catchReportsCount: 0,
+      },
       state: 'RECORD',
       record: {
-        weightGrams: 995,
+        weightGrams: 997,
         waterbody: 'Неизвестная база',
         fishingBase: null,
         bait: null,
@@ -109,12 +127,18 @@ const response: RecordsResponse = {
       },
       normalMaxWeightGrams: 1000,
       maxBases: [{ id: 'base', name: 'Волга', isActive: true }],
-      headroomGrams: 5,
-      headroomPercent: 0.5,
+      headroomGrams: 3,
+      headroomPercent: 0.3,
       status: 'NEAR_MAX',
     },
     {
-      fish: { id: 'red', name: 'Красная', isRarest: false, isNightBiting: true },
+      fish: {
+        id: 'red',
+        name: 'Красная',
+        isRarest: false,
+        isNightBiting: true,
+        catchReportsCount: 0,
+      },
       state: 'RECORD',
       record: {
         weightGrams: 1001,
@@ -131,7 +155,13 @@ const response: RecordsResponse = {
       status: 'MUTANT',
     },
     {
-      fish: { id: 'maximum', name: 'Максимальная', isRarest: false, isNightBiting: false },
+      fish: {
+        id: 'maximum',
+        name: 'Максимальная',
+        isRarest: false,
+        isNightBiting: false,
+        catchReportsCount: 0,
+      },
       state: 'RECORD',
       record: {
         weightGrams: 1000,
@@ -148,7 +178,13 @@ const response: RecordsResponse = {
       status: 'MAXIMUM',
     },
     {
-      fish: { id: 'unknown-max', name: 'Без max', isRarest: false, isNightBiting: false },
+      fish: {
+        id: 'unknown-max',
+        name: 'Без max',
+        isRarest: false,
+        isNightBiting: false,
+        catchReportsCount: 0,
+      },
       state: 'RECORD',
       record: {
         weightGrams: 500,
@@ -215,6 +251,23 @@ describe('RecordsPage', () => {
     mocks.removeFavoriteFish.mockResolvedValue(undefined);
   });
 
+  test('keeps all-time catch counts unchanged through filters and sorting', async () => {
+    const view = render(<RecordsPage />);
+    await screen.findByRole('table');
+    for (const search of [
+      'baseId=base&status=CAN_BEAT',
+      'baseId=base&status=CAN_BEAT&sort=name&direction=desc',
+      'night=true',
+      '',
+    ]) {
+      mocks.search = search;
+      view.rerender(<RecordsPage />);
+      const cell = screen.getByRole('link', { name: 'Зелёная' }).closest('th')!;
+      expect(within(cell).getByText(/\(12\s438\)/u)).toBeVisible();
+    }
+    expect(mocks.getRecords).toHaveBeenCalledTimes(1);
+  });
+
   test('renders the dense approved columns, bait and record-weight colors', async () => {
     render(<RecordsPage />);
     const table = await screen.findByRole('table');
@@ -232,9 +285,8 @@ describe('RecordsPage', () => {
       'Запас↕',
       'Где пойман↕',
       'База(ы) max↕',
-      'Игрок/дата',
-      'Наживка',
-      'Статус',
+      'Игрок/дата↕',
+      'Наживка↕',
     ]);
     expect(screen.getByText('Червь')).toBeVisible();
     const missingBaitRow = screen.getByRole('link', { name: 'Жёлтая' }).closest('tr');
@@ -243,7 +295,7 @@ describe('RecordsPage', () => {
     expect(screen.queryByRole('columnheader', { name: 'Заметка' })).not.toBeInTheDocument();
     expect(within(table).getAllByRole('row')[1]).toHaveTextContent('Без рекорда');
     expect(screen.getByText('800 г').className).toContain('badgeGreen');
-    expect(screen.getByText('995 г').className).toContain('badgeYellow');
+    expect(screen.getByText('997 г').className).toContain('badgeYellow');
     expect(screen.getByText('1.001 кг').className).toContain('badgeRed');
     expect(
       within(table)
@@ -251,11 +303,7 @@ describe('RecordsPage', () => {
         .some((element) => element.className.includes('badgeYellow')),
     ).toBe(true);
     expect(screen.getByText('500 г').className).toContain('badgeNeutral');
-    expect(screen.getByText('Нет данных о max')).toBeVisible();
-    expect(within(table).getByText('Можно побить').className).toContain('statusGreen');
-    expect(within(table).getByText('Почти максимум').className).toContain('statusYellow');
-    expect(within(table).getByText('Мутант').className).toContain('statusRed');
-    expect(within(table).getByText('Максимал').className).toContain('statusYellow');
+    expect(within(table).queryByRole('columnheader', { name: 'Статус' })).not.toBeInTheDocument();
     const rareFishLink = screen.getByRole('link', { name: 'Зелёная' });
     await waitFor(() =>
       expect(rareFishLink.closest('th')?.querySelector('img')).toHaveAttribute(
@@ -274,6 +322,12 @@ describe('RecordsPage', () => {
     expect(rareFishLink).toHaveAttribute('title', 'Зелёная');
     expect(within(rareFishLink).queryByTitle('Редчайший вид')).not.toBeInTheDocument();
     expect(rareFishLink).toHaveTextContent('Зелёная');
+    const count = within(rareFishLink.closest('th')!).getByText(/\(12\s438\)/u);
+    expect(count.className).toContain('catchCount');
+    expect(count).toHaveAttribute('title', 'Всего уловов за всё время');
+    expect(
+      within(screen.getByRole('link', { name: 'Без рекорда' }).closest('th')!).getByText('(0)'),
+    ).toBeVisible();
     const rareRow = rareFishLink.closest('tr');
     expect(rareRow).not.toBeNull();
     expect(within(rareFishLink.closest('th')!).queryByRole('button')).not.toBeInTheDocument();
@@ -284,7 +338,7 @@ describe('RecordsPage', () => {
     expect(within(rareRowCells[4]).getByText('+200 г').className).toContain('headroomWeight');
     expect(within(rareRowCells[4]).getByText('+20%').className).toContain('headroomPercent');
     expect(rareRow?.className).not.toContain('rarest');
-    const baseFilter = screen.getByRole('combobox', { name: 'Где пойман' });
+    const baseFilter = screen.getByRole('combobox', { name: 'База max' });
     expect(baseFilter).toHaveValue('');
     expect(
       within(baseFilter)
@@ -294,6 +348,9 @@ describe('RecordsPage', () => {
     fireEvent.change(baseFilter, { target: { value: 'base' } });
     expect(mocks.replace).toHaveBeenCalledWith('/records?baseId=base', { scroll: false });
     expect(screen.getByRole('button', { name: 'Сбросить сортировку' })).toBeDisabled();
+    const statusDropdown = screen.getByText(/^Статус/u, { selector: 'summary' });
+    expect(statusDropdown.closest('details')).not.toHaveAttribute('open');
+    fireEvent.click(statusDropdown);
     const statusCheckboxes = within(screen.getByRole('group', { name: 'Статус' })).getAllByRole(
       'checkbox',
     );
@@ -302,6 +359,7 @@ describe('RecordsPage', () => {
       'Почти максимум',
       'Можно побить',
       'Максимал',
+      'Скрыть редчайших',
     ]);
     for (const checkbox of statusCheckboxes) expect(checkbox).not.toBeChecked();
     const hideRarest = screen.getByRole('checkbox', { name: 'Скрыть редчайших' });
@@ -319,6 +377,7 @@ describe('RecordsPage', () => {
     expect(within(table).getByText('Красная').closest('tr')).toHaveTextContent(/^1/u);
     expect(within(table).queryByText('Без рекорда')).not.toBeInTheDocument();
 
+    fireEvent.click(screen.getByText(/^Статус/u, { selector: 'summary' }));
     expect(screen.getByRole('checkbox', { name: 'Мутант' })).toBeChecked();
     fireEvent.click(screen.getByRole('checkbox', { name: 'Почти максимум' }));
     expect(mocks.replace).toHaveBeenCalledWith('/records?status=MUTANT&status=NEAR_MAX', {
@@ -335,6 +394,7 @@ describe('RecordsPage', () => {
     expect(within(table).getByText('Красная')).toBeVisible();
     expect(within(table).queryByText('Зелёная')).not.toBeInTheDocument();
 
+    fireEvent.click(screen.getByText(/^Статус/u, { selector: 'summary' }));
     fireEvent.click(screen.getByRole('checkbox', { name: 'Можно побить' }));
     expect(mocks.replace).toHaveBeenCalledWith(
       '/records?status=MUTANT&status=NEAR_MAX&status=CAN_BEAT',
@@ -353,9 +413,10 @@ describe('RecordsPage', () => {
     expect(within(table).getByText('Максимальная')).toBeVisible();
     expect(within(table).queryByText('Без рекорда')).not.toBeInTheDocument();
     expect(within(table).queryByText('Без max')).not.toBeInTheDocument();
-    for (const checkbox of within(screen.getByRole('group', { name: 'Статус' })).getAllByRole(
-      'checkbox',
-    )) {
+    fireEvent.click(screen.getByText(/^Статус/u, { selector: 'summary' }));
+    for (const checkbox of within(screen.getByRole('group', { name: 'Статус' }))
+      .getAllByRole('checkbox')
+      .slice(0, 4)) {
       expect(checkbox).toBeChecked();
     }
     expect(screen.getByRole('checkbox', { name: 'Скрыть редчайших' })).not.toBeChecked();
@@ -404,9 +465,8 @@ describe('RecordsPage', () => {
       'Где пойман↕',
       'База(ы) max↕',
       'Заметка',
-      'Игрок/дата',
-      'Наживка',
-      'Статус',
+      'Игрок/дата↕',
+      'Наживка↕',
     ]);
     const adminRow = screen.getByRole('link', { name: 'Зелёная' }).closest('tr');
     expect(adminRow).not.toBeNull();
@@ -461,6 +521,7 @@ describe('RecordsPage', () => {
     expect(within(table).queryByText('Зелёная')).not.toBeInTheDocument();
     expect(within(table).getByText('Без рекорда')).toBeVisible();
 
+    fireEvent.click(screen.getByText(/^Статус/u, { selector: 'summary' }));
     const toggle = screen.getByRole('checkbox', { name: 'Скрыть редчайших' });
     expect(toggle).toBeChecked();
     fireEvent.click(toggle);
@@ -513,7 +574,7 @@ describe('RecordsPage', () => {
     });
   });
 
-  test('filters by caught-at Base and preserves it while sorting and resetting sort', async () => {
+  test('filters by max Base and preserves it while sorting and resetting sort', async () => {
     mocks.search =
       'baseId=base&sort=weight&direction=desc&status=MUTANT&status=CAN_BEAT&hideRarest=true';
     render(<RecordsPage />);
@@ -522,6 +583,7 @@ describe('RecordsPage', () => {
     expect(within(table).queryByText('Зелёная')).not.toBeInTheDocument();
     expect(within(table).getByText('Красная')).toBeVisible();
     expect(within(table).queryByText('Без рекорда')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText(/^Статус/u, { selector: 'summary' }));
     expect(screen.getByRole('checkbox', { name: 'Скрыть редчайших' })).toBeChecked();
 
     fireEvent.click(screen.getByRole('button', { name: 'Рыба' }));
@@ -566,7 +628,7 @@ describe('RecordsPage', () => {
       { scroll: false },
     );
 
-    fireEvent.change(screen.getByRole('combobox', { name: 'Где пойман' }), {
+    fireEvent.change(screen.getByRole('combobox', { name: 'База max' }), {
       target: { value: '' },
     });
     expect(mocks.replace).toHaveBeenCalledWith(
@@ -580,6 +642,77 @@ describe('RecordsPage', () => {
       { scroll: false },
     );
   });
+
+  test('filters by every tied max Base, including missing records, independently of caught-at Base', async () => {
+    mocks.search = 'baseId=tied';
+    const tiedBase = { id: 'tied', name: 'Ахтуба', isActive: false };
+    mocks.getRecords.mockResolvedValue({
+      ...response,
+      items: response.items.map((item) => ({
+        ...item,
+        maxBases: ['none', 'yellow'].includes(item.fish.id)
+          ? [...item.maxBases, tiedBase]
+          : item.maxBases,
+        record: item.fish.id === 'red' ? { ...item.record!, fishingBase: tiedBase } : item.record,
+      })),
+    });
+    render(<RecordsPage />);
+    const table = await screen.findByRole('table');
+    expect(within(table).getAllByRole('row')).toHaveLength(3);
+    expect(within(table).getByRole('link', { name: 'Без рекорда' })).toBeVisible();
+    expect(within(table).getByRole('link', { name: 'Жёлтая' }).closest('tr')).toHaveTextContent(
+      'Неизвестная база',
+    );
+    expect(within(table).queryByRole('link', { name: 'Красная' })).not.toBeInTheDocument();
+    const baseFilter = screen.getByRole('combobox', { name: 'База max' });
+    expect(baseFilter).toHaveValue('tied');
+    expect(
+      within(baseFilter)
+        .getAllByRole('option')
+        .map((option) => option.textContent),
+    ).toEqual(['Все базы', 'Ахтуба', 'Волга']);
+  });
+
+  test.each([
+    [
+      'playerName',
+      'Игрок/дата',
+      ['Зелёная', 'Без max', 'Жёлтая', 'Красная', 'Максимальная', 'Без рекорда'],
+    ],
+    ['bait', 'Наживка', ['Без max', 'Максимальная', 'Красная', 'Зелёная', 'Без рекорда', 'Жёлтая']],
+  ] as const)(
+    'restores %s sorting from URL and toggles it while preserving filters',
+    async (key, label, names) => {
+      mocks.search = `baseId=base&sort=${key}&direction=asc`;
+      // Все строки участвуют, чтобы проверить пустую наживку и отсутствующий рекорд.
+      mocks.getRecords.mockResolvedValue({
+        ...response,
+        items: response.items.map((item) => ({ ...item, maxBases: response.items[0]!.maxBases })),
+      });
+      render(<RecordsPage />);
+      const table = await screen.findByRole('table');
+      expect(
+        within(table)
+          .getAllByRole('row')
+          .slice(1)
+          .map(
+            (row) =>
+              within(row).getByRole('link', {
+                name: /^(Без max|Без рекорда|Жёлтая|Зелёная|Красная|Максимальная)$/u,
+              }).textContent,
+          ),
+      ).toEqual(names);
+      const button = screen.getByRole('button', { name: label });
+      expect(button.closest('th')).toHaveAttribute('aria-sort', 'ascending');
+      fireEvent.click(button);
+      expect(mocks.replace).toHaveBeenCalledWith(
+        `/records?baseId=base&sort=${key}&direction=desc`,
+        { scroll: false },
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Сбросить сортировку' }));
+      expect(mocks.replace).toHaveBeenCalledWith('/records?baseId=base', { scroll: false });
+    },
+  );
 
   test('filters favorites from one list request and preserves all existing URL filters and sorting', async () => {
     mocks.search =

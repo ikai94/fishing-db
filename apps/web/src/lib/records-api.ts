@@ -4,8 +4,15 @@ export type RecordsState = 'RECORD' | 'NO_RECORD' | 'UNKNOWN';
 export type RecordsStatus =
   'NO_RECORD' | 'CAN_BEAT' | 'NEAR_MAX' | 'MAXIMUM' | 'MUTANT' | 'MAX_UNKNOWN' | null;
 export type RecordsBase = { id: string; name: string; isActive: boolean };
+/** Строка недельных рекордов с глобальным счётчиком исторических CatchReport для рыбы. */
 export type RecordsItem = {
-  fish: { id: string; name: string; isRarest: boolean; isNightBiting: boolean };
+  fish: {
+    id: string;
+    name: string;
+    isRarest: boolean;
+    isNightBiting: boolean;
+    catchReportsCount: number;
+  };
   state: RecordsState;
   record: null | {
     weightGrams: number;
@@ -85,6 +92,13 @@ function positiveInteger(value: unknown, label: string): number {
   if (!Number.isInteger(value) || (value as number) <= 0) throw new Error(`Некорректный ${label}.`);
   return value as number;
 }
+/** Принимает точный неотрицательный счётчик, включая рыбу без единого улова. */
+function catchCount(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
+    throw new Error('Некорректное количество уловов.');
+  }
+  return value;
+}
 function nullableNumber(value: unknown, label: string): number | null {
   if (value === null) return null;
   if (typeof value !== 'number' || !Number.isFinite(value))
@@ -119,7 +133,13 @@ function decodeItem(value: unknown): RecordsItem {
     'headroomPercent',
     'status',
   ]);
-  const fish = exactObject(row.fish, 'рыба', ['id', 'name', 'isRarest', 'isNightBiting']);
+  const fish = exactObject(row.fish, 'рыба', [
+    'id',
+    'name',
+    'isRarest',
+    'isNightBiting',
+    'catchReportsCount',
+  ]);
   if (!['RECORD', 'NO_RECORD', 'UNKNOWN'].includes(String(row.state)))
     throw new Error('Некорректное состояние рекорда.');
   const statuses = [null, 'NO_RECORD', 'CAN_BEAT', 'NEAR_MAX', 'MAXIMUM', 'MUTANT', 'MAX_UNKNOWN'];
@@ -155,6 +175,7 @@ function decodeItem(value: unknown): RecordsItem {
       name: text(fish.name, 'название рыбы'),
       isRarest: boolean(fish.isRarest, 'признак редчайшего вида'),
       isNightBiting: boolean(fish.isNightBiting, 'признак ночного клёва'),
+      catchReportsCount: catchCount(fish.catchReportsCount),
     },
     state: row.state as RecordsState,
     record,

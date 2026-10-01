@@ -72,58 +72,6 @@
   background: #fff;
   font: inherit;
 }
-.statusFilter {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--app-text-muted);
-  font-weight: 650;
-}
-.statusOptions {
-  display: inline-flex;
-  min-height: 30px;
-  align-items: center;
-  gap: 8px;
-  padding: 3px 8px;
-  border: 1px solid var(--app-border);
-  border-radius: var(--app-radius-sm);
-  color: var(--app-text);
-  background: #fff;
-  font-weight: 500;
-}
-.statusOption {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  white-space: nowrap;
-  cursor: pointer;
-}
-.statusOption input {
-  width: 14px;
-  height: 14px;
-  margin: 0;
-  accent-color: var(--app-accent-strong);
-}
-.rarityFilter {
-  display: inline-flex;
-  min-height: 30px;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 8px;
-  border: 1px solid var(--app-border);
-  border-radius: var(--app-radius-sm);
-  color: var(--app-text);
-  background: #fff;
-  font-weight: 500;
-  white-space: nowrap;
-  cursor: pointer;
-}
-.rarityFilter input {
-  width: 14px;
-  height: 14px;
-  margin: 0;
-  accent-color: var(--app-accent-strong);
-}
 .marksFilter {
   position: relative;
 }
@@ -229,14 +177,14 @@
 }
 .table {
   width: 100%;
-  min-width: 1450px;
+  min-width: 1310px;
   table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0;
   font-variant-numeric: tabular-nums;
 }
 .adminTable {
-  min-width: 1680px;
+  min-width: 1540px;
 }
 .numberColumn {
   width: 38px;
@@ -266,9 +214,6 @@
 }
 .baitColumn {
   width: 120px;
-}
-.statusColumn {
-  width: 140px;
 }
 .table th,
 .table td {
@@ -440,6 +385,19 @@
   max-width: 100%;
   min-width: 0;
 }
+.fishLabel {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 0.35em;
+}
+.catchCount {
+  flex-shrink: 0;
+  color: var(--app-text-muted);
+  font-size: 0.75rem;
+  font-weight: 400;
+  white-space: nowrap;
+}
 .fishName {
   display: block;
   min-width: 0;
@@ -454,8 +412,7 @@
 .rarestFishLink {
   color: #b42318;
 }
-.recordBadge,
-.status {
+.recordBadge {
   display: inline-flex;
   min-height: 24px;
   align-items: center;
@@ -485,42 +442,12 @@
   color: #586970;
   background: #f2f5f6;
 }
-.status {
-  min-height: 20px;
-  max-width: 100%;
-  justify-content: center;
-  padding: 1px 6px;
-  font-size: 0.75rem;
-  overflow-wrap: anywhere;
-  text-align: center;
-  white-space: normal;
-}
 .recordBadge {
   max-width: 100%;
   justify-content: center;
   overflow-wrap: anywhere;
   text-align: center;
   white-space: normal;
-}
-.statusCell {
-  min-width: 0;
-  overflow: hidden;
-}
-.statusGreen {
-  color: #176033;
-  background: #e8f6ec;
-}
-.statusYellow {
-  color: #684e00;
-  background: #fff5c7;
-}
-.statusRed {
-  color: #8a2525;
-  background: #fceaea;
-}
-.statusNeutral {
-  color: #586970;
-  background: #f2f5f6;
 }
 .player {
   display: block;
@@ -731,13 +658,9 @@
     justify-content: flex-start;
     flex-wrap: wrap;
   }
-  .statusFilter {
-    width: 100%;
-    align-items: flex-start;
-    flex-direction: column;
-  }
-  .statusOptions {
-    flex-wrap: wrap;
+  .statusFilter .marksOptions {
+    right: auto;
+    left: 0;
   }
   .tableRegion {
     max-height: none;

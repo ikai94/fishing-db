@@ -12,17 +12,18 @@ void describe('official record assessment', () => {
   });
 
   void it('classifies the approved relative-headroom boundaries', () => {
-    assert.deepEqual(assessOfficialRecord(9_949, 10_000), {
-      headroomGrams: 51,
-      headroomPercent: 0.51,
+    assert.deepEqual(assessOfficialRecord(9_969, 10_000), {
+      headroomGrams: 31,
+      headroomPercent: 0.31,
       status: 'CAN_BEAT',
     });
-    assert.deepEqual(assessOfficialRecord(9_950, 10_000), {
-      headroomGrams: 50,
-      headroomPercent: 0.5,
+    assert.deepEqual(assessOfficialRecord(9_970, 10_000), {
+      headroomGrams: 30,
+      headroomPercent: 0.3,
       status: 'NEAR_MAX',
     });
-    assert.equal(assessOfficialRecord(9_951, 10_000).status, 'NEAR_MAX');
+    assert.equal(assessOfficialRecord(9_971, 10_000).status, 'NEAR_MAX');
+    assert.equal(assessOfficialRecord(9_950, 10_000).status, 'CAN_BEAT');
     assert.deepEqual(assessOfficialRecord(10_000, 10_000), {
       headroomGrams: 0,
       headroomPercent: 0,
@@ -52,11 +53,16 @@ void describe('public records projection', () => {
             { isRarest: select.isRarest, isNightBiting: select.isNightBiting },
             { isRarest: true, isNightBiting: true },
           );
+          assert.equal(
+            (query as { select: { catchReportsCount: boolean } }).select.catchReportsCount,
+            true,
+          );
           return Promise.resolve([
             {
               id: 'fish-a',
               name: 'А',
               isRarest: true,
+              catchReportsCount: 12438n,
               fishingBaseLinks: [
                 {
                   maxWeightGrams: 1_000,
@@ -68,7 +74,13 @@ void describe('public records projection', () => {
                 },
               ],
             },
-            { id: 'fish-b', name: 'Б', isRarest: false, fishingBaseLinks: [] },
+            {
+              id: 'fish-b',
+              name: 'Б',
+              isRarest: false,
+              catchReportsCount: 0n,
+              fishingBaseLinks: [],
+            },
           ]);
         },
       },
@@ -102,6 +114,8 @@ void describe('public records projection', () => {
     assert.equal(response.items[0]?.record?.bait, 'Червь');
     assert.equal(response.items[0]?.fish.isRarest, true);
     assert.equal(response.items[1]?.fish.isRarest, false);
+    assert.equal(response.items[0]?.fish.catchReportsCount, 12438);
+    assert.equal(response.items[1]?.fish.catchReportsCount, 0);
     assert.deepEqual(
       response.items[0]?.maxBases.map((base) => base.name),
       ['База А', 'База Б'],
@@ -114,7 +128,15 @@ void describe('public records projection', () => {
     const prisma = {
       fish: {
         findMany: () =>
-          Promise.resolve([{ id: 'fish', name: 'Рыба', isRarest: false, fishingBaseLinks: [] }]),
+          Promise.resolve([
+            {
+              id: 'fish',
+              name: 'Рыба',
+              isRarest: false,
+              catchReportsCount: 0n,
+              fishingBaseLinks: [],
+            },
+          ]),
       },
       officialRecordSnapshot: { findFirst: () => Promise.resolve(null) },
       officialRecordSyncState: { findUnique: () => Promise.resolve(null) },
@@ -124,5 +146,22 @@ void describe('public records projection', () => {
     );
     assert.equal(response.items[0]?.state, 'UNKNOWN');
     assert.equal(response.items[0]?.status, null);
+    assert.equal(response.items[0]?.fish.catchReportsCount, 0);
+  });
+
+  void it('rejects negative or unsafe stored catch counts', async () => {
+    for (const catchReportsCount of [-1n, BigInt(Number.MAX_SAFE_INTEGER) + 1n]) {
+      const prisma = {
+        fish: {
+          findMany: () =>
+            Promise.resolve([
+              { id: 'fish', name: 'Рыба', catchReportsCount, fishingBaseLinks: [] },
+            ]),
+        },
+        officialRecordSnapshot: { findFirst: () => Promise.resolve(null) },
+        officialRecordSyncState: { findUnique: () => Promise.resolve(null) },
+      };
+      await assert.rejects(new RecordsQueryService(prisma as never).getPublicRecords(), RangeError);
+    }
   });
 });

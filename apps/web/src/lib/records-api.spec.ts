@@ -18,7 +18,7 @@ describe('records API decoder', () => {
       sync: { status: 'WAITING', observedAt: null, lastAttemptAt: null, lastSuccessAt: null },
     };
     const item = {
-      fish: { id: 'fish', name: 'Рыба', isRarest: true, isNightBiting: true },
+      fish: { id: 'fish', name: 'Рыба', isRarest: true, isNightBiting: true, catchReportsCount: 0 },
       state: 'UNKNOWN',
       record: null,
       normalMaxWeightGrams: null,
@@ -29,6 +29,22 @@ describe('records API decoder', () => {
     };
     expect(decodeRecordsResponse({ ...base, items: [item] }).items[0]?.state).toBe('UNKNOWN');
     expect(decodeRecordsResponse({ ...base, items: [item] }).items[0]?.fish.isRarest).toBe(true);
+    for (const catchReportsCount of [0, 12438, Number.MAX_SAFE_INTEGER]) {
+      expect(
+        decodeRecordsResponse({
+          ...base,
+          items: [{ ...item, fish: { ...item.fish, catchReportsCount } }],
+        }).items[0]?.fish.catchReportsCount,
+      ).toBe(catchReportsCount);
+    }
+    for (const catchReportsCount of [-1, 1.5, Number.MAX_SAFE_INTEGER + 1, '12', null, undefined]) {
+      expect(() =>
+        decodeRecordsResponse({
+          ...base,
+          items: [{ ...item, fish: { ...item.fish, catchReportsCount } }],
+        }),
+      ).toThrow(/количество уловов/u);
+    }
     expect(
       decodeRecordsResponse({
         ...base,

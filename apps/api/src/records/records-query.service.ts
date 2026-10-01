@@ -7,6 +7,14 @@ export type PublicRecordState = 'RECORD' | 'NO_RECORD' | 'UNKNOWN';
 export type PublicRecordStatus =
   'NO_RECORD' | 'CAN_BEAT' | 'NEAR_MAX' | 'MAXIMUM' | 'MUTANT' | 'MAX_UNKNOWN' | null;
 
+/** Проверяет диапазон PostgreSQL bigint перед передачей счётчика как JSON-числа. */
+function toSafeCatchCount(value: bigint): number {
+  if (value < 0n || value > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new RangeError('catchReportsCount exceeds the JavaScript safe integer range');
+  }
+  return Number(value);
+}
+
 /**
  * Сравнивает официальный рекорд с нормальным максимумом рыбы и классифицирует запас веса.
  * Отсутствующий рекорд и неизвестный максимум остаются разными состояниями публичного контракта.
@@ -34,7 +42,7 @@ export function assessOfficialRecord(
         ? ('MUTANT' as const)
         : headroomGrams === 0
           ? ('MAXIMUM' as const)
-          : headroomPercent <= 0.5
+          : headroomPercent <= 0.3
             ? ('NEAR_MAX' as const)
             : ('CAN_BEAT' as const),
   };
@@ -63,6 +71,8 @@ export class RecordsQueryService {
           name: true,
           isRarest: true,
           isNightBiting: true,
+          // Счётчик уже учитывает всю историю; недельный снимок и фильтры его не ограничивают.
+          catchReportsCount: true,
           fishingBaseLinks: {
             select: {
               maxWeightGrams: true,
@@ -142,6 +152,7 @@ export class RecordsQueryService {
             name: item.name,
             isRarest: item.isRarest,
             isNightBiting: item.isNightBiting,
+            catchReportsCount: toSafeCatchCount(item.catchReportsCount),
           },
           state,
           record:

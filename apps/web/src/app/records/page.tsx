@@ -44,6 +44,7 @@ const DATE_FORMATTER = new Intl.DateTimeFormat('ru-RU', {
   hour: '2-digit',
   minute: '2-digit',
 });
+const CATCH_COUNT_FORMATTER = new Intl.NumberFormat('ru-RU');
 const STATUS_LABELS: Record<Exclude<RecordsStatus, null>, string> = {
   NO_RECORD: 'Нет рекорда',
   CAN_BEAT: 'Можно побить',
@@ -164,7 +165,7 @@ function RecordsContent() {
   const wrongMaxOnly = searchParams.get(WRONG_MAX_FILTER_PARAM) === 'true';
   const rarityReviewOnly = searchParams.get(RARITY_REVIEW_FILTER_PARAM) === 'true';
   const baseOptions = useMemo(
-    () => (state.kind === 'ready' ? caughtAtBaseOptions(state.data.items) : []),
+    () => (state.kind === 'ready' ? maxBaseOptions(state.data.items) : []),
     [state],
   );
   const selectedBaseId = baseOptions.some((base) => base.id === searchParams.get(BASE_FILTER_PARAM))
@@ -179,10 +180,13 @@ function RecordsContent() {
   );
   const rows = useMemo(() => {
     if (state.kind !== 'ready') return [];
+    // Фильтр относится к базам нормального максимума, независимо от места недельного улова.
     const baseFiltered =
       selectedBaseId === ''
         ? state.data.items
-        : state.data.items.filter((item) => item.record?.fishingBase?.id === selectedBaseId);
+        : state.data.items.filter((item) =>
+            item.maxBases.some((base) => base.id === selectedBaseId),
+          );
     const statusFiltered =
       selectedStatuses.length === 0
         ? baseFiltered
@@ -498,9 +502,16 @@ function RecordsContent() {
     return () => clearTimeout(timer);
   }, [reload, state]);
 
+  /** Меняет сортировку в URL, сохраняя фильтры; текстовые значения сначала идут по алфавиту. */
   function setSort(key: Exclude<RecordsSortKey, 'default'>) {
     const defaultDirection: RecordsSortDirection =
-      key === 'name' || key === 'maxBase' || key === 'fishingBase' ? 'asc' : 'desc';
+      key === 'name' ||
+      key === 'maxBase' ||
+      key === 'fishingBase' ||
+      key === 'playerName' ||
+      key === 'bait'
+        ? 'asc'
+        : 'desc';
     const direction =
       sort.key === key ? (sort.direction === 'asc' ? 'desc' : 'asc') : defaultDirection;
     const params = new URLSearchParams(searchParams.toString());
@@ -727,7 +738,7 @@ function RecordsTable({
         </div>
         <div className={styles.toolbarControls}>
           <label className={styles.baseFilter} htmlFor="records-base-filter">
-            <span>Где пойман</span>
+            <span>База max</span>
             <select
               id="records-base-filter"
               value={selectedBaseId}
@@ -741,15 +752,16 @@ function RecordsTable({
               ))}
             </select>
           </label>
-          <div className={styles.statusFilter}>
-            <span id="records-status-filter-label">Статус</span>
-            <div
-              className={styles.statusOptions}
-              role="group"
-              aria-labelledby="records-status-filter-label"
-            >
+          <details className={`${styles.marksFilter} ${styles.statusFilter}`}>
+            <summary>
+              Статус
+              {selectedStatuses.length + Number(hideRarest) > 0
+                ? ` · ${selectedStatuses.length + Number(hideRarest)}`
+                : ''}
+            </summary>
+            <div className={styles.marksOptions} role="group" aria-label="Статус">
               {FILTERABLE_STATUSES.map((status) => (
-                <label className={styles.statusOption} key={status}>
+                <label key={status}>
                   <input
                     type="checkbox"
                     checked={selectedStatuses.includes(status)}
@@ -758,8 +770,16 @@ function RecordsTable({
                   <span>{STATUS_LABELS[status]}</span>
                 </label>
               ))}
+              <label>
+                <input
+                  type="checkbox"
+                  checked={hideRarest}
+                  onChange={(event) => onHideRarest(event.target.checked)}
+                />
+                <span>Скрыть редчайших</span>
+              </label>
             </div>
-          </div>
+          </details>
           {favoriteFish.kind === 'ready' ? (
             <details className={styles.marksFilter}>
               <summary>Метки{selectedMarksCount > 0 ? ` · ${selectedMarksCount}` : ''}</summary>
@@ -807,14 +827,6 @@ function RecordsTable({
               </div>
             </details>
           ) : null}
-          <label className={styles.rarityFilter}>
-            <input
-              type="checkbox"
-              checked={hideRarest}
-              onChange={(event) => onHideRarest(event.target.checked)}
-            />
-            <span>Скрыть редчайших</span>
-          </label>
           <button
             className={styles.resetButton}
             type="button"
@@ -861,7 +873,6 @@ function RecordsTable({
             ) : null}
             <col className={styles.playerColumn} />
             <col className={styles.baitColumn} />
-            <col className={styles.statusColumn} />
           </colgroup>
           <thead>
             <tr>
@@ -910,9 +921,20 @@ function RecordsTable({
               {adminNotes.kind !== 'checking' && adminNotes.kind !== 'hidden' ? (
                 <th scope="col">Заметка</th>
               ) : null}
-              <th scope="col">Игрок/дата</th>
-              <th scope="col">Наживка</th>
-              <th scope="col">Статус</th>
+              <SortableHeader
+                label="Игрок/дата"
+                sortName="playerName"
+                activeKey={sortKey}
+                direction={sortDirection}
+                onSort={onSort}
+              />
+              <SortableHeader
+                label="Наживка"
+                sortName="bait"
+                activeKey={sortKey}
+                direction={sortDirection}
+                onSort={onSort}
+              />
             </tr>
           </thead>
           <tbody>
@@ -1095,13 +1117,18 @@ function RecordRow({
           <span className={styles.fishThumbnail}>
             <FishImage fishName={row.fish.name} image={image} variant="thumbnail" />
           </span>
-          <Link
-            className={`${styles.fishLink} ${row.fish.isRarest ? styles.rarestFishLink : ''}`}
-            href={`/fish/${row.fish.id}`}
-            title={row.fish.name}
-          >
-            <span className={styles.fishName}>{row.fish.name}</span>
-          </Link>
+          <div className={styles.fishLabel}>
+            <Link
+              className={`${styles.fishLink} ${row.fish.isRarest ? styles.rarestFishLink : ''}`}
+              href={`/fish/${row.fish.id}`}
+              title={row.fish.name}
+            >
+              <span className={styles.fishName}>{row.fish.name}</span>
+            </Link>
+            <span className={styles.catchCount} title="Всего уловов за всё время">
+              ({CATCH_COUNT_FORMATTER.format(row.fish.catchReportsCount)})
+            </span>
+          </div>
         </div>
       </th>
       <td className={styles.numeric}>{recordWeight(row)}</td>
@@ -1195,11 +1222,6 @@ function RecordRow({
       <td className={styles.textCell}>
         <span className={styles.cellText} title={row.record?.bait ?? undefined}>
           {row.record?.bait ?? '—'}
-        </span>
-      </td>
-      <td className={styles.statusCell}>
-        <span className={`${styles.status} ${statusClass(row.status)}`}>
-          {row.status === null ? '—' : STATUS_LABELS[row.status]}
         </span>
       </td>
     </tr>
@@ -1499,11 +1521,11 @@ function RecordNoteEditor({
   );
 }
 
-function caughtAtBaseOptions(items: readonly RecordsItem[]): Array<{ id: string; name: string }> {
+/** Собирает все базы максимума, включая равные максимумы и рыб без недельного рекорда. */
+function maxBaseOptions(items: readonly RecordsItem[]): Array<{ id: string; name: string }> {
   const bases = new Map<string, string>();
   for (const item of items) {
-    const base = item.record?.fishingBase;
-    if (base !== null && base !== undefined) bases.set(base.id, base.name);
+    for (const base of item.maxBases) bases.set(base.id, base.name);
   }
   return [...bases]
     .map(([id, name]) => ({ id, name }))
@@ -1567,11 +1589,4 @@ function formatHeadroom(row: RecordsItem) {
       </span>
     </>
   );
-}
-
-function statusClass(status: RecordsStatus): string {
-  if (status === 'CAN_BEAT') return styles.statusGreen;
-  if (status === 'NEAR_MAX' || status === 'MAXIMUM') return styles.statusYellow;
-  if (status === 'MUTANT') return styles.statusRed;
-  return styles.statusNeutral;
 }
