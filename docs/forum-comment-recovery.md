@@ -170,3 +170,36 @@ Completed approved write:
   `9d00bcb465a5cee5a4cdab088c1d37a65b7e0a7b4dbad4f6cdb170c364945acb`.
 - **READY** for this completed comment recovery only. The 792 rawSourceText candidates remain
   untouched. No commit or broad suite was run.
+
+Separate held-comment recovery (2026-10-03): the frozen 1,375 CORE_MISMATCH rows were independently
+classified SAFE because exact source identity and the complete Bait/comment boundary do not depend
+on accepting current structured parsing. Manifest SHA-256:
+`08a88182c106ca7f237aa077c9e609922d739a59069af2c26961b494cf2c423a`.
+
+The separate writer leaves the completed 6,191-row writer and its core-mismatch rejection unchanged:
+
+```sh
+# From apps/api; check has no DML, apply supports resume and completed verification.
+node --import tsx src/forum-import/apply-held-comments.ts check 08a88182c106ca7f237aa077c9e609922d739a59069af2c26961b494cf2c423a
+node --import tsx src/forum-import/apply-held-comments.ts apply 08a88182c106ca7f237aa077c9e609922d739a59069af2c26961b494cf2c423a
+```
+
+Only `userNoteRaw IS NULL` rows permit SQL updates; exact previously committed comments permit
+zero-DML replay. Short transactions lock at most 100 exact IDs, check historical row/source hashes,
+and preserve every other column, including `updatedAt`. Checkpoint advances only after COMMIT;
+kernel `flock` excludes concurrent writers. Frozen metadata, source artifacts, code and baseline
+hashes are checked before writing and on resume. No new parser interpretation or structured-field
+correction is performed.
+
+Audit artifacts are under the ignored `apps/api/.local/held-comment-analysis/write/`. Baseline
+protects all 69,403 historical forum rows and the separate completed 792 reports with PostgreSQL
+hashes of every non-comment column and exact original comments. The 7,180,258-row overall population,
+Fish counters and activity are also checked; unrelated generated reports are not loaded into Node.
+Completed write: **1,375 planned / 1,375 updated / 0 skipped**, in **14 batches** (13 × 100 + 75).
+There were zero non-comment changes or changes to the completed 6,191/792 recoveries. Focused
+PostgreSQL tests cover 100-row updates, full-batch drift aborts, non-null preservation and replay
+after checkpoint persistence failure. No schema, migration or dependency change; no broad suite.
+Completed rerun: **0 updated / 1,375 skipped** with the same manifest and checkpoint. Independent
+read-only verification through a separate `pg` connection confirmed all 1,375 exact comments,
+unchanged full-row guards for all 70,195 protected reports, unchanged Fish/activity and unchanged
+completed-recovery artifacts. Evidence is in `write/independent-verification.json`.
