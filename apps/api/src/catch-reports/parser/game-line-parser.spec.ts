@@ -1,13 +1,107 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { buildCatalogLookupIndex } from '../../catalog/catalog-lookup.js';
 import {
   matchCatalogPrefix,
+  matchFishCatalog,
   parseGameLine,
   sourceAfterComma,
   splitLocationAndBaitFallback,
 } from './game-line-parser.js';
 
 void describe('game notebook line parser', () => {
+  void it('resolves the longest exact Fish suffix and preserves source offsets and leading prose', () => {
+    const raw = '  улов: РУЧЬЕВАЯ\u00a0  ФОРЕЛЬ  1 кг';
+    const range = parseGameLine(raw).fishSource;
+    assert.ok(range !== null);
+    const match = matchFishCatalog(
+      raw,
+      range,
+      buildCatalogLookupIndex([
+        { id: 'short', name: 'Форель' },
+        { id: 'long', name: 'Ручьевая форель' },
+      ]),
+    );
+    assert.equal(match?.resolution.status, 'UNIQUE');
+    assert.equal(match?.resolution.status === 'UNIQUE' ? match.resolution.item.id : null, 'long');
+    assert.equal(match?.source.text, 'РУЧЬЕВАЯ\u00a0  ФОРЕЛЬ');
+    assert.equal(match?.leadingSource?.text, 'улов:');
+    for (const source of [match?.source, match?.leadingSource]) {
+      assert.ok(source !== null && source !== undefined);
+      assert.equal(raw.slice(source.start, source.end), source.text);
+    }
+  });
+
+  void it('keeps exact Fish lookup ahead of suffix fallback, including exact ambiguity', () => {
+    const raw = 'Ручьевая форель';
+    const source = { text: raw, start: 0, end: raw.length };
+    for (const duplicate of [false, true]) {
+      const match = matchFishCatalog(
+        raw,
+        source,
+        buildCatalogLookupIndex([
+          { id: 'long', name: raw },
+          { id: 'short', name: 'Форель' },
+          ...(duplicate ? [{ id: 'duplicate', name: raw }] : []),
+        ]),
+      );
+      assert.equal(match?.resolution.status, duplicate ? 'AMBIGUOUS' : 'UNIQUE');
+      assert.deepEqual(match?.source, source);
+      assert.equal(match?.leadingSource, null);
+    }
+  });
+
+  void it('keeps the longest colliding suffix ambiguous rather than selecting a shorter Fish', () => {
+    const raw = 'улов Ручьевая форель';
+    const match = matchFishCatalog(
+      raw,
+      { text: raw, start: 0, end: raw.length },
+      buildCatalogLookupIndex([
+        { id: 'long', name: 'Ручьевая форель' },
+        { id: 'collision', name: 'Ручьевая форель' },
+        { id: 'short', name: 'Форель' },
+      ]),
+    );
+    assert.equal(match?.resolution.status, 'AMBIGUOUS');
+    assert.equal(match?.source.text, 'Ручьевая форель');
+  });
+
+  void it('does not select a shorter Fish when repeated whitespace lengthens the canonical suffix', () => {
+    const raw = `улов Ручьевая${' '.repeat(130)}форель`;
+    const match = matchFishCatalog(
+      raw,
+      { text: raw, start: 0, end: raw.length },
+      buildCatalogLookupIndex([
+        { id: 'long', name: 'Ручьевая форель' },
+        { id: 'short', name: 'Форель' },
+      ]),
+    );
+    assert.equal(match?.resolution.status === 'UNIQUE' ? match.resolution.item.id : null, 'long');
+    assert.equal(match?.source.text, raw.slice('улов '.length));
+  });
+
+  void it('rejects trailing text, partial Fish names and suffixes without a safe left boundary', () => {
+    const index = buildCatalogLookupIndex([{ id: 'fish', name: 'Ручьевая форель' }]);
+    for (const raw of [
+      'улов Ручьевая форель потом',
+      'улов Ручьевая форелька',
+      'улов Ручьевая форел',
+      'улов форель',
+      'уловРучьевая форель',
+      'улов1Ручьевая форель',
+      'улов_Ручьевая форель',
+      'улов-Ручьевая форель',
+      'улов\u0301Ручьевая форель',
+      'улов Ручьевая форель.',
+    ]) {
+      assert.equal(
+        matchFishCatalog(raw, { text: raw, start: 0, end: raw.length }, index),
+        null,
+        raw,
+      );
+    }
+  });
+
   void it('extracts the generated core while preserving exact source offsets', () => {
     const raw =
       '  Шамбардия Валберга 40 грамм. Поймана на Озера Танзании: Берег слоновьего бивня, Мотыль. ямка 6,00 удочка  ';

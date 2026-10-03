@@ -177,6 +177,110 @@ async function parse(raw: string, options?: FixtureOptions): Promise<CatchReport
 }
 
 void describe('CatchReportParserService', () => {
+  void it('recovers leading prose before exact Fish names in single and batch paths without changing other fields', async () => {
+    const service = fixtureService({
+      additionalFish: [
+        { id: 'fish-trout', name: 'Ручьевая форель', nameNormalized: 'ручьевая форель' },
+        { id: 'fish-white', name: 'Белорыбица', nameNormalized: 'белорыбица' },
+      ],
+    });
+    // «улов Белорыбица» взято из forum-post-parser.spec.ts; склеенный префикс ниже — из
+    // forum83/parser.spec.ts и намеренно не принимается без границы слова.
+    for (const [prefix, fish] of [
+      ['улов ', 'Ручьевая форель'],
+      ['улов ', 'Белорыбица'],
+      ['Поймал двух подряд: ', 'Белорыбица'],
+      ['  🎣 улов:\t', 'Ручьевая форель'],
+    ] as const) {
+      const clean = amurLine(fish, '1,449 кг', 'Лягушка. ямка 6,00 удочка вполводы.');
+      const baseline = (await service.parse(clean)).draft;
+      const raw = prefix + clean;
+      const single = (await service.parse(raw)).draft;
+      const batch = await service.parseBatch(raw);
+      assert.equal(batch.rows.length, 1);
+      for (const draft of [single, batch.rows[0]?.draft]) {
+        assert.ok(draft !== undefined);
+        assert.equal(draft.rawSourceText, raw);
+        assert.deepEqual(draft.fields, baseline.fields);
+        assert.deepEqual(draft.baseFishMembership, baseline.baseFishMembership);
+        assert.deepEqual(draft.unresolvedFragments, [
+          {
+            text: prefix.trim(),
+            start: prefix.length - prefix.trimStart().length,
+            end: prefix.trimEnd().length,
+          },
+        ]);
+        assert.equal(draft.issues.filter((issue) => issue.code === 'UNRESOLVED_FRAGMENT').length, 1);
+        assert.equal(draft.canConfirm, true);
+      }
+    }
+  });
+
+  void it('prefers the longest Fish suffix and blocks ambiguous suffixes in single and batch paths', async () => {
+    for (const ambiguous of [false, true]) {
+      const service = fixtureService({
+        additionalFish: [
+          { id: 'fish-trout', name: 'Ручьевая форель', nameNormalized: 'ручьевая форель' },
+          { id: 'fish-short', name: 'Форель', nameNormalized: 'форель' },
+          ...(ambiguous
+            ? [
+                {
+                  id: 'fish-duplicate',
+                  name: 'Ручьевая форель',
+                  nameNormalized: 'ручьевая форель',
+                },
+              ]
+            : []),
+        ],
+      });
+      const raw = amurLine('улов Ручьевая форель', '1 кг', 'Лягушка.');
+      const single = (await service.parse(raw)).draft;
+      const batch = await service.parseBatch(raw);
+      for (const draft of [single, batch.rows[0]?.draft]) {
+        assert.ok(draft !== undefined);
+        assert.equal(draft.rawSourceText, raw);
+        if (ambiguous) {
+          assert.equal(draft.fields.fish.status, 'UNRESOLVED');
+          assert.equal(draft.fields.fish.code, 'FISH_AMBIGUOUS');
+          assert.equal(draft.fields.fish.sourceText, 'улов Ручьевая форель');
+          assert.deepEqual(draft.unresolvedFragments, []);
+          assert.equal(draft.baseFishMembership.status, 'MISSING');
+          assert.equal(draft.canConfirm, false);
+        } else {
+          assert.equal(resolvedValue(draft.fields.fish)?.id, 'fish-trout');
+          assert.equal(draft.fields.fish.sourceText, 'Ручьевая форель');
+          assert.equal(draft.canConfirm, true);
+        }
+      }
+    }
+  });
+
+  void it('keeps unsafe historical contamination and trailing Fish text unresolved and unchanged', async () => {
+    const service = fixtureService({
+      additionalFish: [{ id: 'fish-white', name: 'Белый амур', nameNormalized: 'белый амур' }],
+    });
+    for (const token of [
+      'это самый крупняк на одной локеБелый амур',
+      'улов Белый амур потом',
+      'улов Белый амурр',
+      'улов Белый аму',
+    ]) {
+      const raw = amurLine(token, '14,557 кг', 'Лягушка.');
+      const single = (await service.parse(raw)).draft;
+      const batch = await service.parseBatch(raw);
+      for (const draft of [single, batch.rows[0]?.draft]) {
+        assert.ok(draft !== undefined);
+        assert.equal(draft.rawSourceText, raw);
+        assert.equal(draft.fields.fish.status, 'UNRESOLVED');
+        assert.equal(draft.fields.fish.code, 'FISH_UNRESOLVED');
+        assert.equal(draft.fields.fish.sourceText, token);
+        assert.equal(resolvedValue(draft.fields.weightGrams), 14_557);
+        assert.deepEqual(draft.unresolvedFragments, []);
+        assert.equal(draft.canConfirm, false);
+      }
+    }
+  });
+
   void it('applies deterministic lookup normalization in single and batch parsing without changing source text', async () => {
     const raw =
       'ВАЛЕК 40 грамм. Поймана на АМУР: Понтонныи\u00a0  мост, Большои живец. ямка 6,00 уда-леска';

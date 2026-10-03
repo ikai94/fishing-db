@@ -37,6 +37,8 @@ import {
 } from './catch-report-batch-splitter.js';
 import {
   fallbackBaitSource,
+  type CatalogFishMatch,
+  matchFishCatalog,
   matchCatalogPrefix,
   parseGameLine,
   sourceAfterComma,
@@ -70,7 +72,10 @@ interface AnchorCandidate {
  */
 interface ParserCatalog {
   findBase: (lookupText: string) => Promise<CatalogLookupResolution<DraftNamedItem>>;
-  findFish: (lookupText: string) => Promise<CatalogLookupResolution<DraftNamedItem>>;
+  findFish: (
+    rawSourceText: string,
+    source: SourceRange,
+  ) => Promise<CatalogFishMatch<DraftNamedItem> | null>;
   listBaits: () => Promise<readonly BaitCandidate[]>;
   listAnchors: () => Promise<readonly AnchorCandidate[]>;
   listLocations: (baseId: string) => Promise<readonly LocationCandidate[]>;
@@ -239,19 +244,26 @@ export class CatchReportParserService {
     // Этап 1: выделяем игровое ядро и точные диапазоны, ещё не обращаясь к каталогу.
     const gameLine = parseGameLine(rawSourceText);
     const baseSource = gameLine.fishingBaseSource;
-    const fishSource = gameLine.fishSource;
 
     // Этап 2: Base/Fish разрешаются параллельно с загрузкой словарей Bait и ScreenAnchor.
-    const [baseResolution, fishResolution, baits, anchors] = await Promise.all([
+    const [baseResolution, fishMatch, baits, anchors] = await Promise.all([
       baseSource === null
         ? Promise.resolve(notFoundLookup<DraftNamedItem>())
         : catalog.findBase(baseSource.text),
-      fishSource === null
-        ? Promise.resolve(notFoundLookup<DraftNamedItem>())
-        : catalog.findFish(fishSource.text),
+      gameLine.fishSource === null
+        ? Promise.resolve(null)
+        : catalog.findFish(rawSourceText, gameLine.fishSource),
       catalog.listBaits(),
       catalog.listAnchors(),
     ]);
+
+    const fishResolution = fishMatch?.resolution ?? notFoundLookup<DraftNamedItem>();
+    // Только UNIQUE отделяет имя от прозы; при неоднозначности весь исходный токен остаётся
+    // unresolved. Префикс успешного fallback сохраняется отдельно и не становится комментарием.
+    const fishSource =
+      fishResolution.status === 'UNIQUE' ? (fishMatch?.source ?? null) : gameLine.fishSource;
+    const fishLeadingSource =
+      fishResolution.status === 'UNIQUE' ? (fishMatch?.leadingSource ?? null) : null;
 
     const baseResolved = resolvedSource(baseSource, baseResolution);
     const fishResolved = resolvedSource(fishSource, fishResolution);
@@ -400,7 +412,11 @@ export class CatchReportParserService {
         fishId: fishResolved?.item.id ?? null,
       },
       issues: [],
-      unresolvedFragments: [...gameLine.unresolvedFragments, ...observation.unresolvedFragments],
+      unresolvedFragments: [
+        ...(fishLeadingSource === null ? [] : [fishLeadingSource]),
+        ...gameLine.unresolvedFragments,
+        ...observation.unresolvedFragments,
+      ],
       missingRequiredFields: [],
       canConfirm: false,
     };
@@ -663,13 +679,13 @@ export class CatchReportParserService {
         });
         return resolveCatalogLookup(buildCatalogLookupIndex(items), lookupText);
       },
-      findFish: async (lookupText) => {
+      findFish: async (rawSourceText, source) => {
         const items = await this.prisma.fish.findMany({
           where: { isActive: true },
           orderBy: [{ nameNormalized: 'asc' }, { id: 'asc' }],
           select: { id: true, name: true },
         });
-        return resolveCatalogLookup(buildCatalogLookupIndex(items), lookupText);
+        return matchFishCatalog(rawSourceText, source, buildCatalogLookupIndex(items));
       },
       listBaits: () =>
         this.prisma.bait.findMany({
@@ -763,7 +779,8 @@ export class CatchReportParserService {
 
     return {
       findBase: (lookupText) => Promise.resolve(resolveCatalogLookup(basesByName, lookupText)),
-      findFish: (lookupText) => Promise.resolve(resolveCatalogLookup(fishByName, lookupText)),
+      findFish: (rawSourceText, source) =>
+        Promise.resolve(matchFishCatalog(rawSourceText, source, fishByName)),
       listBaits: () => Promise.resolve(baits),
       listAnchors: () => Promise.resolve(anchors),
       listLocations: (baseId) => Promise.resolve(locationsByBase.get(baseId) ?? []),

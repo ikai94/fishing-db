@@ -1,6 +1,7 @@
 import {
   buildCatalogLookupIndex,
   type CatalogLookupItem,
+  type CatalogLookupIndex,
   type CatalogLookupResolution,
   resolveCatalogLookup,
 } from '../../catalog/catalog-lookup.js';
@@ -49,6 +50,13 @@ export interface CatalogPrefixMatch<T extends CatalogPrefixCandidate> {
   resolution: CatalogLookupResolution<T>;
   source: SourceRange;
   remainder: SourceRange;
+}
+
+/** Точное Fish-сопоставление и сохранённый префикс, который не входит в имя рыбы. */
+export interface CatalogFishMatch<T> {
+  resolution: CatalogLookupResolution<T>;
+  source: SourceRange;
+  leadingSource: SourceRange | null;
 }
 
 function isWhitespace(value: string): boolean {
@@ -182,6 +190,40 @@ function isCodePointBoundary(source: string, index: number): boolean {
   const previous = source.charCodeAt(index - 1);
   const current = source.charCodeAt(index);
   return !(previous >= 0xd800 && previous <= 0xdbff && current >= 0xdc00 && current <= 0xdfff);
+}
+
+/**
+ * Сначала проверяет весь Fish-токен существующим точным lookup, включая его неоднозначность.
+ * Только NOT_FOUND допускает самый длинный точный суффикс после пробела или безопасного
+ * разделителя. Неоднозначный длинный суффикс не заменяется более коротким UNIQUE-совпадением.
+ */
+export function matchFishCatalog<T>(
+  rawSourceText: string,
+  range: SourceRange,
+  index: CatalogLookupIndex<T>,
+): CatalogFishMatch<T> | null {
+  const exact = resolveCatalogLookup(index, range.text);
+  if (exact.status !== 'NOT_FOUND') {
+    return { resolution: exact, source: range, leadingSource: null };
+  }
+
+  // Идём от начала к концу: первое совпадение — самый длинный суффикс. Не ограничиваем
+  // исходную длину: повторные пробелы могут удлинить ввод корректного каталожного имени.
+  for (let start = range.start + 1; start < range.end; start += 1) {
+    if (!isCodePointBoundary(rawSourceText, start)) continue;
+    if (!SAFE_SUFFIX_BOUNDARY.test(rawSourceText[start - 1] ?? '')) continue;
+    const source = trimSourceRange(rawSourceText, start, range.end);
+    if (source.text.length === 0) continue;
+    const resolution = resolveCatalogLookup(index, source.text);
+    if (resolution.status === 'NOT_FOUND') continue;
+    return {
+      resolution,
+      source,
+      leadingSource: trimSourceRange(rawSourceText, range.start, source.start),
+    };
+  }
+
+  return null;
 }
 
 /** Проверяет, что имя Bait не является началом более длинного буквенно-цифрового токена. */
