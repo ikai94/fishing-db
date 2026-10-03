@@ -35,6 +35,7 @@
     "db:reconcile:fish-catalog:dry-run": "tsx src/prisma/dry-run-fish-catalog-reconciliation.ts",
     "db:reconcile:fish-catalog:apply": "tsx src/prisma/apply-fish-catalog-reconciliation.ts",
     "db:reconcile:fishing-base-fish": "tsx src/prisma/reconcile-fishing-base-fish.ts",
+    "forum:recover-comments:apply": "node --import tsx src/forum-import/apply-comment-recovery.ts",
     "forum:recover-comments:dry-run": "node --import tsx src/forum-import/recover-comments-dry-run.ts",
     "forum:scan": "tsx src/forum-import/cli.ts scan",
     "forum:stage": "tsx src/forum-import/cli.ts stage",

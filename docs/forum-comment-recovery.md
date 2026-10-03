@@ -1,7 +1,7 @@
 # One-time historical forum comment recovery
 
-This is a reconciliation of existing rows, with no import/create/delete path. The implemented
-command is **dry-run only**:
+This is a reconciliation of existing rows, with no import/create/delete path. The discovery
+command remains **dry-run only**:
 
 ```sh
 pnpm forum:recover-comments:dry-run
@@ -56,7 +56,7 @@ the comment is proposed and the historical structure remains untouched. The loca
 `readyForWrite` checks the expected 69,403-row population and absence of matching conflicts. It
 applies only to the generated candidate plan; held interpretation cases remain excluded.
 
-Proposed write/checkpoint strategy (not implemented or executed):
+Implemented write/checkpoint strategy:
 
 1. Pin the reviewed `report.json` and `candidates.jsonl` SHA-256, parser/source fingerprints and
    plan row count. Read the plan in its deterministic report-ID order. Use a separate atomic local
@@ -106,8 +106,8 @@ source lines and 2 ranges without a game line. The original cache contains all 3
 Repeated identical candidate text occurs in 3,638 within-post groups (9,483 observations); distinct
 post/ordinal keys disambiguate them. There are 4,114 source observations without current reports:
 4,104 were excluded by frozen staging, while 10 frozen COMPLETE observations have no current row.
-No missing row is recreated. The plan is **READY for a separately authorized write implementation
-of these 6,191 candidates only**, with all held cases excluded.
+No missing row is recreated. The separately authorized writer accepts **these 6,191 candidates
+only**, with all held cases excluded.
 
 Representative recovered comments, preserving source spelling and punctuation:
 
@@ -118,3 +118,55 @@ Representative recovered comments, preserving source spelling and punctuation:
 For example, post `403130` historically stores `holeDepthCm = 623` and `spotPositionRaw = "ящик"`;
 the current parser returns null for both. Its original comment is still proposed independently,
 and neither stored field is changed. Every such disagreement is listed in `cases.jsonl`.
+
+The write phase uses the separately named command:
+
+```sh
+pnpm forum:recover-comments:apply -- --check
+pnpm forum:recover-comments:apply
+```
+
+The writer pins the exact candidate SHA-256
+`dec6addb917a9d7e4aca4cb2bfc276d3e37e0df63f9ad18cf2aa4798edcf14b8`, report SHA-256
+`0fbce6f96ad01be7edc07442627e7e6b48e95753f0ad0189c7bc0585754ad55c` and original DB snapshot
+SHA-256 `8d7073e8b6a83d606ac6bf5cc9109234637920e28d1b58acd4243f425eaa931a`. Plan/output paths
+cannot be overridden. It also verifies frozen source/code hashes and the held-case artifact.
+Changed non-null comments cause an abort and are preserved; only an exact planned value with
+unchanged historical fields permits replay.
+
+The first write requires the complete current DB snapshot to match the dry-run hash. The writer
+then saves that exact snapshot as `write/baseline.json` and creates `write/checkpoint.json` before
+any DML. Kernel-managed `flock` enforces one writer and releases automatically after a crash. On
+restart, the original snapshot remains hash-pinned, every out-of-plan row must remain identical,
+and planned rows may differ only by an already approved comment. Plan/report/checkpoint drift is
+checked again before each batch. SIGINT/SIGTERM stop between committed batches.
+
+Verification compares all 69,403 rows, including 63,212 rows outside the plan, against the pinned
+baseline and compares a separate complete projection excluding only `userNoteRaw`. Each run saves
+an independent audit file in `write/runs/` and the latest result in `write/last-run.json`. Rerunning
+the same command after completion verifies the entire result and performs no DML. The separate
+792 rawSourceText recovery candidates are not included in this writer.
+
+Focused PostgreSQL coverage checks 100-row comment-only updates, timestamps, fish-count/activity
+preservation, whole-batch rollback on drift, non-null preservation, and restart after a committed
+batch whose checkpoint save failed. It uses the repository separate-test-database guard and
+removes only its own fixtures. Existing migration `20261001120000_add_fish_catch_counts` was
+applied to the test database to bring its triggers to the accepted state; no development schema,
+migration file or dependency change was needed.
+
+Completed approved write:
+
+- Planned / updated / skipped: **6,191 / 6,191 / 0**; no remaining candidates.
+- **62 committed batches** (61 × 100, then 91); checkpoint `nextIndex = 6191` was advanced only
+  after each committed transaction.
+- All **427 existing comments preserved**; zero overwritten comments, zero changed held/out-of-plan
+  rows, and zero changes to any non-`userNoteRaw` field across all 69,403 target rows.
+- Independent read-only verification restored the planned comments to their original null values
+  in memory and reproduced the exact original DB snapshot hash. No database rollback was performed.
+- Completed rerun: **0 updates / 6,191 skips**; the database snapshot and checkpoint stayed identical.
+  Both run audits remain under `write/runs/`; independent evidence is in
+  `write/independent-verification.json`.
+- Post-write snapshot SHA-256:
+  `9d00bcb465a5cee5a4cdab088c1d37a65b7e0a7b4dbad4f6cdb170c364945acb`.
+- **READY** for this completed comment recovery only. The 792 rawSourceText candidates remain
+  untouched. No commit or broad suite was run.

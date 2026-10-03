@@ -46,6 +46,7 @@
     "db:reconcile:fish-catalog:dry-run": "pnpm --filter @fishing-db/api run db:reconcile:fish-catalog:dry-run",
     "db:reconcile:fish-catalog:apply": "pnpm --filter @fishing-db/api run db:reconcile:fish-catalog:apply",
     "db:reconcile:fishing-base-fish": "pnpm --filter @fishing-db/api run db:reconcile:fishing-base-fish",
+    "forum:recover-comments:apply": "pnpm --filter @fishing-db/api run forum:recover-comments:apply",
     "forum:recover-comments:dry-run": "pnpm --filter @fishing-db/api run forum:recover-comments:dry-run",
     "forum:scan": "pnpm --filter @fishing-db/api run forum:scan",
     "forum:stage": "pnpm db:generate && pnpm --filter @fishing-db/api run forum:stage",
