@@ -41,6 +41,7 @@ import {
   parseGameLine,
   sourceAfterComma,
   splitLocationAndBaitFallback,
+  trimSourceRange,
 } from './game-line-parser.js';
 import { parseObservation } from './observation-parser.js';
 
@@ -129,6 +130,23 @@ function requiredCatalogField<T>(
 /** Детерминированно выводит исторический метод ловли из типа разрешённой Bait/Lure. */
 function methodFromBait(type: CatalogBaitType): CatchReportFishingMethod {
   return type === 'BAIT' ? 'BAIT_FISHING' : 'SPINNING';
+}
+
+/**
+ * Сохраняет весь исходный хвост после точки непосредственно за полным разрешённым Bait.
+ * Точки внутри имени не являются границей; обрезаются только краевые пробелы комментария.
+ */
+function noteAfterResolvedBait(rawSourceText: string, baitSource: SourceRange): SourceRange | null {
+  let delimiter = baitSource.end;
+
+  while (delimiter < rawSourceText.length && /\s/u.test(rawSourceText[delimiter] ?? '')) {
+    delimiter += 1;
+  }
+
+  if (rawSourceText[delimiter] !== '.') return null;
+
+  const suffix = trimSourceRange(rawSourceText, delimiter + 1, rawSourceText.length);
+  return suffix.text.length === 0 ? null : suffix;
 }
 
 /** Создаёт blocking issue для одного обязательного поля, если оно ещё не разрешено. */
@@ -258,11 +276,17 @@ export class CatchReportParserService {
 
     // Этап 4: необязательные наблюдения извлекаются независимо и сохраняют непокрытый текст.
     const observation = parseObservation(rawSourceText, observationSource, fishingMethod, anchors);
+    // Комментарий копируется по исходной границе Bait, а не собирается из остатков наблюдений:
+    // глубина, позиция, проводка и неизвестные фрагменты остаются в нём даже после распознавания.
+    const userNoteSource =
+      baitResult.resolved === null
+        ? null
+        : noteAfterResolvedBait(rawSourceText, baitResult.resolved.source);
     const spotPositionIssue = proposedTextIssue(
       'spotPositionRaw',
       observation.spotPositionRaw?.value ?? null,
     );
-    const userNoteIssue = proposedTextIssue('userNoteRaw', observation.userNoteRaw?.value ?? null);
+    const userNoteIssue = proposedTextIssue('userNoteRaw', userNoteSource?.text ?? null);
 
     // Membership проверяется отдельно от разрешения сущностей: точные Base и Fish могут
     // существовать, но их текущая каталожная связь обязательна для будущего сохранения.
@@ -364,15 +388,11 @@ export class CatchReportParserService {
               )
             : resolvedField(null, null, false),
         userNoteRaw:
-          observation.userNoteRaw === null
+          userNoteSource === null
             ? resolvedField(null, null, false)
             : userNoteIssue !== null
-              ? unresolvedField(observation.userNoteRaw.source.text, userNoteIssue.code, false)
-              : resolvedField(
-                  observation.userNoteRaw.value,
-                  observation.userNoteRaw.source.text,
-                  false,
-                ),
+              ? unresolvedField(userNoteSource.text, userNoteIssue.code, false)
+              : resolvedField(userNoteSource.text, userNoteSource.text, false),
       },
       baseFishMembership: {
         status: membership,

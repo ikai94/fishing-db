@@ -437,21 +437,159 @@ void describe('CatchReportParserService', () => {
     }
   });
 
-  void it('proposes a clear comment without losing the original source', async () => {
+  void it('preserves an ordinary suffix exactly through single and batch parsing', async () => {
+    const suffix = 'заброс неизвестен.  Ещё текст; пунктуация\\ и 🎣. Следующее предложение.';
+    const raw = amurLine('Налим', '1,449 кг', `Лягушка.  ${suffix}  `);
+    const service = fixtureService();
+    const single = (await service.parse(raw)).draft;
+    const batch = await service.parseBatch(raw);
+
+    assert.equal(batch.rows.length, 1);
+    for (const draft of [single, batch.rows[0]?.draft]) {
+      assert.ok(draft !== undefined);
+      assert.equal(resolvedValue(draft.fields.userNoteRaw), suffix);
+      assert.equal(draft.fields.userNoteRaw.sourceText, suffix);
+      assert.equal(draft.rawSourceText, raw);
+    }
+  });
+
+  void it('preserves the whole suffix while extracting hole, spot, condition and retrieve fields', async () => {
+    for (const [bait, suffix, method] of [
+      ['Лягушка', 'ямка 6,00 удочка вполводы. неизвестный заброс.', 'BAIT_FISHING'],
+      ['Pilk-107', 'ср\\м 10.78 чат. неизвестный заброс.', 'SPINNING'],
+    ] as const) {
+      const raw = amurLine('Налим', '1,449 кг', `${bait}. ${suffix}`);
+      const draft = await parse(raw);
+
+      assert.equal(resolvedValue(draft.fields.userNoteRaw), suffix);
+      assert.equal(draft.fields.userNoteRaw.sourceText, suffix);
+      assert.equal(draft.rawSourceText, raw);
+      assert.equal(resolvedValue(draft.fields.fishingMethod), method);
+      assert.equal(resolvedValue(draft.fields.holeDepthCm), method === 'SPINNING' ? 1_078 : 600);
+      assert.equal(
+        resolvedValue(draft.fields.spotPositionRaw),
+        method === 'SPINNING' ? 'чат' : 'удочка',
+      );
+      assert.equal(
+        resolvedValue(draft.fields.fishingNote),
+        method === 'SPINNING' ? null : 'MIDWATER',
+      );
+      assert.equal(
+        resolvedValue(draft.fields.spinningSize),
+        method === 'SPINNING' ? 'MEDIUM' : null,
+      );
+      assert.equal(
+        resolvedValue(draft.fields.spinningSpeed),
+        method === 'SPINNING' ? 'SLOW' : null,
+      );
+      assert.deepEqual(
+        draft.unresolvedFragments.map((fragment) => fragment.text),
+        ['неизвестный заброс'],
+      );
+    }
+  });
+
+  void it('keeps userNoteRaw null when the resolved bait has no suffix', async () => {
+    for (const baitAndSuffix of ['Лягушка', 'Лягушка.', 'Лягушка.  \n', 'Vib-rapan.']) {
+      const draft = await parse(amurLine('Налим', '1,449 кг', baitAndSuffix));
+
+      assert.equal(resolvedValue(draft.fields.userNoteRaw), null, baitAndSuffix);
+      assert.equal(draft.fields.userNoteRaw.sourceText, null, baitAndSuffix);
+    }
+  });
+
+  void it('uses the longest resolved bait source span despite punctuation and normalized whitespace', async () => {
+    const suffix = 'заброс 8,03блокнот\\ удочка.';
+    const raw = amurLine('Налим', '15,92 кг', `CREATURES-17.  м\\м . ${suffix}`);
+    const draft = await parse(raw, {
+      additionalBaits: [
+        {
+          id: 'bait-creatures',
+          name: 'Creatures-17',
+          nameNormalized: 'creatures-17',
+          type: 'LURE',
+        },
+        {
+          id: 'bait-punctuated',
+          name: 'Creatures-17. м\\м',
+          nameNormalized: 'creatures-17. м\\м',
+          type: 'LURE',
+        },
+      ],
+    });
+
+    assert.equal(resolvedValue(draft.fields.bait)?.id, 'bait-punctuated');
+    assert.equal(draft.fields.bait.sourceText, 'CREATURES-17.  м\\м');
+    assert.equal(resolvedValue(draft.fields.userNoteRaw), suffix);
+    assert.equal(draft.rawSourceText, raw);
+  });
+
+  void it('preserves the real Creatures suffix including parsed retrieve parameters', async () => {
+    const suffix = 'м\\м. заброс 8,03блокнот\\ удочка.';
+    const raw = `Налим средиземноморский 15,92 кг. Поймана на Восточный Крит: Пирс, Creatures-17.${suffix}`;
+    const draft = await parse(raw, {
+      additionalBases: [
+        { id: 'base-crete', name: 'Восточный Крит', nameNormalized: 'восточный крит' },
+      ],
+      additionalFish: [
+        {
+          id: 'fish-med',
+          name: 'Налим средиземноморский',
+          nameNormalized: 'налим средиземноморский',
+        },
+      ],
+      additionalLocations: [
+        {
+          id: 'location-pier',
+          fishingBaseId: 'base-crete',
+          number: 1,
+          name: 'Пирс',
+          nameNormalized: 'пирс',
+        },
+      ],
+      additionalBaits: [
+        {
+          id: 'bait-creatures',
+          name: 'Creatures-17',
+          nameNormalized: 'creatures-17',
+          type: 'LURE',
+        },
+      ],
+    });
+
+    assert.equal(resolvedValue(draft.fields.bait)?.name, 'Creatures-17');
+    assert.equal(resolvedValue(draft.fields.spinningSize), 'SMALL');
+    assert.equal(resolvedValue(draft.fields.spinningSpeed), 'SLOW');
+    assert.equal(resolvedValue(draft.fields.userNoteRaw), suffix);
+    assert.equal(draft.rawSourceText, raw);
+  });
+
+  void it('does not search later punctuation when no sentence delimiter follows the bait', async () => {
+    const raw = amurLine('Сайда', '25,101 кг', 'Pilk-107 ср\\м 10.78 чат');
+    const draft = await parse(raw);
+
+    assert.equal(resolvedValue(draft.fields.holeDepthCm), 1_078);
+    assert.equal(resolvedValue(draft.fields.spinningSize), 'MEDIUM');
+    assert.equal(resolvedValue(draft.fields.userNoteRaw), null);
+  });
+
+  void it('preserves retrieve parameters and clear commentary together without losing the original source', async () => {
     const raw = amurLine(
       'Жерех-лысач',
       '1,449 кг',
-      'Vob-3006, ср., проводка медленная.\nПоймал сразу, первую и зачетную. Наверное, повезло)',
+      'Vob-3006. ср., проводка медленная.\nПоймал сразу, первую и зачетную. Наверное, повезло)',
     );
     const draft = await parse(raw);
 
     assert.equal(draft.rawSourceText, raw);
     assert.equal(resolvedValue(draft.fields.spinningSize), 'MEDIUM');
     assert.equal(resolvedValue(draft.fields.spinningSpeed), 'SLOW');
+    assert.equal(draft.fields.userNoteRaw.status, 'UNRESOLVED');
     assert.equal(
-      resolvedValue(draft.fields.userNoteRaw),
-      'Поймал сразу, первую и зачетную. Наверное, повезло)',
+      draft.fields.userNoteRaw.sourceText,
+      'ср., проводка медленная.\nПоймал сразу, первую и зачетную. Наверное, повезло)',
     );
+    assert.ok(draft.issues.some((issue) => issue.code === 'INVALID_USER_NOTE_RAW'));
   });
 
   void it('resolves Pilk-107 before parsing the following hole', async () => {
