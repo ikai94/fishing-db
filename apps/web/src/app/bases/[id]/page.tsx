@@ -4,9 +4,10 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback, useId, useMemo, useState } from 'react';
 import styles from '../../bases-locations.module.css';
+import { FishImage } from '@/app/fish/_components/fish-image';
 import { ApplicationShell } from '@/components/application-shell/application-shell';
 import { ShellIcon } from '@/components/application-shell/shell-icon';
-import { getFishingBase } from '@/lib/catalog-api';
+import { getFishingBase, listFish, type PublicFishImage } from '@/lib/catalog-api';
 import {
   catalogSearchTokens,
   compareCatalogItemsByName,
@@ -15,12 +16,23 @@ import {
 } from '@/lib/catalog-search';
 import { useApiResource } from '@/lib/use-api-resource';
 
+/** Показывает локации и доступных рыб базы с локальным поиском по каталогу. */
 export default function FishingBasePage() {
   const { id: baseId } = useParams<{ id: string }>();
   const loadBase = useCallback((signal: AbortSignal) => getFishingBase(baseId, signal), [baseId]);
   const { state, reload } = useApiResource(
     loadBase,
     'Не удалось загрузить рыболовную базу. Попробуйте ещё раз.',
+  );
+  const loadFish = useCallback((signal: AbortSignal) => listFish(signal), []);
+  const { state: fishState } = useApiResource(loadFish, 'Не удалось загрузить изображения рыб.');
+  // Состав рыб берём из базы; общий каталог дополняет его изображениями, не блокируя список.
+  const fishImages = useMemo(
+    () =>
+      fishState.kind === 'ready'
+        ? new Map(fishState.data.map((fish) => [fish.id, fish.image] as const))
+        : new Map<string, PublicFishImage | null>(),
+    [fishState],
   );
   const [fishQuery, setFishQuery] = useState('');
   const fishSearchId = useId();
@@ -165,6 +177,11 @@ export default function FishingBasePage() {
                       <ul className={styles.verticalFishList}>
                         {filteredFish.map((fishItem) => (
                           <li className={styles.fishItem} key={fishItem.id}>
+                            <FishImage
+                              fishName={fishItem.name}
+                              image={fishImages.get(fishItem.id) ?? null}
+                              variant="thumbnail"
+                            />
                             <Link className={styles.entityLink} href={`/fish/${fishItem.id}`}>
                               {fishItem.name}
                             </Link>

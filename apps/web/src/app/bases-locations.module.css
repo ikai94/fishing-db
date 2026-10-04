@@ -247,10 +247,24 @@
 }
 
 .fishItem {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
   min-height: 31px;
   padding: 4px 6px;
   border-bottom: 1px solid rgb(204 215 220 / 68%);
   border-radius: var(--app-radius-sm);
+}
+
+.fishItem > [data-fish-image='thumbnail'] {
+  width: 44px;
+  height: 30px;
+}
+
+.fishItem .entityLink {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .fishItem:last-child {

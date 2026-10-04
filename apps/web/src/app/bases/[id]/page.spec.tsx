@@ -1,11 +1,13 @@
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import styles from '../../bases-locations.module.css';
+import type { PublicFishSummary } from '@/lib/catalog-api';
 
 const mocks = vi.hoisted(() => ({
   getFishingBase: vi.fn(),
+  listFish: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({
@@ -14,6 +16,7 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('@/lib/catalog-api', () => ({
   getFishingBase: mocks.getFishingBase,
+  listFish: mocks.listFish,
 }));
 
 vi.mock('@/components/application-shell/application-shell', () => ({
@@ -41,7 +44,62 @@ const base = {
 };
 
 describe('FishingBasePage', () => {
-  beforeEach(() => mocks.getFishingBase.mockReset());
+  beforeEach(() => {
+    mocks.getFishingBase.mockReset();
+    mocks.listFish.mockReset().mockResolvedValue([]);
+  });
+
+  test('loads existing thumbnails by Fish ID without delaying Base links', async () => {
+    let resolveFish!: (fish: PublicFishSummary[]) => void;
+    mocks.getFishingBase.mockResolvedValue(base);
+    mocks.listFish.mockReturnValue(
+      new Promise<PublicFishSummary[]>((resolve) => {
+        resolveFish = resolve;
+      }),
+    );
+
+    render(<FishingBasePage />);
+
+    const somLink = await screen.findByRole('link', { name: 'Сом' });
+    const somRow = somLink.closest('li') as HTMLElement;
+    expect(somLink).toHaveAttribute('href', '/fish/fish-4');
+    expect(somRow.querySelector('[data-fish-image="thumbnail"]')).toHaveAttribute(
+      'aria-hidden',
+      'true',
+    );
+    expect(somRow.querySelector('img')).toBeNull();
+
+    await act(async () =>
+      resolveFish([
+        { id: 'fish-unrelated', name: 'Карась', image: { url: '/unrelated.png' } },
+        { id: 'fish-4', name: 'Сом', image: { url: '/existing-som.png' } },
+        { id: 'fish-1', name: 'Амурская Щука', image: null },
+      ]),
+    );
+
+    expect(somRow.querySelector('img')).toHaveAttribute('src', '/existing-som.png');
+    expect(somRow.querySelector('img')).toHaveAttribute('alt', '');
+    expect(somRow.querySelector('img')).toHaveAttribute('loading', 'lazy');
+    expect(somRow.querySelector('img')?.parentElement?.nextElementSibling).toBe(somLink);
+    expect(screen.queryByRole('link', { name: 'Карась' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Нет изображения')).not.toBeInTheDocument();
+    expect(mocks.listFish).toHaveBeenCalledWith(expect.any(AbortSignal));
+  });
+
+  test('keeps the searchable list available when the image catalog fails', async () => {
+    const user = userEvent.setup();
+    mocks.getFishingBase.mockResolvedValue(base);
+    mocks.listFish.mockRejectedValue(new Error('Images unavailable'));
+
+    render(<FishingBasePage />);
+
+    await user.type(await screen.findByRole('searchbox', { name: 'Поиск по рыбам' }), 'сом');
+    const somLink = screen.getByRole('link', { name: 'Сом' });
+    expect(somLink).toHaveAttribute('href', '/fish/fish-4');
+    expect(somLink.closest('li')?.querySelector('img')).toBeNull();
+    expect(screen.getByText('Найдено: 1 из 4')).toBeVisible();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
 
   test('renders ordered Location and Fish link panes in the reference grid', async () => {
     mocks.getFishingBase.mockResolvedValue(base);
@@ -115,5 +173,8 @@ describe('FishingBasePage', () => {
     expect(screen.getByText('Ничего не найдено.')).toBeVisible();
     expect(search).toBeVisible();
     expect(within(fishSection as HTMLElement).queryByRole('link')).not.toBeInTheDocument();
+    expect(fishSection?.querySelectorAll('[data-fish-image="thumbnail"]')).toHaveLength(0);
+    expect(mocks.getFishingBase).toHaveBeenCalledTimes(1);
+    expect(mocks.listFish).toHaveBeenCalledTimes(1);
   });
 });
