@@ -10,6 +10,8 @@ import {
   type BaseFishWeightBounds,
 } from '../catalog/base-fish-weight-classification.js';
 import { isPrismaError } from '../catalog/catalog-errors.js';
+import { FishImageDelivery } from '../catalog/fish-image-delivery.js';
+import { BaitImageDelivery } from '../catalog/bait-image-delivery.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
@@ -155,16 +157,24 @@ const OWNER_CATCH_REPORT_SELECT = {
  * для стабильной сортировки и отображения исторически неактивной рыбы.
  */
 const LOCATION_OBSERVATION_SELECT = {
-  ...PUBLIC_CATCH_REPORT_SELECT,
+  weightGrams: true,
+  holeDepthCm: true,
+  spotPositionRaw: true,
+  spinningSize: true,
+  spinningSpeed: true,
+  userNoteRaw: true,
   contributorKey: true,
+  location: { select: { fishingBase: { select: { id: true } } } },
   fish: {
     select: {
       id: true,
       name: true,
       nameNormalized: true,
       isActive: true,
+      officialFishImageKey: true,
     },
   },
+  bait: { select: { id: true, name: true, nameNormalized: true } },
 } as const;
 
 /** Узкий owner allowlist для чтения результата мутации внутри той же транзакции. */
@@ -276,21 +286,20 @@ interface OwnerCatchReportRecord extends PublicCatchReportRecord {
 }
 
 /** Держит contributorKey только во внутреннем контуре Location-агрегации. */
-interface LocationObservationRecord extends Omit<PublicCatchReportRecord, 'fish'> {
-  contributorKey: string;
-  fish: {
-    id: string;
-    name: string;
-    nameNormalized: string;
-    isActive: boolean;
-  };
-}
+type LocationObservationRecord = Prisma.CatchReportGetPayload<{
+  select: typeof LOCATION_OBSERVATION_SELECT;
+}>;
 
 /** Считает отчёты отдельно от множества неизменных contributor identity. */
 interface ObservedFishAccumulator {
   fish: LocationObservationRecord['fish'];
   contributorKeys: Set<string>;
   reportCount: number;
+  baits: Map<string, LocationObservationRecord['bait'] & { reportCount: number }>;
+  holes: Map<string, Pick<LocationObservationRecord, 'holeDepthCm' | 'spotPositionRaw'>>;
+  spinning: Map<string, Pick<LocationObservationRecord, 'spinningSize' | 'spinningSpeed'>>;
+  comments: Set<string>;
+  maxRecord: LocationObservationRecord;
 }
 
 /** Снимок сохраняемых полей до PATCH для исторической валидации и ActivityEvent. */
@@ -331,6 +340,9 @@ interface PublicCatchReportFilters {
 
 type WeightBoundsDatabase = Pick<Prisma.TransactionClient, 'fishingBaseFish'>;
 
+/** Для весовых границ нужны только идентификаторы Base и Fish, без авторов и текста отчёта. */
+type WeightBoundsRecord = { fish: { id: string }; location: { fishingBase: { id: string } } };
+
 const MISSING_WEIGHT_BOUNDS: BaseFishWeightBounds = {
   minWeightGrams: null,
   maxWeightGrams: null,
@@ -347,7 +359,7 @@ function baseFishWeightKey(fishingBaseId: string, fishId: string): string {
  */
 export async function resolveBaseFishWeightBounds(
   database: WeightBoundsDatabase,
-  records: readonly PublicCatchReportRecord[],
+  records: readonly WeightBoundsRecord[],
 ): Promise<Map<string, BaseFishWeightBounds>> {
   if (records.length === 0) return new Map();
 
@@ -379,7 +391,7 @@ export async function resolveBaseFishWeightBounds(
 
 /** Оценивает вес по текущим границам Base–Fish без изменения сохранённой истории. */
 function weightAssessment(
-  record: PublicCatchReportRecord,
+  record: WeightBoundsRecord & { weightGrams: number },
   boundsByBaseFish: ReadonlyMap<string, BaseFishWeightBounds>,
 ) {
   const bounds =
@@ -583,6 +595,8 @@ export class CatchReportsService {
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(ActivityEventWriter) private readonly activityEvents: ActivityEventWriter,
+    @Inject(FishImageDelivery) private readonly fishImageDelivery: FishImageDelivery,
+    @Inject(BaitImageDelivery) private readonly baitImageDelivery: BaitImageDelivery,
   ) {}
 
   /** Читает публичную историю без фильтров активности каталога или ban автора. */
@@ -606,8 +620,8 @@ export class CatchReportsService {
 
   /**
    * Агрегирует все исторические отчёты Location по Fish.
-   * reportCount считает наблюдения, а contributorCount — уникальные contributorKey, поэтому
-   * импортированные участники не схлопываются из-за общего ADMIN-владельца.
+   * reportCount считает уловы. Уникальные contributorKey сохраняют прежний порядок сводки,
+   * но число участников больше не передаётся для отображения в таблице локации.
    */
   async listLocationObservations(locationId: string) {
     const records = await this.prisma.catchReport.findMany({
@@ -625,18 +639,37 @@ export class CatchReportsService {
 
     // contributorKey используется только для множества участников и не отдаётся наружу.
     for (const record of records) {
-      const existing = observedFishById.get(record.fish.id);
-
+      let existing = observedFishById.get(record.fish.id);
       if (existing === undefined) {
-        observedFishById.set(record.fish.id, {
+        existing = {
           fish: record.fish,
-          contributorKeys: new Set([record.contributorKey]),
-          reportCount: 1,
-        });
-      } else {
-        existing.contributorKeys.add(record.contributorKey);
-        existing.reportCount += 1;
+          contributorKeys: new Set(),
+          reportCount: 0,
+          baits: new Map(),
+          holes: new Map(),
+          spinning: new Map(),
+          comments: new Set(),
+          maxRecord: record,
+        };
+        observedFishById.set(record.fish.id, existing);
       }
+      existing.contributorKeys.add(record.contributorKey);
+      existing.reportCount += 1;
+      // Запрос уже ограничен Location: популярность наживки не зависит от других локаций.
+      const bait = existing.baits.get(record.bait.id) ?? { ...record.bait, reportCount: 0 };
+      bait.reportCount += 1;
+      existing.baits.set(record.bait.id, bait);
+      // Наблюдения берутся из всех наживок; непустые исходные строки не нормализуются.
+      if (record.holeDepthCm !== null || record.spotPositionRaw?.trim()) {
+        const hole = { holeDepthCm: record.holeDepthCm, spotPositionRaw: record.spotPositionRaw };
+        existing.holes.set(JSON.stringify(hole), hole);
+      }
+      if (record.spinningSize !== null || record.spinningSpeed !== null) {
+        const spinning = { spinningSize: record.spinningSize, spinningSpeed: record.spinningSpeed };
+        existing.spinning.set(JSON.stringify(spinning), spinning);
+      }
+      if (record.userNoteRaw?.trim()) existing.comments.add(record.userNoteRaw);
+      if (record.weightGrams > existing.maxRecord.weightGrams) existing.maxRecord = record;
     }
 
     const observedFish = [...observedFishById.values()]
@@ -652,14 +685,42 @@ export class CatchReportsService {
           id: item.fish.id,
           name: item.fish.name,
           isActive: item.fish.isActive,
+          image: this.fishImageDelivery.resolvePublicImage({
+            fishId: item.fish.id,
+            officialFishImageKey: item.fish.officialFishImageKey,
+          }),
         },
-        contributorCount: item.contributorKeys.size,
         reportCount: item.reportCount,
+        topBaits: [...item.baits.values()]
+          .sort(
+            (left, right) =>
+              right.reportCount - left.reportCount ||
+              compareStableStrings(
+                left.name.toLocaleLowerCase('ru-RU'),
+                right.name.toLocaleLowerCase('ru-RU'),
+              ) ||
+              compareStableStrings(left.id, right.id),
+          )
+          .slice(0, 3)
+          .map((bait) => ({
+            id: bait.id,
+            name: bait.name,
+            reportCount: bait.reportCount,
+            image: this.baitImageDelivery.resolvePublicImage({
+              baitId: bait.id,
+              nameNormalized: bait.nameNormalized,
+            }),
+          })),
+        holes: [...item.holes.values()],
+        spinning: [...item.spinning.values()],
+        comments: [...item.comments],
+        maxObservedWeightGrams: item.maxRecord.weightGrams,
+        maxObservedWeightAssessment: weightAssessment(item.maxRecord, boundsByBaseFish),
       }));
 
     return {
+      locationId,
       observedFish,
-      reports: records.map((record) => toPublicCatchReport(record, boundsByBaseFish)),
     };
   }
 

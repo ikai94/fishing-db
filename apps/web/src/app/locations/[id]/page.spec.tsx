@@ -31,12 +31,11 @@ vi.mock('./_components/location-observations', () => ({
     data,
   }: {
     baseId: string;
-    data: { observedFish: unknown[]; reports: unknown[] };
+    data: { observedFish: unknown[] };
   }) => (
     <div
       data-base-id={baseId}
       data-fish-count={data.observedFish.length}
-      data-report-count={data.reports.length}
       data-testid="location-observations"
     />
   ),
@@ -59,7 +58,7 @@ describe('LocationPage', () => {
     });
     mocks.getLocationObservations.mockResolvedValue({
       observedFish: [{ fish: { id: 'fish-1' } }],
-      reports: [{ id: 'report-1' }],
+      locationId: 'location-1',
     });
 
     render(<LocationPage />);
@@ -82,7 +81,7 @@ describe('LocationPage', () => {
     );
     expect(screen.getByTestId('location-observations')).toHaveAttribute('data-base-id', 'base-1');
     expect(screen.getByTestId('location-observations')).toHaveAttribute('data-fish-count', '1');
-    expect(screen.getByTestId('location-observations')).toHaveAttribute('data-report-count', '1');
+    expect(mocks.getLocationObservations).toHaveBeenCalledTimes(1);
     expect(screen.queryByText(/теоретически доступна/i)).not.toBeInTheDocument();
   });
 });

@@ -1,10 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, test, vi } from 'vitest';
-import type {
-  CatchReport,
-  LocationObservations as LocationObservationsData,
-} from '@/lib/catch-reports-api';
+import type { LocationObservations as LocationObservationsData } from '@/lib/catch-reports-api';
 import { LocationObservations } from './location-observations';
 
 const mocks = vi.hoisted(() => ({ renderSpotAnalytics: vi.fn() }));
@@ -20,56 +17,43 @@ vi.mock('@/components/spot-analytics/spot-analytics', () => ({
   },
 }));
 
-const baseReport: CatchReport = {
-  id: 'report-beluga',
-  author: { id: 'admin-1', nickname: 'Импорт' },
-  fishingBase: { id: 'base-1', name: 'Ахтуба' },
-  location: { id: 'location-1', number: 7, name: 'Протока' },
-  fish: { id: 'fish-beluga', name: 'Белуга' },
-  bait: { id: 'bait-1', name: 'Vib-rapan' },
-  weightGrams: 7_242,
-  weightAssessment: {
-    classification: 'ordinary',
-    minWeightGrams: 100,
-    maxWeightGrams: 10_000,
-  },
-  fishingMethod: 'SPINNING',
-  holeDepthCm: 763,
-  spotPositionRaw: 'левый край рюкзака',
-  fishingNote: 'MIDWATER',
-  spinningSize: 'MEDIUM',
-  spinningSpeed: 'SLOW',
-  userNoteRaw: 'после дождя',
-  createdAt: '2026-08-12T22:30:00.000Z',
-  updatedAt: '2026-08-12T22:30:00.000Z',
-};
-
 const observations: LocationObservationsData = {
+  locationId: 'location-1',
   observedFish: [
     {
-      fish: { id: 'fish-som', name: 'Сом', isActive: false },
-      contributorCount: 3,
+      fish: { id: 'fish-som', name: 'Сом', isActive: false, image: null },
       reportCount: 4,
+      topBaits: [
+        {
+          id: 'bait-2',
+          name: 'Мотыль',
+          reportCount: 4,
+          image: { url: 'http://localhost:3001/api/v1/bait-images/test.png' },
+        },
+      ],
+      holes: [{ holeDepthCm: 763, spotPositionRaw: 'левый край рюкзака' }],
+      spinning: [],
+      comments: [],
+      maxObservedWeightGrams: 7242,
+      maxObservedWeightAssessment: {
+        classification: 'mutant',
+        minWeightGrams: 100,
+        maxWeightGrams: 7000,
+      },
     },
     {
-      fish: { id: 'fish-beluga', name: 'Белуга', isActive: true },
-      contributorCount: 2,
+      fish: { id: 'fish-beluga', name: 'Белуга', isActive: true, image: null },
       reportCount: 1,
-    },
-  ],
-  reports: [
-    baseReport,
-    {
-      ...baseReport,
-      id: 'report-som',
-      fish: { id: 'fish-som', name: 'Сом' },
-      bait: { id: 'bait-2', name: 'Мотыль' },
-      weightAssessment: { ...baseReport.weightAssessment, classification: 'mutant' },
-      fishingMethod: 'BAIT_FISHING',
-      fishingNote: 'FROM_BOTTOM',
-      spinningSize: null,
-      spinningSpeed: null,
-      userNoteRaw: null,
+      topBaits: [{ id: 'bait-1', name: 'Vib-rapan', reportCount: 1, image: null }],
+      holes: [{ holeDepthCm: 763, spotPositionRaw: 'левый край рюкзака' }],
+      spinning: [{ spinningSize: 'MEDIUM', spinningSpeed: 'SLOW' }],
+      comments: ['после дождя'],
+      maxObservedWeightGrams: 7242,
+      maxObservedWeightAssessment: {
+        classification: 'ordinary',
+        minWeightGrams: 100,
+        maxWeightGrams: 10000,
+      },
     },
   ],
 };
@@ -81,67 +65,68 @@ function sectionNamed(name: string): HTMLElement {
 }
 
 describe('LocationObservations', () => {
-  test('renders ranked observed Fish and the exact dense Location catch columns', async () => {
+  test('renders compact aggregate rows and existing bait images without any detailed catch section', async () => {
     const user = userEvent.setup();
-    render(<LocationObservations baseId="base-1" data={observations} locationId="location-1" />);
+    render(<LocationObservations baseId="base-1" data={observations} />);
 
     const rankedTable = within(sectionNamed('Пойманные рыбы')).getByRole('table');
     const rankedRows = within(rankedTable).getAllByRole('row');
-    expect(rankedRows[1]).toHaveTextContent('1СомИсторическая запись3 рыбаков · 4 уловов');
-    expect(rankedRows[2]).toHaveTextContent('2Белуга2 рыбаков · 1 уловов');
+    const somCells = within(rankedRows[1]).getAllByRole('cell');
+    const belugaCells = within(rankedRows[2]).getAllByRole('cell');
+    expect(somCells[0]).toHaveTextContent(/^Сом$/u);
+    expect(belugaCells[0]).toHaveTextContent(/^Белуга$/u);
+    expect(somCells[5]).toHaveTextContent(/^4$/u);
+    expect(belugaCells[5]).toHaveTextContent(/^1$/u);
+    expect(somCells[6]).toHaveTextContent('7.242 кг / 7 кг');
+    expect(belugaCells[6]).toHaveTextContent('7.242 кг / 10 кг');
+    expect(within(rankedTable).queryByText(/рыбаков/u)).not.toBeInTheDocument();
+    expect(
+      within(rankedTable)
+        .getAllByRole('columnheader')
+        .map((header) =>
+          header.textContent
+            ?.replace(/[↑↓↕]/g, '')
+            .replace('Все наживкиМотыльVib-rapan', '')
+            .trim(),
+        ),
+    ).toEqual([
+      '№',
+      'Рыба',
+      'Яма / ориентир',
+      'На что',
+      'Размер / проводка',
+      'Комментарий',
+      'Уловы',
+      'Наблюдаемый / максимальный вес',
+    ]);
+    expect(rankedTable.querySelectorAll('[data-fish-image=thumbnail]')).toHaveLength(2);
 
     await user.click(screen.getByText('Рыбы: 2 из 2'));
     expect(screen.getByRole('checkbox', { name: 'Сом' })).toBeChecked();
     expect(screen.getByRole('checkbox', { name: 'Белуга' })).toBeChecked();
 
-    const catchTable = within(sectionNamed('Уловы на локации')).getByRole('table');
-    expect(
-      within(catchTable)
-        .getAllByRole('columnheader')
-        .map((header) => header.textContent),
-    ).toEqual([
-      '№',
-      'Рыба',
-      'Вес',
-      'Наживка / приманка',
-      'Способ / настройки',
-      'Яма / точка',
-      'Автор',
-      'Дата',
-    ]);
-    expect(screen.queryByText('Ахтуба')).not.toBeInTheDocument();
-    expect(screen.queryByText('7. Протока')).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Улов №1: подробнее' })).toHaveAttribute(
+    expect(screen.queryByText('Уловы на локации')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Подробные уловы/)).not.toBeInTheDocument();
+    expect(screen.getAllByRole('table')).toHaveLength(1);
+    expect(screen.getByRole('link', { name: 'Белуга' })).toHaveAttribute(
       'href',
-      '/catches/report-beluga',
+      '/fish/fish-beluga?baseIds=base-1',
     );
-    expect(screen.getAllByRole('link', { name: 'Белуга' })).toHaveLength(2);
-    for (const link of screen.getAllByRole('link', { name: 'Белуга' })) {
-      expect(link).toHaveAttribute('href', '/fish/fish-beluga?baseIds=base-1');
-    }
     expect(screen.queryByRole('link', { name: 'Сом' })).not.toBeInTheDocument();
-
-    const belugaRow = screen.getByRole('link', { name: 'Улов №1: подробнее' }).closest('tr');
-    expect(belugaRow).not.toBeNull();
-    const cells = within(belugaRow as HTMLElement).getAllByRole('cell');
-    expect(cells[3]).toHaveTextContent('Спиннинг · Средняя · Медленная · вполводы');
-    expect(cells[4]).toHaveTextContent('Яма 7,63 м · левый край рюкзака');
-    expect(cells[4]).not.toHaveTextContent('вполводы');
-    expect(within(catchTable).getByText('Комментарий:')).toBeVisible();
-    expect(within(catchTable).getByText('Мутант')).toBeVisible();
-    expect(within(catchTable).queryByText('Обычный')).not.toBeInTheDocument();
-    expect(mocks.renderSpotAnalytics).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        scope: { kind: 'location', locationId: 'location-1', fishIds: undefined },
-        showFishCount: true,
-        showPlace: false,
-      }),
+    expect(rankedTable.querySelector('img[title="Мотыль"]')).toHaveAttribute(
+      'src',
+      observations.observedFish[0].topBaits[0].image?.url,
     );
+    expect(within(rankedTable).getAllByText('7.63 м левый край рюкзака')).toHaveLength(2);
+    expect(within(rankedTable).getByText('после дождя')).toBeVisible();
+    expect(within(rankedTable).getByText('Мутант')).toBeVisible();
+    expect(screen.queryByRole('heading', { name: 'Ямы и точки' })).not.toBeInTheDocument();
+    expect(mocks.renderSpotAnalytics).not.toHaveBeenCalled();
   });
 
-  test('filters both sections while keeping unchecked caught Fish selectable', async () => {
+  test('filters aggregate rows while keeping unchecked Fish selectable', async () => {
     const user = userEvent.setup();
-    render(<LocationObservations baseId="base-1" data={observations} locationId="location-1" />);
+    render(<LocationObservations baseId="base-1" data={observations} />);
     await user.click(screen.getByText('Рыбы: 2 из 2'));
 
     const somCheckbox = screen.getByRole('checkbox', { name: 'Сом' });
@@ -152,35 +137,88 @@ describe('LocationObservations', () => {
     expect(
       within(sectionNamed('Пойманные рыбы')).queryByRole('cell', { name: /Сом/u }),
     ).not.toBeInTheDocument();
-    expect(within(sectionNamed('Уловы на локации')).queryByText('Сом')).not.toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: 'Сом' })).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Снять все' }));
     expect(
       within(sectionNamed('Пойманные рыбы')).getByText('Выберите хотя бы одну рыбу.'),
     ).toBeVisible();
-    expect(
-      within(sectionNamed('Уловы на локации')).getByText(
-        'Выберите хотя бы одну рыбу, чтобы увидеть уловы.',
-      ),
-    ).toBeVisible();
     expect(screen.getAllByRole('checkbox')).toHaveLength(2);
-    expect(mocks.renderSpotAnalytics).toHaveBeenLastCalledWith(
-      expect.objectContaining({ disabled: true }),
-    );
+    expect(mocks.renderSpotAnalytics).not.toHaveBeenCalled();
+  });
+
+  test('sorts fish, bait and global counts and combines presence filters without hiding controls', async () => {
+    const user = userEvent.setup();
+    const data = {
+      ...observations,
+      observedFish: observations.observedFish.map((item) =>
+        item.fish.id === 'fish-som' ? { ...item, holes: [] } : item,
+      ),
+    };
+    render(<LocationObservations baseId="base-1" data={data} />);
+    const table = within(sectionNamed('Пойманные рыбы')).getByRole('table');
+    const names = () =>
+      within(table)
+        .getAllByRole('row')
+        .slice(1)
+        .map((row) => within(row).getAllByRole('cell')[0].textContent);
+    expect(names()[0]).toContain('Сом');
+    await user.click(within(table).getByRole('button', { name: 'Рыба' }));
+    expect(names()[0]).toContain('Белуга');
+    await user.click(within(table).getByRole('button', { name: 'Рыба' }));
+    expect(names()[0]).toContain('Сом');
+    await user.click(within(table).getByRole('button', { name: 'Уловы' }));
+    expect(names()[0]).toContain('Сом');
+    await user.click(within(table).getByRole('button', { name: 'Уловы' }));
+    expect(names()[0]).toContain('Белуга');
+    await user.click(within(table).getByRole('button', { name: 'На что' }));
+    expect(names()[0]).toContain('Сом');
+    await user.click(within(table).getByRole('button', { name: 'На что' }));
+    expect(names()[0]).toContain('Белуга');
+    await user.selectOptions(within(table).getByRole('combobox'), 'bait-2');
+    expect(names()).toHaveLength(1);
+    await user.click(within(table).getByRole('button', { name: 'Яма / ориентир' }));
+    expect(within(table).getAllByRole('row')).toHaveLength(1);
+    expect(screen.getByRole('status')).toHaveTextContent('Для выбранных фильтров рыб нет.');
+    await user.selectOptions(within(table).getByRole('combobox'), '');
+    await user.click(within(table).getByRole('button', { name: 'Размер / проводка' }));
+    await user.click(within(table).getByRole('button', { name: 'Комментарий' }));
+    expect(names()).toHaveLength(1);
+    expect(names()[0]).toContain('Белуга');
+  });
+
+  test('applies good and excellent catch thresholds to total fish counts', async () => {
+    const user = userEvent.setup();
+    const data = {
+      ...observations,
+      observedFish: observations.observedFish.map((item, index) => ({
+        ...item,
+        reportCount: index === 0 ? 30 : 10,
+      })),
+    };
+    render(<LocationObservations baseId="base-1" data={data} />);
+    const table = within(sectionNamed('Пойманные рыбы')).getByRole('table');
+    await user.click(screen.getByRole('button', { name: 'Хороший клев' }));
+    expect(within(table).getAllByRole('row')).toHaveLength(3);
+    await user.click(screen.getByRole('button', { name: 'Отличный клев' }));
+    expect(within(table).getAllByRole('row')).toHaveLength(2);
+    expect(within(table).getAllByRole('row')[1]).toHaveTextContent('Сом');
+    await user.click(screen.getByRole('button', { name: 'Все' }));
+    expect(within(table).getAllByRole('row')).toHaveLength(3);
   });
 
   test('renders a quiet empty state without inventing selector Fish', () => {
     render(
       <LocationObservations
         baseId="base-1"
-        data={{ observedFish: [], reports: [] }}
-        locationId="location-1"
+        data={{ locationId: 'location-1', observedFish: [] }}
       />,
     );
 
     expect(screen.getByText('На этой локации пока нет опубликованных уловов.')).toBeVisible();
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Ямы и точки' })).not.toBeInTheDocument();
+    expect(mocks.renderSpotAnalytics).not.toHaveBeenCalled();
   });
 });

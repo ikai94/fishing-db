@@ -1,6 +1,12 @@
 import { apiRequest } from './api-client';
 import { isBaseFishWeightClassification, type BaseFishWeightAssessment } from './base-fish-weight';
-import type { BaitType } from './catalog-api';
+import {
+  decodePublicFishImage,
+  decodePublicBaitImage,
+  type BaitType,
+  type PublicFishImage,
+  type PublicBaitImage,
+} from './catalog-api';
 
 export type FishingMethod = 'BAIT_FISHING' | 'SPINNING';
 export type FishingNote = 'MIDWATER' | 'FROM_BOTTOM' | 'SURFACE';
@@ -36,15 +42,21 @@ export type CatchReportPage = {
   nextCursor: string | null;
 };
 
+/** Одна исторически пойманная рыба и самые частые наживки строго этой локации. */
 export type ObservedFish = {
-  fish: { id: string; name: string; isActive: boolean };
-  contributorCount: number;
+  fish: { id: string; name: string; isActive: boolean; image: PublicFishImage | null };
   reportCount: number;
+  topBaits: { id: string; name: string; reportCount: number; image: PublicBaitImage | null }[];
+  holes: { holeDepthCm: number | null; spotPositionRaw: string | null }[];
+  spinning: { spinningSize: SpinningSize | null; spinningSpeed: SpinningSpeed | null }[];
+  comments: string[];
+  maxObservedWeightGrams: number;
+  maxObservedWeightAssessment: BaseFishWeightAssessment;
 };
 
 export type LocationObservations = {
+  locationId: string;
   observedFish: ObservedFish[];
-  reports: CatchReport[];
 };
 
 export type CreateCatchReportInput = {
@@ -270,6 +282,7 @@ export function decodePublicCatchReport(value: unknown): CatchReport {
   };
 }
 
+/** Декодирует только агрегаты локации; отдельные отчёты и внутренние ключи сюда не входят. */
 function readObservedFish(value: unknown): ObservedFish {
   if (
     !isRecord(value) ||
@@ -282,14 +295,70 @@ function readObservedFish(value: unknown): ObservedFish {
     invalidReport();
   }
 
-  const contributorCount = readPositiveInteger(value.contributorCount);
   const reportCount = readPositiveInteger(value.reportCount);
-  if (contributorCount > reportCount) invalidReport();
+  if (!Array.isArray(value.topBaits) || value.topBaits.length < 1 || value.topBaits.length > 3)
+    invalidReport();
+  const topBaits = value.topBaits.map((bait) => {
+    if (!isRecord(bait) || Object.keys(bait).sort().join(',') !== 'id,image,name,reportCount')
+      invalidReport();
+    const count = readPositiveInteger(bait.reportCount);
+    if (count > reportCount) invalidReport();
+    return { ...readNamedItem(bait), reportCount: count, image: decodePublicBaitImage(bait.image) };
+  });
+  if (new Set(topBaits.map((bait) => bait.id)).size !== topBaits.length) invalidReport();
+  if (
+    topBaits.reduce((total, bait) => total + bait.reportCount, 0) > reportCount ||
+    topBaits.some((bait, index) => index > 0 && bait.reportCount > topBaits[index - 1].reportCount)
+  )
+    invalidReport();
+  if (
+    !Array.isArray(value.holes) ||
+    !Array.isArray(value.spinning) ||
+    !Array.isArray(value.comments) ||
+    [value.holes, value.spinning, value.comments].some((items) => items.length > reportCount)
+  )
+    invalidReport();
+  const holes = value.holes.map((hole) => {
+    if (
+      !isRecord(hole) ||
+      Object.keys(hole).sort().join(',') !== 'holeDepthCm,spotPositionRaw' ||
+      (hole.spotPositionRaw !== null && typeof hole.spotPositionRaw !== 'string')
+    )
+      invalidReport();
+    const holeDepthCm = readNullablePositiveInteger(hole.holeDepthCm);
+    if (holeDepthCm === null && (hole.spotPositionRaw === null || !hole.spotPositionRaw.trim()))
+      invalidReport();
+    return { holeDepthCm, spotPositionRaw: hole.spotPositionRaw as string | null };
+  });
+  const spinning = value.spinning.map((combination) => {
+    if (
+      !isRecord(combination) ||
+      Object.keys(combination).sort().join(',') !== 'spinningSize,spinningSpeed'
+    )
+      invalidReport();
+    const spinningSize = readNullableEnum(combination.spinningSize, SPINNING_SIZES);
+    const spinningSpeed = readNullableEnum(combination.spinningSpeed, SPINNING_SPEEDS);
+    if (spinningSize === null && spinningSpeed === null) invalidReport();
+    return { spinningSize, spinningSpeed };
+  });
+  const comments = value.comments.map((comment) => {
+    if (typeof comment !== 'string' || !comment.trim()) invalidReport();
+    return comment;
+  });
 
   return {
-    fish: { ...readNamedItem(value.fish), isActive: value.fish.isActive },
-    contributorCount,
+    fish: {
+      ...readNamedItem(value.fish),
+      isActive: value.fish.isActive,
+      image: decodePublicFishImage(value.fish.image),
+    },
     reportCount,
+    topBaits,
+    holes,
+    spinning,
+    comments,
+    maxObservedWeightGrams: readPositiveInteger(value.maxObservedWeightGrams),
+    maxObservedWeightAssessment: readWeightAssessment(value.maxObservedWeightAssessment),
   };
 }
 
@@ -299,35 +368,17 @@ export function decodeLocationObservations(
 ): LocationObservations {
   if (
     !isRecord(payload) ||
-    !Array.isArray(payload.observedFish) ||
-    !Array.isArray(payload.reports)
+    payload.locationId !== locationId ||
+    Object.keys(payload).sort().join(',') !== 'locationId,observedFish' ||
+    !Array.isArray(payload.observedFish)
   ) {
     throw new Error('Сервер вернул некорректные наблюдения локации');
   }
 
   const observedFish = payload.observedFish.map(readObservedFish);
-  const reports = payload.reports.map(decodePublicCatchReport);
-  const observedByFishId = new Map<string, ObservedFish>();
-  const reportCounts = new Map<string, number>();
-
-  for (const item of observedFish) {
-    if (observedByFishId.has(item.fish.id)) invalidReport();
-    observedByFishId.set(item.fish.id, item);
-  }
-
-  for (const report of reports) {
-    if (report.location.id !== locationId) invalidReport();
-    const observed = observedByFishId.get(report.fish.id);
-    if (observed === undefined || observed.fish.name !== report.fish.name) invalidReport();
-    reportCounts.set(report.fish.id, (reportCounts.get(report.fish.id) ?? 0) + 1);
-  }
-
-  if (observedByFishId.size !== reportCounts.size) invalidReport();
-  for (const item of observedFish) {
-    if (reportCounts.get(item.fish.id) !== item.reportCount) invalidReport();
-  }
-
-  return { observedFish, reports };
+  if (new Set(observedFish.map((item) => item.fish.id)).size !== observedFish.length)
+    invalidReport();
+  return { locationId, observedFish };
 }
 
 export function decodeOwnerCatchReport(value: unknown): OwnerCatchReport {

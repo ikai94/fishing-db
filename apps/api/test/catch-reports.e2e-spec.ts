@@ -2602,7 +2602,7 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
     );
   });
 
-  void test('returns every exact-Location observed Fish and report with contributor-distinct historical counts', async () => {
+  void test('returns every exact-Location observed Fish aggregate with contributor-distinct historical counts', async () => {
     const catalog = await createCatalog();
     const otherCatalog = await createCatalog();
     const admin = await createActor('ADMIN');
@@ -2630,24 +2630,24 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
       data: { fishingBaseId: catalog.base.id, fishId: uncaughtBaseFish.id },
     });
 
-    const alphaReport = await createStatisticsReport(admin, catalog, {
+    await createStatisticsReport(admin, catalog, {
       contributorKey: nativeContributorKey(admin.userId),
       fishId: alphaFish.id,
       createdAt: new Date('2026-08-20T08:00:00.000Z'),
     });
-    const firstImported = await createStatisticsReport(admin, catalog, {
+    await createStatisticsReport(admin, catalog, {
       contributorKey: 'external:forum:location-member-a',
       importKey: 'external:forum:location-observation-1',
       fishId: historicalFish.id,
       createdAt: new Date('2026-08-20T09:00:00.000Z'),
     });
-    const repeatedImported = await createStatisticsReport(admin, catalog, {
+    await createStatisticsReport(admin, catalog, {
       contributorKey: 'external:forum:location-member-a',
       importKey: 'external:forum:location-observation-2',
       fishId: historicalFish.id,
       createdAt: new Date('2026-08-20T10:00:00.000Z'),
     });
-    const secondImported = await createStatisticsReport(admin, catalog, {
+    await createStatisticsReport(admin, catalog, {
       contributorKey: 'external:forum:location-member-b',
       importKey: 'external:forum:location-observation-3',
       fishId: historicalFish.id,
@@ -2674,37 +2674,51 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
       .get(`/api/v1/catch-reports/locations/${catalog.location.id}/observations`)
       .expect(200);
     const payload = asObject(response.body as unknown);
-    assert.deepEqual(Object.keys(payload).sort(), ['observedFish', 'reports']);
+    assert.deepEqual(Object.keys(payload).sort(), ['locationId', 'observedFish']);
     const observedFish = asArray(payload.observedFish).map((value) => asObject(value));
-    const reports = asArray(payload.reports).map((value) => asObject(value));
+    assert.equal(payload.locationId, catalog.location.id);
+    assert.equal('reports' in payload, false);
+
+    assert.deepEqual(
+      observedFish.map((item) => item.topBaits),
+      [
+        [{ id: catalog.bait.id, name: catalog.bait.name, reportCount: 3, image: null }],
+        [{ id: catalog.bait.id, name: catalog.bait.name, reportCount: 1, image: null }],
+      ],
+    );
 
     assert.deepEqual(
       observedFish.map((item) => ({
         fish: asObject(item.fish),
-        contributorCount: asNumber(item.contributorCount, 'contributorCount'),
         reportCount: asNumber(item.reportCount, 'reportCount'),
       })),
       [
         {
-          fish: { id: historicalFish.id, name: historicalFish.name, isActive: false },
-          contributorCount: 2,
+          fish: { id: historicalFish.id, name: historicalFish.name, isActive: false, image: null },
           reportCount: 3,
         },
         {
-          fish: { id: alphaFish.id, name: alphaFish.name, isActive: true },
-          contributorCount: 1,
+          fish: { id: alphaFish.id, name: alphaFish.name, isActive: true, image: null },
           reportCount: 1,
         },
       ],
     );
-    assert.deepEqual(
-      reports.map((report) => asString(report.id, 'report.id')),
-      [alphaReport.id, secondImported.id, repeatedImported.id, firstImported.id],
-    );
-    for (const report of reports) {
-      assertPublicReportProjection(report);
-      assert.equal(asString(asObject(report.author).id, 'author.id'), admin.userId);
+    for (const item of observedFish) {
+      assert.deepEqual(item.holes, [{ holeDepthCm: 600, spotPositionRaw: 'точка' }]);
+      assert.deepEqual(item.spinning, []);
+      assert.deepEqual(item.comments, ['Личная заметка не для статистики']);
+      assert.equal(item.maxObservedWeightGrams, 40);
+      assert.equal('contributorKey' in item, false);
+      assert.equal('contributorCount' in item, false);
+      assert.equal('importKey' in item, false);
+      assert.equal('rawSourceText' in item, false);
+      assert.equal('nameNormalized' in asObject(asArray(item.topBaits)[0]), false);
     }
+    assert.deepEqual(observedFish[0]?.maxObservedWeightAssessment, {
+      classification: 'unclassified',
+      minWeightGrams: null,
+      maxWeightGrams: null,
+    });
     assert.equal(
       observedFish.some(
         (item) => asString(asObject(item.fish).id, 'fish.id') === uncaughtBaseFish.id,
@@ -2712,11 +2726,15 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
       false,
     );
 
+    const unknownLocationId = randomUUID();
     const unknown = asObject(
-      (await api().get(`/api/v1/catch-reports/locations/${randomUUID()}/observations`).expect(200))
-        .body as unknown,
+      (
+        await api()
+          .get(`/api/v1/catch-reports/locations/${unknownLocationId}/observations`)
+          .expect(200)
+      ).body as unknown,
     );
-    assert.deepEqual(unknown, { observedFish: [], reports: [] });
+    assert.deepEqual(unknown, { locationId: unknownLocationId, observedFish: [] });
     const malformed = await api()
       .get('/api/v1/catch-reports/locations/not-a-uuid/observations')
       .expect(400);

@@ -4,6 +4,8 @@ import { describe, it } from 'node:test';
 import type { ActivityEventWriter } from '../activity/activity-event-writer.service.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
 import { encodeCatchReportCursor } from './catch-report-pagination.js';
+import { DisabledBaitImageDelivery } from '../catalog/disabled-bait-image-delivery.service.js';
+import { DisabledFishImageDelivery } from '../catalog/disabled-fish-image-delivery.service.js';
 import { CatchReportsService } from './catch-reports.service.js';
 import type { CreateCatchReportDto } from './dto/create-catch-report.dto.js';
 import type { UpdateCatchReportDto } from './dto/update-catch-report.dto.js';
@@ -27,7 +29,12 @@ const activityEvents = {
 } as unknown as ActivityEventWriter;
 
 function createService(prisma: PrismaService): CatchReportsService {
-  return new CatchReportsService(prisma, activityEvents);
+  return new CatchReportsService(
+    prisma,
+    activityEvents,
+    new DisabledFishImageDelivery(),
+    new DisabledBaitImageDelivery(),
+  );
 }
 
 function asObject(value: unknown): Record<string, unknown> {
@@ -810,27 +817,128 @@ void describe('CatchReportsService v2', () => {
     assert.equal('rawSourceText' in select, false);
     assert.deepEqual(result.observedFish, [
       {
-        fish: { id: FISH_ID, name: 'Сом', isActive: false },
-        contributorCount: 2,
+        fish: { id: FISH_ID, name: 'Сом', isActive: false, image: null },
         reportCount: 3,
+        topBaits: [{ ...reportRecord().bait, reportCount: 3, image: null }],
+        holes: [{ holeDepthCm: 600, spotPositionRaw: '  удочка  ' }],
+        spinning: [],
+        comments: [reportRecord().userNoteRaw],
+        maxObservedWeightGrams: 40,
+        maxObservedWeightAssessment: {
+          classification: 'ordinary',
+          minWeightGrams: 30,
+          maxWeightGrams: 50,
+        },
       },
       {
-        fish: { id: OTHER_FISH_ID, name: 'Белуга', isActive: true },
-        contributorCount: 1,
+        fish: { id: OTHER_FISH_ID, name: 'Белуга', isActive: true, image: null },
         reportCount: 1,
+        topBaits: [{ ...reportRecord().bait, reportCount: 1, image: null }],
+        holes: [{ holeDepthCm: 600, spotPositionRaw: '  удочка  ' }],
+        spinning: [],
+        comments: [reportRecord().userNoteRaw],
+        maxObservedWeightGrams: 40,
+        maxObservedWeightAssessment: {
+          classification: 'ordinary',
+          minWeightGrams: 30,
+          maxWeightGrams: 50,
+        },
       },
     ]);
-    assert.deepEqual(
-      result.reports.map((report) => report.id),
-      [fourthReportId, thirdReportId, secondReportId, REPORT_ID],
-    );
-    for (const report of result.reports) {
-      assert.equal('contributorKey' in report, false);
-      assert.equal('importKey' in report, false);
-      assert.equal('rawSourceText' in report, false);
-      assert.equal('nameNormalized' in report.fish, false);
-      assert.equal('isActive' in report.fish, false);
+    assert.equal(result.locationId, LOCATION_ID);
+    assert.equal('reports' in result, false);
+    for (const key of ['user', 'id', 'createdAt', 'updatedAt', 'fishingMethod', 'fishingNote'])
+      assert.equal(key in select, false);
+    for (const item of result.observedFish) {
+      assert.equal('contributorKey' in item, false);
+      assert.equal('contributorCount' in item, false);
+      assert.equal('importKey' in item, false);
+      assert.equal('rawSourceText' in item, false);
+      assert.equal('nameNormalized' in item.fish, false);
+      assert.equal('nameNormalized' in item.topBaits[0], false);
     }
+  });
+
+  void it('ranks only the location baits by counts, breaks ties stably, and caps the result at three', async () => {
+    let reportQueries = 0;
+    let membershipQueries = 0;
+    const records = ['Г', 'Б', 'А', 'А', 'Б', 'В', 'В', 'В', 'Д'].map((name, index) => ({
+      ...reportRecord(),
+      id: `report-${index}`,
+      contributorKey: 'external:member-a',
+      fish: {
+        id: FISH_ID,
+        name: 'Сом',
+        nameNormalized: 'сом',
+        isActive: true,
+        officialFishImageKey: 12,
+      },
+      bait: { id: name, name, nameNormalized: name.toLowerCase() },
+      weightGrams: index === 8 ? 763 : 40,
+      holeDepthCm: index === 8 ? 763 : null,
+      spotPositionRaw: index === 8 ? '  левый край  ' : null,
+      spinningSize: null,
+      spinningSpeed: index === 8 ? 'SLOW' : null,
+      userNoteRaw: index === 8 ? '  после дождя  ' : null,
+    }));
+    const prisma = {
+      catchReport: {
+        findMany: (input: unknown) => {
+          reportQueries += 1;
+          assert.deepEqual(asObject(input).where, { locationId: LOCATION_ID });
+          return Promise.resolve(records);
+        },
+      },
+      fishingBaseFish: {
+        findMany: () => {
+          membershipQueries += 1;
+          return Promise.resolve([]);
+        },
+      },
+    } as unknown as PrismaService;
+    const imageSources: unknown[] = [];
+    const baitSources: unknown[] = [];
+    const baitImages = {
+      resolvePublicImage: (source: unknown) => {
+        baitSources.push(source);
+        return null;
+      },
+    };
+    const images = {
+      resolvePublicImage: (source: unknown) => {
+        imageSources.push(source);
+        return { url: '/api/v1/fish-images/test.png' };
+      },
+    };
+    const result = await new CatchReportsService(
+      prisma,
+      activityEvents,
+      images as unknown as import('../catalog/fish-image-delivery.js').FishImageDelivery,
+      baitImages as unknown as import('../catalog/bait-image-delivery.js').BaitImageDelivery,
+    ).listLocationObservations(LOCATION_ID);
+    assert.equal(result.observedFish[0]?.reportCount, 9);
+    assert.equal('contributorCount' in result.observedFish[0], false);
+    assert.deepEqual(result.observedFish[0]?.topBaits, [
+      { id: 'В', name: 'В', reportCount: 3, image: null },
+      { id: 'А', name: 'А', reportCount: 2, image: null },
+      { id: 'Б', name: 'Б', reportCount: 2, image: null },
+    ]);
+    assert.deepEqual(imageSources, [{ fishId: FISH_ID, officialFishImageKey: 12 }]);
+    // Данные на четвёртой наживке должны сохраниться в сводке всей рыбы.
+    assert.deepEqual(result.observedFish[0]?.holes, [
+      { holeDepthCm: 763, spotPositionRaw: '  левый край  ' },
+    ]);
+    assert.deepEqual(result.observedFish[0]?.spinning, [
+      { spinningSize: null, spinningSpeed: 'SLOW' },
+    ]);
+    assert.deepEqual(result.observedFish[0]?.comments, ['  после дождя  ']);
+    assert.equal(result.observedFish[0]?.maxObservedWeightGrams, 763);
+    assert.deepEqual(baitSources, [
+      { baitId: 'В', nameNormalized: 'в' },
+      { baitId: 'А', nameNormalized: 'а' },
+      { baitId: 'Б', nameNormalized: 'б' },
+    ]);
+    assert.deepEqual([reportQueries, membershipQueries], [1, 1]);
   });
 
   void it('keeps omitted public filters and owner list queries unfiltered', async () => {

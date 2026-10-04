@@ -111,75 +111,71 @@ describe('decodePublicCatchReport', () => {
 describe('Location observations', () => {
   beforeEach(() => mocks.apiRequest.mockReset());
 
-  test('decodes the ranked Fish summary and exact-Location public reports', async () => {
-    const payload = {
-      observedFish: [
-        {
-          fish: { id: 'fish', name: 'Кижуч', isActive: true },
-          contributorCount: 2,
-          reportCount: 1,
-        },
-      ],
-      reports: [publicReport],
-    };
-    const validPayload = {
-      ...payload,
-      observedFish: [{ ...payload.observedFish[0], contributorCount: 1 }],
-    };
-    mocks.apiRequest.mockResolvedValue(validPayload);
-    const controller = new AbortController();
+  const observed = {
+    fish: { ...publicReport.fish, isActive: true, image: null },
+    reportCount: 1,
+    topBaits: [{ ...publicReport.bait, reportCount: 1, image: null }],
+    holes: [{ holeDepthCm: 763, spotPositionRaw: '  левый край рюкзака  ' }],
+    spinning: [{ spinningSize: null, spinningSpeed: 'SLOW' }],
+    comments: ['  исходный комментарий  '],
+    maxObservedWeightGrams: publicReport.weightGrams,
+    maxObservedWeightAssessment: publicReport.weightAssessment,
+  };
+  const valid = { locationId: 'location', observedFish: [observed] };
+  const decode = (item: unknown) =>
+    decodeLocationObservations({ ...valid, observedFish: [item] }, 'location');
 
-    await expect(getLocationObservations('location', controller.signal)).resolves.toEqual(
-      validPayload,
-    );
+  test('requests only the location aggregates and preserves raw public observations', async () => {
+    mocks.apiRequest.mockResolvedValue(valid);
+    const controller = new AbortController();
+    await expect(getLocationObservations('location', controller.signal)).resolves.toEqual(valid);
+    expect(mocks.apiRequest).toHaveBeenCalledTimes(1);
     expect(mocks.apiRequest).toHaveBeenCalledWith(
       '/catch-reports/locations/location/observations',
       { signal: controller.signal },
     );
-    expect(() => decodeLocationObservations(payload, 'location')).toThrow();
+    expect(decodeLocationObservations(valid, 'location')).not.toHaveProperty('reports');
   });
 
-  test('rejects mismatched locations, duplicate or uncaught Fish, wrong counts, and private fields', () => {
-    const observed = {
-      fish: { id: 'fish', name: 'Кижуч', isActive: true },
-      contributorCount: 1,
-      reportCount: 1,
-    };
-    const valid = { observedFish: [observed], reports: [publicReport] };
-
-    expect(decodeLocationObservations(valid, 'location')).toEqual(valid);
+  test('rejects wrong locations, duplicate fish, legacy report payloads and private fields', () => {
     expect(() => decodeLocationObservations(valid, 'other-location')).toThrow();
     expect(() =>
       decodeLocationObservations({ ...valid, observedFish: [observed, observed] }, 'location'),
     ).toThrow();
     expect(() =>
-      decodeLocationObservations(
-        {
-          ...valid,
-          observedFish: [
-            ...valid.observedFish,
-            {
-              fish: { id: 'uncaught', name: 'Непойманная', isActive: true },
-              contributorCount: 1,
-              reportCount: 1,
-            },
-          ],
-        },
-        'location',
-      ),
+      decodeLocationObservations({ ...valid, reports: [publicReport] }, 'location'),
     ).toThrow();
+    for (const key of ['contributorKey', 'importKey', 'rawSourceText'])
+      expect(() => decode({ ...observed, [key]: 'private' })).toThrow();
+    expect(decode({ ...observed, contributorCount: 2 })).not.toHaveProperty('contributorCount');
+  });
+
+  test('rejects invalid bait counts, duplicates, unsafe images and malformed observation values', () => {
+    for (const topBaits of [
+      [],
+      [{ ...observed.topBaits[0], reportCount: 2 }],
+      [...observed.topBaits, ...observed.topBaits],
+      [{ ...observed.topBaits[0], rawSourceText: 'private' }],
+      [{ ...observed.topBaits[0], image: { url: 'https://external.invalid/bait.png' } }],
+    ]) {
+      expect(() => decode({ ...observed, topBaits })).toThrow();
+    }
     expect(() =>
-      decodeLocationObservations(
-        { ...valid, observedFish: [{ ...observed, reportCount: 2 }] },
-        'location',
-      ),
+      decode({
+        ...observed,
+        fish: { ...observed.fish, image: { url: 'https://external.invalid/fish.png' } },
+      }),
     ).toThrow();
-    expect(() =>
-      decodeLocationObservations(
-        { ...valid, reports: [{ ...publicReport, contributorKey: 'private' }] },
-        'location',
-      ),
-    ).toThrow();
+    for (const invalid of [
+      { holes: [{ holeDepthCm: 7.63, spotPositionRaw: null }] },
+      { holes: [{ holeDepthCm: null, spotPositionRaw: '   ' }] },
+      { holes: [{ ...observed.holes[0], rawSourceText: 'private' }] },
+      { spinning: [{ spinningSize: null, spinningSpeed: null }] },
+      { spinning: [{ spinningSize: 'UNKNOWN', spinningSpeed: null }] },
+      { comments: ['  '] },
+      { maxObservedWeightGrams: 0 },
+    ])
+      expect(() => decode({ ...observed, ...invalid })).toThrow();
   });
 });
 

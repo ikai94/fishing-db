@@ -191,7 +191,7 @@ export function PublicFishCatchTable({
 }
 
 /** Фильтр остаётся в заголовке даже при пустой выдаче, чтобы его можно было снять. */
-function PresenceHeader({
+export function PresenceHeader({
   label,
   active,
   description = 'Есть данные',

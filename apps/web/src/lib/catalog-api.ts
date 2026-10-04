@@ -89,7 +89,8 @@ function readCatalogItem(value: unknown): PublicCatalogItem {
   return { id: value.id, name: value.name };
 }
 
-function readFishImage(value: unknown): PublicFishImage | null {
+/** Допускает только опубликованные изображения из собственного каталога приложения. */
+export function decodePublicFishImage(value: unknown): PublicFishImage | null {
   if (value === null) {
     return null;
   }
@@ -126,7 +127,7 @@ function readFishSummary(value: unknown): PublicFishSummary {
     throw new Error('Сервер вернул некорректный ответ каталога');
   }
 
-  return { ...item, image: readFishImage(value.image) };
+  return { ...item, image: decodePublicFishImage(value.image) };
 }
 
 function readLocationSummary(value: unknown): PublicLocationSummary {

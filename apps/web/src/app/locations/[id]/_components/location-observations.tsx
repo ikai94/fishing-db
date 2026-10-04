@@ -1,50 +1,24 @@
 'use client';
 
-import Link from 'next/link';
 import { useId, useMemo, useState } from 'react';
 import styles from '../../../bases-locations.module.css';
-import { SpotAnalytics } from '@/components/spot-analytics/spot-analytics';
-import type {
-  CatchReport,
-  LocationObservations as LocationObservationsData,
-} from '@/lib/catch-reports-api';
-import { anomalyWeightLabel } from '@/lib/base-fish-weight';
-import {
-  fishingMethodLabel,
-  fishingNoteLabel,
-  formatCentimetersAsMeters,
-  spinningSizeLabel,
-  spinningSpeedLabel,
-} from '@/lib/catch-report-form';
+import { LocationFishTable } from './location-fish-table';
+import type { LocationObservations as LocationObservationsData } from '@/lib/catch-reports-api';
 
 type LocationObservationsProps = {
   baseId: string;
   data: LocationObservationsData;
-  locationId: string;
 };
 
-export function LocationObservations({ baseId, data, locationId }: LocationObservationsProps) {
+/** Показывает сводку локации; выбор видов фильтрует только строки таблицы рыб. */
+export function LocationObservations({ baseId, data }: LocationObservationsProps) {
   const [selectedFishIds, setSelectedFishIds] = useState(
     () => new Set(data.observedFish.map((item) => item.fish.id)),
   );
-  const rankedFish = useMemo(
-    () => data.observedFish.map((item, index) => ({ ...item, rank: index + 1 })),
-    [data.observedFish],
-  );
   const visibleFish = useMemo(
-    () => rankedFish.filter((item) => selectedFishIds.has(item.fish.id)),
-    [rankedFish, selectedFishIds],
+    () => data.observedFish.filter((item) => selectedFishIds.has(item.fish.id)),
+    [data.observedFish, selectedFishIds],
   );
-  const visibleReports = useMemo(
-    () => data.reports.filter((report) => selectedFishIds.has(report.fish.id)),
-    [data.reports, selectedFishIds],
-  );
-  const activeFishIds = useMemo(
-    () =>
-      new Set(data.observedFish.filter((item) => item.fish.isActive).map((item) => item.fish.id)),
-    [data.observedFish],
-  );
-
   function toggleFish(fishId: string) {
     setSelectedFishIds((current) => {
       const next = new Set(current);
@@ -71,14 +45,9 @@ export function LocationObservations({ baseId, data, locationId }: LocationObser
           </h2>
           <p className={styles.statusMessage}>На этой локации пока нет опубликованных уловов.</p>
         </section>
-        <SpotAnalytics scope={{ kind: 'location', locationId }} showFishCount showPlace={false} />
       </>
     );
   }
-
-  const analyticsFishIds =
-    selectedFishIds.size === data.observedFish.length ? undefined : [...selectedFishIds].sort();
-  const analyticsKey = analyticsFishIds === undefined ? 'all' : analyticsFishIds.join(',');
 
   return (
     <>
@@ -99,33 +68,7 @@ export function LocationObservations({ baseId, data, locationId }: LocationObser
         {visibleFish.length === 0 ? (
           <p className={styles.statusMessage}>Выберите хотя бы одну рыбу.</p>
         ) : (
-          <ObservedFishTable baseId={baseId} items={visibleFish} />
-        )}
-      </section>
-
-      <SpotAnalytics
-        disabled={selectedFishIds.size === 0}
-        key={`location-spots:${analyticsKey}`}
-        scope={{ kind: 'location', locationId, fishIds: analyticsFishIds }}
-        showFishCount
-        showPlace={false}
-      />
-
-      <section className={styles.resultsRegion} aria-labelledby="location-catches-heading">
-        <div className={styles.sectionHeader}>
-          <h2 className={styles.sectionTitle} id="location-catches-heading">
-            Уловы на локации
-          </h2>
-        </div>
-
-        {visibleReports.length === 0 ? (
-          <p className={styles.statusMessage}>Выберите хотя бы одну рыбу, чтобы увидеть уловы.</p>
-        ) : (
-          <LocationCatchTable
-            activeFishIds={activeFishIds}
-            baseId={baseId}
-            reports={visibleReports}
-          />
+          <LocationFishTable baseId={baseId} rows={visibleFish} />
         )}
       </section>
     </>
@@ -196,199 +139,4 @@ function FishMultiSelect({
       </div>
     </details>
   );
-}
-
-type RankedObservedFish = LocationObservationsData['observedFish'][number] & { rank: number };
-
-function ObservedFishTable({ baseId, items }: { baseId: string; items: RankedObservedFish[] }) {
-  return (
-    <div
-      className={styles.tableRegion}
-      role="region"
-      aria-label="Рейтинг пойманных рыб"
-      tabIndex={0}
-    >
-      <table className={`${styles.catalogTable} ${styles.observedFishTable}`}>
-        <caption className={styles.visuallyHidden}>Пойманные на локации рыбы</caption>
-        <thead>
-          <tr>
-            <th scope="col">№</th>
-            <th scope="col">Рыба</th>
-            <th scope="col">Наблюдения</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((item) => (
-            <tr key={item.fish.id}>
-              <td className={styles.reportNumber}>{item.rank}</td>
-              <td>
-                {item.fish.isActive ? (
-                  <FishLink baseId={baseId} fishId={item.fish.id} name={item.fish.name} />
-                ) : (
-                  <>
-                    <span>{item.fish.name}</span>
-                    <span className={styles.secondaryText}>Историческая запись</span>
-                  </>
-                )}
-              </td>
-              <td className={styles.observedFishCounts}>
-                {item.contributorCount.toLocaleString('ru-RU')} рыбаков ·{' '}
-                {item.reportCount.toLocaleString('ru-RU')} уловов
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function LocationCatchTable({
-  activeFishIds,
-  baseId,
-  reports,
-}: {
-  activeFishIds: ReadonlySet<string>;
-  baseId: string;
-  reports: CatchReport[];
-}) {
-  return (
-    <div
-      className={styles.catchTableRegion}
-      role="region"
-      aria-label="Таблица уловов на локации"
-      tabIndex={0}
-    >
-      <table className={`${styles.catchTable} ${styles.locationCatchTable}`}>
-        <caption className={styles.visuallyHidden}>Уловы выбранных рыб на этой локации</caption>
-        <thead>
-          <tr>
-            <th scope="col">№</th>
-            <th scope="col">Рыба</th>
-            <th scope="col">Вес</th>
-            <th scope="col">Наживка / приманка</th>
-            <th scope="col">Способ / настройки</th>
-            <th scope="col">Яма / точка</th>
-            <th scope="col">Автор</th>
-            <th scope="col">Дата</th>
-          </tr>
-        </thead>
-        <tbody>
-          {reports.map((report, index) => (
-            <ReportRows
-              activeFish={activeFishIds.has(report.fish.id)}
-              baseId={baseId}
-              report={report}
-              reportNumber={index + 1}
-              key={report.id}
-            />
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function ReportRows({
-  activeFish,
-  baseId,
-  report,
-  reportNumber,
-}: {
-  activeFish: boolean;
-  baseId: string;
-  report: CatchReport;
-  reportNumber: number;
-}) {
-  const weightAnomaly = anomalyWeightLabel(report.weightAssessment.classification);
-
-  return (
-    <>
-      <tr className={styles.catchRow}>
-        <th className={styles.reportNumber} scope="row">
-          <Link
-            className={styles.entityLink}
-            href={`/catches/${report.id}`}
-            aria-label={`Улов №${reportNumber}: подробнее`}
-          >
-            {reportNumber}
-          </Link>
-        </th>
-        <td>
-          {activeFish ? (
-            <FishLink baseId={baseId} fishId={report.fish.id} name={report.fish.name} />
-          ) : (
-            report.fish.name
-          )}
-        </td>
-        <td className={styles.weightCell}>
-          {formatWeight(report.weightGrams)}
-          {weightAnomaly ? <span className={styles.secondaryText}>{weightAnomaly}</span> : null}
-        </td>
-        <td>{report.bait.name}</td>
-        <td className={styles.conditionCell}>{formatMethodAndSettings(report)}</td>
-        <td className={styles.positionCell}>{formatHoleAndSpot(report)}</td>
-        <td className={styles.authorCell}>{report.author.nickname}</td>
-        <td className={styles.dateCell}>
-          <time dateTime={report.createdAt}>{formatDate(report.createdAt)}</time>
-        </td>
-      </tr>
-      {report.userNoteRaw !== null && report.userNoteRaw.trim() !== '' ? (
-        <tr className={styles.catchCommentRow}>
-          <td className={styles.catchComment} colSpan={8}>
-            <span className={styles.visuallyHidden}>Отчёт № {reportNumber}. </span>
-            <span className={styles.secondaryText}>Комментарий:</span> {report.userNoteRaw}
-          </td>
-        </tr>
-      ) : null}
-    </>
-  );
-}
-
-function FishLink({ baseId, fishId, name }: { baseId: string; fishId: string; name: string }) {
-  return (
-    <Link className={styles.entityLink} href={`/fish/${fishId}?baseIds=${baseId}`}>
-      {name}
-    </Link>
-  );
-}
-
-function formatMethodAndSettings(report: CatchReport): string {
-  const parts = [fishingMethodLabel(report.fishingMethod)];
-
-  if (report.fishingMethod === 'SPINNING') {
-    const size = spinningSizeLabel(report.spinningSize);
-    const speed = spinningSpeedLabel(report.spinningSpeed);
-    if (size !== null) parts.push(size);
-    if (speed !== null) parts.push(speed);
-  }
-
-  const note = fishingNoteLabel(report.fishingNote);
-  if (note !== null) parts.push(note);
-  return parts.join(' · ');
-}
-
-function formatHoleAndSpot(report: CatchReport): string {
-  const parts = [
-    report.holeDepthCm === null ? null : `Яма ${formatCentimetersAsMeters(report.holeDepthCm)} м`,
-    report.spotPositionRaw,
-  ].filter((part): part is string => part !== null && part.trim() !== '');
-
-  return parts.length > 0 ? parts.join(' · ') : '—';
-}
-
-function formatWeight(weightGrams: number): string {
-  return `${weightGrams.toLocaleString('ru-RU')} г`;
-}
-
-function formatDate(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-
-  return date.toLocaleDateString('ru-RU', {
-    day: '2-digit',
-    month: '2-digit',
-    year: '2-digit',
-    timeZone: 'Europe/Moscow',
-  });
 }
