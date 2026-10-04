@@ -1,0 +1,64 @@
+.groups {
+  display: grid;
+  gap: 0.65rem;
+}
+.group {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.label {
+  font-weight: 600;
+  min-width: 7.5rem;
+}
+.chip {
+  display: inline-flex;
+  border: 1px solid var(--app-border);
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+.chip button {
+  min-height: 40px;
+  padding: 0.4rem 0.65rem;
+  background: transparent;
+  color: inherit;
+  border: 0;
+  cursor: pointer;
+}
+.chip button + button {
+  border-left: 1px solid var(--app-border);
+}
+.chip button[aria-pressed='true'] {
+  background: #dceee5;
+  color: #175a3d;
+  font-weight: 700;
+}
+.chip button:focus-visible {
+  outline: 2px solid var(--app-accent-strong);
+  outline-offset: -3px;
+}
+.chip button:disabled {
+  cursor: default;
+  opacity: 0.65;
+}
+.voters {
+  margin-top: 0.5rem;
+  border: 1px solid var(--app-border);
+  border-radius: 0.5rem;
+  padding: 0.6rem;
+  max-width: 28rem;
+}
+.voters ul {
+  max-height: 15rem;
+  overflow-y: auto;
+  margin: 0.4rem 0;
+  padding-left: 1.2rem;
+  overflow-wrap: anywhere;
+}
+
+.voters button {
+  min-height: 40px;
+  padding: 0.3rem 0.6rem;
+  cursor: pointer;
+}

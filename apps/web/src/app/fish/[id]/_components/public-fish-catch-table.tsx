@@ -1,4 +1,8 @@
+'use client';
+
+import { formatVariantsCount, LazyCatchValues, MultipleValues } from './multiple-values';
 import styles from '../../../public-catalog.module.css';
+import controls from './fish-controls.module.css';
 import { BaitImage } from '@/components/bait-image';
 import { anomalyWeightLabel, formatCompactWeight } from '@/lib/base-fish-weight';
 import { formatCentimetersAsMeters } from '@/lib/catch-report-form';
@@ -6,6 +10,8 @@ import type {
   FishCatchAggregate,
   FishCatchHoleSpotSummary,
   FishCatchIntensityOrder,
+  FishCatchOrderMode,
+  FishCatchPresenceFilters,
   FishCatchSpinningCombination,
   FishCatchTextSummary,
 } from '@/lib/fish-catch-aggregates-api';
@@ -24,13 +30,22 @@ const SIZE_ABBREVIATIONS = {
 type PublicFishCatchTableProps = {
   rows: FishCatchAggregate[];
   intensityOrder: FishCatchIntensityOrder;
+  orderMode?: FishCatchOrderMode;
   onIntensityOrderChange: (order: FishCatchIntensityOrder) => void;
+  onPlaceOrderChange: () => void;
+  filters: FishCatchPresenceFilters;
+  onPresenceFilterChange: (key: keyof FishCatchPresenceFilters, enabled: boolean) => void;
 };
 
+/** Сохраняет локальные данные строк; множественные наблюдения раскрываются по нажатию. */
 export function PublicFishCatchTable({
   rows,
   intensityOrder,
+  orderMode = 'catches',
   onIntensityOrderChange,
+  onPlaceOrderChange,
+  filters,
+  onPresenceFilterChange,
 }: PublicFishCatchTableProps) {
   return (
     <div
@@ -46,20 +61,60 @@ export function PublicFishCatchTable({
         <thead>
           <tr>
             <th scope="col">№</th>
-            <th scope="col">База · Локация</th>
-            <th scope="col">Яма / ориентир</th>
-            <th scope="col">На что</th>
-            <th scope="col">Проводка / размер</th>
-            <th scope="col">Комментарий</th>
-            <th scope="col" aria-sort={intensityOrder === 'asc' ? 'ascending' : 'descending'}>
+            <th scope="col">
               <button
-                className={styles.catchSortButton}
+                className={controls.headerButton}
                 type="button"
-                onClick={() => onIntensityOrderChange(intensityOrder === 'asc' ? 'desc' : 'asc')}
-                aria-label={`Уловы: сортировать ${intensityOrder === 'asc' ? 'по убыванию' : 'по возрастанию'}`}
+                aria-label="База · Локация"
+                aria-pressed={orderMode === 'places'}
+                title="Исходный порядок баз и локаций"
+                onClick={onPlaceOrderChange}
+              >
+                База · Локация <span aria-hidden="true">↕</span>
+              </button>
+            </th>
+            <PresenceHeader
+              label="Яма / ориентир"
+              active={filters.hasHole}
+              onToggle={() => onPresenceFilterChange('hasHole', !filters.hasHole)}
+            />
+            <th scope="col">На что</th>
+            <PresenceHeader
+              label="Размер / проводка"
+              active={filters.hasSpinning}
+              description="Есть размер или проводка"
+              onToggle={() => onPresenceFilterChange('hasSpinning', !filters.hasSpinning)}
+            />
+            <PresenceHeader
+              label="Комментарий"
+              active={filters.hasComment}
+              onToggle={() => onPresenceFilterChange('hasComment', !filters.hasComment)}
+            />
+            <th
+              scope="col"
+              aria-sort={
+                orderMode === 'places'
+                  ? 'none'
+                  : intensityOrder === 'asc'
+                    ? 'ascending'
+                    : 'descending'
+              }
+            >
+              <button
+                className={`${controls.headerButton} ${controls.numericHeader}`}
+                type="button"
+                aria-pressed={orderMode === 'catches'}
+                onClick={() =>
+                  onIntensityOrderChange(
+                    orderMode === 'places' ? 'desc' : intensityOrder === 'asc' ? 'desc' : 'asc',
+                  )
+                }
+                aria-label={`Уловы: сортировать ${orderMode === 'places' || intensityOrder === 'asc' ? 'по убыванию' : 'по возрастанию'}`}
               >
                 Уловы
-                <span aria-hidden="true">{intensityOrder === 'asc' ? '↑' : '↓'}</span>
+                <span aria-hidden="true">
+                  {orderMode === 'places' ? '↕' : intensityOrder === 'asc' ? '↑' : '↓'}
+                </span>
               </button>
             </th>
             <th scope="col">Наблюдаемый / максимальный вес</th>
@@ -68,7 +123,7 @@ export function PublicFishCatchTable({
         <tbody>
           {rows.map((row, index) => (
             <tr
-              className={`${styles.catchRow} ${isLocationGroupStart(rows, index) ? styles.catchLocationStartRow : ''}`}
+              className={`${styles.catchRow} ${orderMode === 'places' && isLocationGroupStart(rows, index) ? styles.catchLocationStartRow : ''}`}
               key={`${row.fish.id}:${row.fishingBase.id}:${row.location.id}:${row.bait.id}`}
             >
               <th className={styles.reportNumber} scope="row">
@@ -84,7 +139,7 @@ export function PublicFishCatchTable({
                 className={styles.aggregateSingleLineCell}
                 title={singleHoleSpotSummaryValue(row.holeSpotSummary)}
               >
-                {formatFishCatchHoleSpotSummary(row.holeSpotSummary)}
+                <LazyCatchValues row={row} field="hole" />
               </td>
               <td>
                 <span className={styles.catchBaitCellContent}>
@@ -98,13 +153,16 @@ export function PublicFishCatchTable({
                 </span>
               </td>
               <td className={styles.spinningCombinationsCell}>
-                {formatSpinningCombinations(row.spinningCombinations)}
+                <MultipleValues
+                  label="Размер и проводка"
+                  values={row.spinningCombinations.map(formatSpinningCombination)}
+                />
               </td>
               <td
                 className={styles.aggregateSingleLineCell}
                 title={singleSummaryValue(row.userNoteRawSummary)}
               >
-                {formatFishCatchTextSummary(row.userNoteRawSummary)}
+                <LazyCatchValues row={row} field="comment" />
               </td>
               <td className={styles.aggregateCountCell} title={`${row.intensity} уловов`}>
                 <span
@@ -132,6 +190,41 @@ export function PublicFishCatchTable({
   );
 }
 
+/** Фильтр остаётся в заголовке даже при пустой выдаче, чтобы его можно было снять. */
+function PresenceHeader({
+  label,
+  active,
+  description = 'Есть данные',
+  onToggle,
+}: {
+  label: string;
+  active: boolean;
+  description?: string;
+  onToggle: () => void;
+}) {
+  return (
+    <th scope="col">
+      <button
+        type="button"
+        className={controls.headerButton}
+        aria-label={label}
+        aria-pressed={active}
+        title={`${active ? 'Снять фильтр' : 'Фильтр'}: ${description}`}
+        onClick={onToggle}
+      >
+        {label}
+        <svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12">
+          <path
+            d="M1 2h10L7 6v4L5 9V6z"
+            fill={active ? 'currentColor' : 'none'}
+            stroke="currentColor"
+          />
+        </svg>
+      </button>
+    </th>
+  );
+}
+
 function isLocationGroupStart(rows: readonly FishCatchAggregate[], index: number): boolean {
   if (index === 0) return false;
   const previous = rows[index - 1];
@@ -150,13 +243,13 @@ export function formatFishCatchPlace(
 
 export function formatFishCatchTextSummary(summary: FishCatchTextSummary): string {
   if (summary.distinctCount === 0) return '—';
-  if (summary.distinctCount > 1) return `несколько (${summary.distinctCount})`;
+  if (summary.distinctCount > 1) return formatVariantsCount(summary.distinctCount);
   return summary.value ?? '—';
 }
 
 export function formatFishCatchHoleSpotSummary(summary: FishCatchHoleSpotSummary): string {
   if (summary.distinctCount === 0) return '—';
-  if (summary.distinctCount > 1) return `несколько (${summary.distinctCount})`;
+  if (summary.distinctCount > 1) return formatVariantsCount(summary.distinctCount);
   if (summary.value === null) return '—';
 
   const depth =
@@ -177,13 +270,14 @@ function singleSummaryValue(summary: FishCatchTextSummary): string | undefined {
   return summary.distinctCount === 1 ? (summary.value ?? undefined) : undefined;
 }
 
+/** Размер стоит первым, как в заголовке колонки; исходная комбинация не меняется. */
 export function formatSpinningCombination({
   spinningSpeed,
   spinningSize,
 }: FishCatchSpinningCombination): string {
   const speed = spinningSpeed === null ? '-' : SPEED_ABBREVIATIONS[spinningSpeed];
   const size = spinningSize === null ? '-' : SIZE_ABBREVIATIONS[spinningSize];
-  return `${speed}/${size}`;
+  return `${size}/${speed}`;
 }
 
 export function formatSpinningCombinations(

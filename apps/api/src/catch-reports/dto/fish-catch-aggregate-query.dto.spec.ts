@@ -16,7 +16,11 @@ void describe('FishCatchAggregateQueryDto', () => {
       limit: '7',
       cursor: 'opaque',
       intensityOrder: 'asc',
+      orderMode: 'places',
       minIntensity: '10',
+      hasComment: 'true',
+      hasHole: 'false',
+      hasSpinning: 'true',
     });
 
     assert.deepEqual(await validate(dto), []);
@@ -24,7 +28,11 @@ void describe('FishCatchAggregateQueryDto', () => {
     assert.equal(dto.limit, 7);
     assert.equal(dto.cursor, 'opaque');
     assert.equal(dto.intensityOrder, 'asc');
+    assert.equal(dto.orderMode, 'places');
     assert.equal(dto.minIntensity, 10);
+    assert.equal(dto.hasComment, true);
+    assert.equal(dto.hasHole, false);
+    assert.equal(dto.hasSpinning, true);
   });
 
   void it('uses an omitted Base scope for all Bases', async () => {
@@ -33,6 +41,7 @@ void describe('FishCatchAggregateQueryDto', () => {
     assert.deepEqual(await validate(dto), []);
     assert.deepEqual(dto.baseIds, []);
     assert.equal(dto.intensityOrder, 'desc');
+    assert.equal(dto.orderMode, 'catches');
     assert.equal(dto.minIntensity, undefined);
   });
 
@@ -50,8 +59,13 @@ void describe('FishCatchAggregateQueryDto', () => {
       { fishId: FISH_ID, baseIds: tooManyIds },
       { fishId: 'invalid', baseIds: BASE_ID },
       { fishId: FISH_ID, intensityOrder: 'sideways' },
+      { fishId: FISH_ID, orderMode: 'bait' },
       { fishId: FISH_ID, minIntensity: '0' },
       { fishId: FISH_ID, minIntensity: '1.5' },
+      { fishId: FISH_ID, hasComment: 'yes' },
+      { fishId: FISH_ID, hasHole: ['true'] },
+      { fishId: FISH_ID, hasSpinning: 'yes' },
+      { fishId: FISH_ID, hasSpinning: ['true'] },
     ]) {
       const dto = plainToInstance(FishCatchAggregateQueryDto, value);
       assert.ok((await validate(dto)).length > 0, JSON.stringify(value));

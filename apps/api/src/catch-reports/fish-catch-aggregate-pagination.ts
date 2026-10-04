@@ -3,12 +3,15 @@ const BASE64URL_PATTERN = /^[A-Za-z0-9_-]+$/;
 const MAX_CURSOR_LENGTH = 2_048;
 const MAX_NORMALIZED_NAME_LENGTH = 128;
 
+/** Ключ продолжения выбранного порядка строк; числовой ключ совпадает с отображаемым числом уловов. */
 export interface FishCatchAggregateCursor {
   baseNameNormalized: string;
   baseId: string;
   locationNumber: number;
   locationId: string;
   intensity: number;
+  orderMode: 'catches' | 'places';
+  intensityOrder: 'asc' | 'desc';
   baitNameNormalized: string;
   baitId: string;
 }
@@ -38,10 +41,12 @@ function isPositiveSafeInteger(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
 }
 
+/** Сохраняет последний ключ вместе с режимом и направлением для стабильного продолжения. */
 export function encodeFishCatchAggregateCursor(value: FishCatchAggregateCursor): string {
   return Buffer.from(JSON.stringify(value), 'utf8').toString('base64url');
 }
 
+/** Отклоняет повреждённые и устаревшие ключи вместо продолжения в неверном порядке. */
 export function decodeFishCatchAggregateCursor(value: string): FishCatchAggregateCursor {
   if (value.length === 0 || value.length > MAX_CURSOR_LENGTH || !BASE64URL_PATTERN.test(value)) {
     return invalidCursor();
@@ -57,7 +62,7 @@ export function decodeFishCatchAggregateCursor(value: string): FishCatchAggregat
     return invalidCursor();
   }
 
-  if (!isRecord(decoded) || Object.keys(decoded).length !== 7) return invalidCursor();
+  if (!isRecord(decoded) || Object.keys(decoded).length !== 9) return invalidCursor();
 
   const {
     baseNameNormalized,
@@ -65,6 +70,8 @@ export function decodeFishCatchAggregateCursor(value: string): FishCatchAggregat
     locationNumber,
     locationId,
     intensity,
+    orderMode,
+    intensityOrder,
     baitNameNormalized,
     baitId,
   } = decoded;
@@ -77,6 +84,8 @@ export function decodeFishCatchAggregateCursor(value: string): FishCatchAggregat
     typeof locationId !== 'string' ||
     !UUID_V4_PATTERN.test(locationId) ||
     !isPositiveSafeInteger(intensity) ||
+    !['catches', 'places'].includes(orderMode as string) ||
+    !['asc', 'desc'].includes(intensityOrder as string) ||
     !isNormalizedName(baitNameNormalized) ||
     typeof baitId !== 'string' ||
     !UUID_V4_PATTERN.test(baitId)
@@ -90,6 +99,8 @@ export function decodeFishCatchAggregateCursor(value: string): FishCatchAggregat
     locationNumber,
     locationId,
     intensity,
+    orderMode: orderMode as 'catches' | 'places',
+    intensityOrder: intensityOrder as 'asc' | 'desc',
     baitNameNormalized,
     baitId,
   };

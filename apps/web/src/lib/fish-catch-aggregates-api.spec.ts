@@ -11,6 +11,7 @@ import {
   decodeFishCatchAggregate,
   decodeFishCatchAggregatePage,
   listFishCatchAggregates,
+  listFishCatchValues,
 } from './fish-catch-aggregates-api';
 
 const BAIT_IMAGE_PATH = `/api/v1/bait-images/${'a'.repeat(64)}.png`;
@@ -172,13 +173,17 @@ describe('Fish catch aggregate request', () => {
         limit: 20,
         cursor: 'cursor value',
         intensityOrder: 'asc',
+        orderMode: 'places',
         minIntensity: 30,
+        hasComment: true,
+        hasHole: true,
+        hasSpinning: true,
         signal: controller.signal,
       }),
     ).resolves.toEqual({ items: [decodedAggregate], nextCursor: 'next' });
 
     expect(mocks.apiRequest).toHaveBeenCalledWith(
-      '/catch-reports/statistics/fish-catches?fishId=fish-a&baseIds=base-a%2Cbase-b&limit=20&cursor=cursor+value&intensityOrder=asc&minIntensity=30',
+      '/catch-reports/statistics/fish-catches?fishId=fish-a&baseIds=base-a%2Cbase-b&limit=20&cursor=cursor+value&intensityOrder=asc&orderMode=places&minIntensity=30&hasComment=true&hasHole=true&hasSpinning=true',
       { signal: controller.signal },
     );
   });
@@ -222,5 +227,40 @@ describe('Fish catch aggregate request', () => {
     await expect(
       listFishCatchAggregates({ fishId: 'fish-a', baseIds: ['base-a'] }),
     ).rejects.toThrow('Сервер вернул некорректные агрегированные уловы');
+  });
+});
+
+describe('Fish lazy public values', () => {
+  test('preserves comments, exact depth and raw position with cancellable pagination', async () => {
+    const signal = new AbortController().signal;
+    mocks.apiRequest.mockResolvedValueOnce({
+      items: [{ value: '  исходный комментарий  ' }],
+      nextOffset: null,
+    });
+    await expect(listFishCatchValues(aggregate, 'comment', 0, signal)).resolves.toEqual({
+      items: ['  исходный комментарий  '],
+      nextOffset: null,
+    });
+    expect(mocks.apiRequest).toHaveBeenLastCalledWith(
+      '/catch-reports/statistics/fish-catches/values?fishId=fish-a&locationId=location-a&baitId=bait-a&field=comment&offset=0',
+      { signal },
+    );
+    mocks.apiRequest.mockResolvedValueOnce({
+      items: [{ holeDepthCm: 763, spotPositionRaw: 'Ёлка справа' }],
+      nextOffset: null,
+    });
+    await expect(listFishCatchValues(aggregate, 'hole', 25)).resolves.toEqual({
+      items: [{ holeDepthCm: 763, spotPositionRaw: 'Ёлка справа' }],
+      nextOffset: null,
+    });
+  });
+  test.each([
+    { items: [{ value: 'text', rawSourceText: 'private' }], nextOffset: null },
+    { items: [{ value: 'text' }], nextOffset: 1 },
+    { items: [{ value: '' }], nextOffset: null },
+    { items: [], nextOffset: null, contributorKey: 'private' },
+  ])('rejects malformed or private comment payloads', async (value) => {
+    mocks.apiRequest.mockResolvedValueOnce(value);
+    await expect(listFishCatchValues(aggregate, 'comment', 0)).rejects.toThrow();
   });
 });

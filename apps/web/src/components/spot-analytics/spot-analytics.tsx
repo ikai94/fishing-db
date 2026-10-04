@@ -28,11 +28,13 @@ export function SpotAnalytics({
   showPlace,
   showFishCount,
   disabled = false,
+  headingLevel = 2,
 }: {
   scope: SpotStatisticsScope;
   showPlace: boolean;
   showFishCount: boolean;
   disabled?: boolean;
+  headingLevel?: 2 | 3;
 }) {
   const [offset, setOffset] = useState(0);
   const [attempt, setAttempt] = useState(0);
@@ -104,7 +106,7 @@ export function SpotAnalytics({
     >
       <details>
         <summary className={styles.summary}>
-          <span className={styles.title} id={headingId} role="heading" aria-level={2}>
+          <span className={styles.title} id={headingId} role="heading" aria-level={headingLevel}>
             Ямы и точки
           </span>
           {page !== null && page.totalGroups > 0 ? (

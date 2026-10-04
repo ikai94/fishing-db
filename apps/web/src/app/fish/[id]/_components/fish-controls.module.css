@@ -1,0 +1,51 @@
+/* Локальные стили не меняют остальные каталожные таблицы. */
+.headerButton {
+  display: inline-flex;
+  width: 100%;
+  min-height: 32px;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 5px;
+  padding: 2px 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+.headerButton svg,
+.headerButton span {
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+.headerButton[aria-pressed='true'] {
+  color: var(--app-accent-strong);
+  border-bottom-color: var(--app-accent);
+}
+.headerButton[aria-pressed='true'] svg,
+.headerButton[aria-pressed='true'] span {
+  opacity: 1;
+}
+.headerButton:hover {
+  color: var(--app-accent-strong);
+  background: var(--app-accent-soft);
+}
+.headerButton:focus-visible {
+  outline: 2px solid var(--app-accent-strong);
+  outline-offset: 2px;
+}
+.numericHeader {
+  justify-content: flex-end;
+}
+.conditionTitle {
+  font-weight: 700;
+}
+@media (max-width: 820px) {
+  .headerButton {
+    min-height: 40px;
+  }
+}

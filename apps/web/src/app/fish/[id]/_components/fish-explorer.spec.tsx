@@ -39,6 +39,10 @@ vi.mock('@/components/spot-analytics/spot-analytics', () => ({
   },
 }));
 
+vi.mock('./community-marks', () => ({
+  CommunityMarks: () => <section aria-label="Знания сообщества" />,
+}));
+
 vi.mock('./bait-statistics-list', () => ({
   BaitStatisticsList: ({ items }: { items: Array<{ bait: { id: string; name: string } }> }) => (
     <ul aria-label="Статистика наживок и приманок">
@@ -74,29 +78,58 @@ vi.mock('./public-fish-catch-table', () => ({
     rows,
     intensityOrder,
     onIntensityOrderChange,
+    onPlaceOrderChange,
+    filters,
+    onPresenceFilterChange,
   }: {
     rows: Array<{ id: string }>;
     intensityOrder: 'asc' | 'desc';
     onIntensityOrderChange: (order: 'asc' | 'desc') => void;
+    onPlaceOrderChange: () => void;
+    filters: Record<'hasHole' | 'hasSpinning' | 'hasComment', boolean>;
+    onPresenceFilterChange: (
+      key: 'hasHole' | 'hasSpinning' | 'hasComment',
+      enabled: boolean,
+    ) => void;
   }) => (
-    <>
-      <button
-        type="button"
-        onClick={() => onIntensityOrderChange(intensityOrder === 'asc' ? 'desc' : 'asc')}
-      >
-        Тестовая сортировка: {intensityOrder}
-      </button>
-      <table aria-label="Агрегированные уловы рыбы">
-        <tbody>
-          {rows.map((row, index) => (
-            <tr key={row.id}>
-              <th scope="row">{index + 1}</th>
-              <td>{row.id}</td>
-            </tr>
+    <table aria-label="Агрегированные уловы рыбы">
+      <thead>
+        <tr>
+          <th>
+            <button type="button" onClick={onPlaceOrderChange}>
+              База · Локация
+            </button>
+          </th>
+          {(['hasHole', 'hasSpinning', 'hasComment'] as const).map((key) => (
+            <th key={key}>
+              <button
+                type="button"
+                aria-pressed={filters[key]}
+                onClick={() => onPresenceFilterChange(key, !filters[key])}
+              >
+                {key}
+              </button>
+            </th>
           ))}
-        </tbody>
-      </table>
-    </>
+          <th>
+            <button
+              type="button"
+              onClick={() => onIntensityOrderChange(intensityOrder === 'asc' ? 'desc' : 'asc')}
+            >
+              Тестовая сортировка: {intensityOrder}
+            </button>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row, index) => (
+          <tr key={row.id}>
+            <th scope="row">{index + 1}</th>
+            <td>{row.id}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   ),
 }));
 
@@ -280,7 +313,7 @@ function fishingConditionStatistic(
 }
 
 function sectionNamed(name: string): HTMLElement {
-  const heading = screen.getByText(name, { selector: 'h2, summary span' });
+  const heading = screen.getByText(name, { selector: 'h2, h3, summary span' });
   const section = heading.closest('section');
   if (section === null) throw new Error(`Не найден раздел «${name}»`);
   return section;
@@ -364,17 +397,18 @@ describe('FishExplorer', () => {
       fishId: 'fish-1',
       baseIds: ['base-a', 'base-b'],
     });
-    expect(
-      sectionNamed('Условия ловли в уловах').compareDocumentPosition(
-        sectionNamed('На что ловится'),
-      ),
-    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
-    expect(
-      sectionNamed('На что ловится').compareDocumentPosition(sectionNamed('Ямы и точки')),
-    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
-    expect(sectionNamed('Ямы и точки').compareDocumentPosition(sectionNamed('Уловы'))).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING,
+    expect(screen.queryByRole('heading', { name: /^Условия ловли$/ })).not.toBeInTheDocument();
+    expect(sectionNamed('Ямы и точки').nextElementSibling).toBe(
+      sectionNamed('Условия ловли в уловах'),
     );
+    expect(sectionNamed('Условия ловли в уловах').nextElementSibling).toBe(
+      sectionNamed('На что ловится'),
+    );
+    expect(sectionNamed('На что ловится').nextElementSibling).toBe(sectionNamed('Уловы'));
+    expect(screen.queryByText(/Данные.*▾/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Управление уловами' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Порядок уловов' })).not.toBeInTheDocument();
+
     expect(screen.getByText('Условия ловли в уловах').closest('details')).not.toHaveAttribute(
       'open',
     );
@@ -539,31 +573,41 @@ describe('FishExplorer', () => {
     expect(mocks.listCatchReports).toHaveBeenCalledTimes(2);
   });
 
-  test('refetches complete Location-grouped pages for intensity filters and sorting', async () => {
+  test('refetches pages for numeric order for intensity filters and sorting', async () => {
     const user = userEvent.setup();
     mocks.listCatchReports
       .mockResolvedValueOnce({ items: [testAggregate('all')], nextCursor: null })
+      .mockResolvedValueOnce({ items: [testAggregate('good')], nextCursor: null })
       .mockResolvedValueOnce({ items: [testAggregate('super')], nextCursor: null })
       .mockResolvedValueOnce({ items: [testAggregate('ascending')], nextCursor: null });
-    render(<FishExplorer fish={fish} />);
+    const view = render(<FishExplorer fish={fish} />);
 
     expect(await screen.findByText('all')).toBeVisible();
     expect(screen.getByRole('button', { name: 'Все' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('button', { name: 'Уловистые ≥10' })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: 'Хороший клев' })).toHaveAttribute(
       'aria-pressed',
       'false',
     );
 
-    await user.click(screen.getByRole('button', { name: 'Суперуловистые ≥30' }));
-    expect(await screen.findByText('super')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Хороший клев' }));
+    expect(await screen.findByText('good')).toBeVisible();
     expect(requestAt(1)).toMatchObject({
+      intensityOrder: 'desc',
+      minIntensity: 10,
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Отличный клев' }));
+    expect(await screen.findByText('super')).toBeVisible();
+    expect(requestAt(2)).toMatchObject({
       intensityOrder: 'desc',
       minIntensity: 30,
     });
 
     await user.click(screen.getByRole('button', { name: 'Тестовая сортировка: desc' }));
+    mocks.search = 'intensityOrder=asc';
+    view.rerender(<FishExplorer fish={fish} />);
     expect(await screen.findByText('ascending')).toBeVisible();
-    expect(requestAt(2)).toMatchObject({
+    expect(requestAt(3)).toMatchObject({
       intensityOrder: 'asc',
       minIntensity: 30,
     });
@@ -879,7 +923,7 @@ describe('FishExplorer', () => {
 
     expect(await screen.findByText('report-2')).toBeVisible();
     const catchTable = screen.getByRole('table', { name: 'Агрегированные уловы рыбы' });
-    const catchRows = within(catchTable).getAllByRole('row');
+    const catchRows = within(catchTable).getAllByRole('row').slice(1);
     expect(catchRows).toHaveLength(2);
     expect(catchRows[0]).toHaveTextContent('1report-1');
     expect(catchRows[1]).toHaveTextContent('2report-2');
@@ -1081,13 +1125,49 @@ describe('FishExplorer', () => {
     await pending.promise;
   });
 
+  test('clears aborted pagination when a header filter returns to its previous URL scope', async () => {
+    const pending = deferred<TestPage>();
+    mocks.listCatchReports
+      .mockResolvedValueOnce({ items: [testAggregate('initial')], nextCursor: 'old-cursor' })
+      .mockReturnValueOnce(pending.promise)
+      .mockResolvedValueOnce(emptyPage())
+      .mockResolvedValueOnce({ items: [testAggregate('restored')], nextCursor: 'new-cursor' })
+      .mockResolvedValueOnce({ items: [testAggregate('continued')], nextCursor: null });
+    const view = render(<FishExplorer fish={fish} />);
+    expect(await screen.findByText('initial')).toBeVisible();
+    approachCatchListEnd();
+    await waitFor(() => expect(mocks.listCatchReports).toHaveBeenCalledTimes(2));
+    const signal = requestAt(1).signal;
+    expect(screen.getByText('Загружаем ещё…')).toBeVisible();
+
+    mocks.search = 'hasHole=true';
+    view.rerender(<FishExplorer fish={fish} />);
+    expect(await screen.findByText('Для выбранных баз уловов пока нет.')).toBeVisible();
+    expect(signal.aborted).toBe(true);
+    expect(screen.getByRole('button', { name: 'hasHole' })).toHaveAttribute('aria-pressed', 'true');
+
+    mocks.search = '';
+    view.rerender(<FishExplorer fish={fish} />);
+    expect(await screen.findByText('restored')).toBeVisible();
+    expect(sectionNamed('Уловы')).toHaveAttribute('aria-busy', 'false');
+    expect(screen.queryByText('Загружаем ещё…')).not.toBeInTheDocument();
+    approachCatchListEnd();
+    expect(await screen.findByText('continued')).toBeVisible();
+    expect(requestAt(4)).toMatchObject({ cursor: 'new-cursor', hasHole: false });
+    await act(async () => {
+      pending.resolve({ items: [testAggregate('stale')], nextCursor: null });
+      await pending.promise;
+    });
+    expect(screen.queryByText('stale')).not.toBeInTheDocument();
+  });
+
   test('requests all-Bases analytics when the fish has no active Base memberships', async () => {
     render(<FishExplorer fish={{ ...fish, bases: [] }} />);
 
     expect(screen.getByRole('group', { name: 'Базы обитания' })).toBeVisible();
     expect(screen.getByText('Активных баз обитания пока нет.')).toBeVisible();
     expect(screen.getByText('Все базы')).toBeVisible();
-    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: /Учитывать базу/ })).not.toBeInTheDocument();
     await waitFor(() => expect(mocks.listCatchReports).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(mocks.listBaitStatistics).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(mocks.listFishingConditionStatistics).toHaveBeenCalledTimes(1));
@@ -1096,5 +1176,65 @@ describe('FishExplorer', () => {
     expect(baitStatisticsRequestAt(0)).toMatchObject({ baseIds: [] });
     expect(fishingConditionStatisticsRequestAt(0)).toMatchObject({ baseIds: [] });
     expect(statisticsRequestAt(0)).toMatchObject({ baseIds: [] });
+  });
+});
+
+describe('Fish data-presence filters', () => {
+  test('sends URL-backed AND filters and preserves Base query when toggled', async () => {
+    mocks.search = 'baseId=base-1&hasComment=true&hasHole=true&hasSpinning=true&orderMode=places';
+    mocks.listCatchReports.mockResolvedValue({ items: [], nextCursor: null });
+    const { FishReportFeed } = await import('./fish-explorer');
+    render(<FishReportFeed fishId="fish-1" selectedBaseIds={[]} scopeKey="test" />);
+    await waitFor(() =>
+      expect(mocks.listCatchReports).toHaveBeenCalledWith(
+        expect.objectContaining({ hasComment: true, hasHole: true, hasSpinning: true }),
+      ),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'hasComment' }));
+    expect(mocks.routerReplace).toHaveBeenCalledWith(
+      '/fish/fish-1?baseId=base-1&hasHole=true&hasSpinning=true&orderMode=places',
+      { scroll: false },
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'hasSpinning' }));
+    expect(mocks.routerReplace).toHaveBeenLastCalledWith(
+      '/fish/fish-1?baseId=base-1&hasComment=true&hasHole=true&orderMode=places',
+      { scroll: false },
+    );
+  });
+});
+
+describe('Fish URL order modes', () => {
+  test('restores selected mode, changes it preserving filters, aborts stale pages', async () => {
+    mocks.listCatchReports.mockReset();
+    mocks.listCatchReports.mockResolvedValue({ items: [], nextCursor: null });
+    mocks.routerReplace.mockReset();
+    mocks.search = 'orderMode=places&intensityOrder=asc&hasComment=true&hasHole=true';
+    const { FishReportFeed } = await import('./fish-explorer');
+    const ids: string[] = [];
+    const view = render(<FishReportFeed fishId="fish-1" selectedBaseIds={ids} scopeKey="test" />);
+    await waitFor(() =>
+      expect(mocks.listCatchReports).toHaveBeenCalledWith(
+        expect.objectContaining({ orderMode: 'places', hasComment: true, hasHole: true }),
+      ),
+    );
+    const signal = mocks.listCatchReports.mock.calls[0][0].signal as AbortSignal;
+    fireEvent.click(screen.getByRole('button', { name: 'Тестовая сортировка: asc' }));
+    expect(mocks.routerReplace).toHaveBeenLastCalledWith(
+      '/fish/fish-1?hasComment=true&hasHole=true',
+      { scroll: false },
+    );
+    mocks.search = 'intensityOrder=asc&hasComment=true&hasHole=true';
+    view.rerender(<FishReportFeed fishId="fish-1" selectedBaseIds={ids} scopeKey="test" />);
+    await waitFor(() =>
+      expect(mocks.listCatchReports).toHaveBeenLastCalledWith(
+        expect.objectContaining({ orderMode: 'catches', intensityOrder: 'asc' }),
+      ),
+    );
+    expect(signal.aborted).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'База · Локация' }));
+    expect(mocks.routerReplace).toHaveBeenLastCalledWith(
+      '/fish/fish-1?intensityOrder=asc&hasComment=true&hasHole=true&orderMode=places',
+      { scroll: false },
+    );
   });
 });

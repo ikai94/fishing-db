@@ -3,6 +3,9 @@ import { isBaseFishWeightClassification, type BaseFishWeightAssessment } from '.
 import type { SpinningSize, SpinningSpeed } from './catch-reports-api';
 import { decodePublicBaitImage, type PublicBaitImage } from './catalog-api';
 
+/** Сервер сортирует все строки до пагинации в одном из двух режимов. */
+export type FishCatchOrderMode = 'catches' | 'places';
+
 export type FishCatchIntensityOrder = 'asc' | 'desc';
 
 export type FishCatchSpinningCombination = {
@@ -48,8 +51,19 @@ export type ListFishCatchAggregatesOptions = {
   cursor?: string | null;
   limit?: number;
   intensityOrder?: FishCatchIntensityOrder;
+  orderMode?: FishCatchOrderMode;
   minIntensity?: number;
+  hasComment?: boolean;
+  hasHole?: boolean;
+  hasSpinning?: boolean;
   signal?: AbortSignal;
+};
+
+/** Наличие публичных данных строки; каждый включённый флаг добавляет AND-условие. */
+export type FishCatchPresenceFilters = {
+  hasHole: boolean;
+  hasSpinning: boolean;
+  hasComment: boolean;
 };
 
 const MAX_BASE_IDS = 100;
@@ -297,7 +311,11 @@ export async function listFishCatchAggregates({
   cursor,
   limit,
   intensityOrder,
+  orderMode,
   minIntensity,
+  hasComment,
+  hasHole,
+  hasSpinning,
   signal,
 }: ListFishCatchAggregatesOptions): Promise<FishCatchAggregatePage> {
   const canonicalBaseIds = [...new Set(baseIds)].sort();
@@ -310,6 +328,9 @@ export async function listFishCatchAggregates({
   if (intensityOrder !== undefined && intensityOrder !== 'asc' && intensityOrder !== 'desc') {
     throw new Error('Порядок агрегированных уловов должен быть asc или desc');
   }
+  if (orderMode !== undefined && orderMode !== 'catches' && orderMode !== 'places') {
+    throw new Error('Режим порядка должен быть catches или places');
+  }
   if (minIntensity !== undefined && (!Number.isSafeInteger(minIntensity) || minIntensity < 1)) {
     throw new Error('Минимум агрегированных уловов должен быть положительным целым числом');
   }
@@ -319,7 +340,11 @@ export async function listFishCatchAggregates({
   if (limit !== undefined) query.set('limit', String(limit));
   if (cursor) query.set('cursor', cursor);
   if (intensityOrder !== undefined) query.set('intensityOrder', intensityOrder);
+  if (orderMode !== undefined) query.set('orderMode', orderMode);
   if (minIntensity !== undefined) query.set('minIntensity', String(minIntensity));
+  if (hasComment) query.set('hasComment', 'true');
+  if (hasHole) query.set('hasHole', 'true');
+  if (hasSpinning) query.set('hasSpinning', 'true');
 
   const payload = await apiRequest<unknown>(
     `/catch-reports/statistics/fish-catches?${query.toString()}`,
@@ -337,4 +362,52 @@ export async function listFishCatchAggregates({
     invalidResponse();
   }
   return page;
+}
+
+/** Страница точных публичных значений одной строки, без исходного приватного текста. */
+export type FishCatchValuesPage = {
+  items: (string | NonNullable<FishCatchHoleSpotSummary['value']>)[];
+  nextOffset: number | null;
+};
+
+/** Строго декодирует ленивое раскрытие, сохраняя пробелы и исходные ориентиры. */
+export async function listFishCatchValues(
+  row: Pick<FishCatchAggregate, 'fish' | 'location' | 'bait'>,
+  field: 'comment' | 'hole',
+  offset: number,
+  signal?: AbortSignal,
+): Promise<FishCatchValuesPage> {
+  const query = new URLSearchParams({
+    fishId: row.fish.id,
+    locationId: row.location.id,
+    baitId: row.bait.id,
+    field,
+    offset: String(offset),
+  });
+  const response = await apiRequest<unknown>(
+    `/catch-reports/statistics/fish-catches/values?${query}`,
+    { signal },
+  );
+  if (
+    !isRecord(response) ||
+    !hasExactKeys(response, ['items', 'nextOffset']) ||
+    !Array.isArray(response.items) ||
+    response.items.length > 25 ||
+    (response.nextOffset !== null && response.nextOffset !== offset + 25)
+  )
+    invalidResponse();
+  const items = response.items.map((raw) => {
+    if (field === 'comment') {
+      if (
+        !isRecord(raw) ||
+        !hasExactKeys(raw, ['value']) ||
+        typeof raw.value !== 'string' ||
+        !raw.value.length
+      )
+        invalidResponse();
+      return raw.value;
+    }
+    return readHoleSpotSummary({ distinctCount: 1, value: raw }, 1).value!;
+  });
+  return { items, nextOffset: response.nextOffset as number | null };
 }

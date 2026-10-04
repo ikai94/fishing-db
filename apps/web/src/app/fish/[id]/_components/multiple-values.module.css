@@ -1,0 +1,40 @@
+.disclosure {
+  white-space: normal;
+  max-width: 24rem;
+}
+.disclosure summary {
+  cursor: pointer;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--app-accent-strong);
+  font-weight: 600;
+}
+.disclosure summary:focus-visible {
+  outline: 2px solid var(--app-accent-strong);
+  outline-offset: 2px;
+}
+.disclosure ul {
+  max-height: 15rem;
+  overflow-y: auto;
+  padding: 0.4rem 0.4rem 0.4rem 1.3rem;
+  margin: 0;
+  background: #f5f8f6;
+  border-radius: 0.3rem;
+}
+.disclosure li {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  padding: 0.2rem 0;
+}
+.single {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.disclosure button {
+  min-height: 40px;
+  padding: 0.3rem 0.6rem;
+  cursor: pointer;
+}

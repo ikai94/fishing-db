@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, test, vi } from 'vitest';
 import styles from '../../../public-catalog.module.css';
 import type { FishCatchAggregate } from '@/lib/fish-catch-aggregates-api';
@@ -13,6 +14,12 @@ import {
   formatSpinningCombinations,
   PublicFishCatchTable,
 } from './public-fish-catch-table';
+
+const headerControls = {
+  onPlaceOrderChange: () => undefined,
+  filters: { hasHole: false, hasComment: false, hasSpinning: false },
+  onPresenceFilterChange: () => undefined,
+};
 
 const aggregate: FishCatchAggregate = {
   fish: { id: 'fish-1', name: 'Сом' },
@@ -71,12 +78,12 @@ describe('public Fish catch formatters', () => {
 
   test('formats the approved speed/size abbreviations and empty fallback', () => {
     expect(formatSpinningCombination({ spinningSpeed: 'SLOW', spinningSize: 'SMALL' })).toBe(
-      'медл/мал',
+      'мал/медл',
     );
     expect(formatSpinningCombination({ spinningSpeed: 'FAST', spinningSize: null })).toBe(
-      'быстр/-',
+      '-/быстр',
     );
-    expect(formatSpinningCombination({ spinningSpeed: null, spinningSize: 'LARGE' })).toBe('-/бол');
+    expect(formatSpinningCombination({ spinningSpeed: null, spinningSize: 'LARGE' })).toBe('бол/-');
     expect(formatSpinningCombinations([])).toBe('—');
   });
 
@@ -86,7 +93,7 @@ describe('public Fish catch formatters', () => {
     expect(formatFishCatchTextSummary({ distinctCount: 1, value: '  у блокнота  ' })).toBe(
       '  у блокнота  ',
     );
-    expect(formatFishCatchTextSummary({ distinctCount: 3, value: null })).toBe('несколько (3)');
+    expect(formatFishCatchTextSummary({ distinctCount: 3, value: null })).toBe('3 варианта');
   });
 
   test('formats every approved hole/landmark summary state', () => {
@@ -109,15 +116,70 @@ describe('public Fish catch formatters', () => {
       }),
     ).toBe('справа');
     expect(formatFishCatchHoleSpotSummary({ distinctCount: 0, value: null })).toBe('—');
-    expect(formatFishCatchHoleSpotSummary({ distinctCount: 3, value: null })).toBe('несколько (3)');
+    expect(formatFishCatchHoleSpotSummary({ distinctCount: 3, value: null })).toBe('3 варианта');
   });
 });
 
 describe('PublicFishCatchTable', () => {
+  test('header filters toggle independently and remain available without matching rows', async () => {
+    const user = userEvent.setup();
+    const onPresenceFilterChange = vi.fn();
+    const onPlaceOrderChange = vi.fn();
+    const view = render(
+      <PublicFishCatchTable
+        {...headerControls}
+        rows={[]}
+        intensityOrder="desc"
+        orderMode="places"
+        onIntensityOrderChange={() => undefined}
+        onPlaceOrderChange={onPlaceOrderChange}
+        onPresenceFilterChange={onPresenceFilterChange}
+        filters={{ hasHole: true, hasSpinning: false, hasComment: true }}
+      />,
+    );
+    const base = screen.getByRole('button', { name: 'База · Локация' });
+    expect(base).toHaveAttribute('aria-pressed', 'true');
+    base.focus();
+    await user.keyboard('{Enter}');
+    expect(onPlaceOrderChange).toHaveBeenCalledOnce();
+    for (const [label, key, active] of [
+      ['Яма / ориентир', 'hasHole', true],
+      ['Размер / проводка', 'hasSpinning', false],
+      ['Комментарий', 'hasComment', true],
+    ] as const) {
+      const button = screen.getByRole('button', { name: label });
+      expect(button).toHaveAttribute('aria-pressed', String(active));
+      fireEvent.click(button);
+      expect(onPresenceFilterChange).toHaveBeenLastCalledWith(key, !active);
+    }
+    view.unmount();
+  });
+
+  test('shows a neutral count header in place order and enters descending catch order', () => {
+    const changeOrder = vi.fn();
+    render(
+      <PublicFishCatchTable
+        {...headerControls}
+        rows={[aggregate]}
+        orderMode="places"
+        intensityOrder="asc"
+        onIntensityOrderChange={changeOrder}
+      />,
+    );
+
+    expect(screen.getByRole('columnheader', { name: /Уловы/ })).toHaveAttribute(
+      'aria-sort',
+      'none',
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Уловы: сортировать по убыванию' }));
+    expect(changeOrder).toHaveBeenCalledWith('desc');
+  });
+
   test('renders one compact row per aggregate identity with observed/BaseFish maximum wording', () => {
     const changeOrder = vi.fn();
     render(
       <PublicFishCatchTable
+        {...headerControls}
         intensityOrder="desc"
         onIntensityOrderChange={changeOrder}
         rows={[
@@ -145,10 +207,10 @@ describe('PublicFishCatchTable', () => {
         .map((header) => header.textContent),
     ).toEqual([
       '№',
-      'База · Локация',
+      'База · Локация ↕',
       'Яма / ориентир',
       'На что',
-      'Проводка / размер',
+      'Размер / проводка',
       'Комментарий',
       'Уловы↓',
       'Наблюдаемый / максимальный вес',
@@ -156,10 +218,10 @@ describe('PublicFishCatchTable', () => {
     const rows = within(table).getAllByRole('row');
     expect(rows).toHaveLength(3);
     expect(rows[1]).toHaveTextContent(
-      '1Ахтуба, 7. Судачий откос6.03 м над лескойМотыльСейчас неактивнаср/ср, ср/бол, ср/-, -/болнесколько (2)181.25 кг / 2 кг',
+      '1Ахтуба, 7. Судачий откос6.03 м над лескойМотыльСейчас неактивна4 варианта ▾ср/србол/ср-/србол/-2 варианта ▾Загружаем варианты…181.25 кг / 2 кг',
     );
     expect(rows[2]).toHaveTextContent(
-      '2Ахтуба, 7. Судачий откос6.03 м над лескойОпарышср/ср, ср/бол, ср/-, -/болнесколько (2)31.25 кг / 2 кг',
+      '2Ахтуба, 7. Судачий откос6.03 м над лескойОпарыш4 варианта ▾ср/србол/ср-/србол/-2 варианта ▾Загружаем варианты…31.25 кг / 2 кг',
     );
     expect(within(rows[1]!).getByTitle('Ахтуба, 7. Судачий откос')).toHaveTextContent(
       'Ахтуба, 7. Судачий откос',
@@ -182,6 +244,7 @@ describe('PublicFishCatchTable', () => {
   test('contains no author, date, private field, or report-detail UI', () => {
     render(
       <PublicFishCatchTable
+        {...headerControls}
         rows={[aggregate]}
         intensityOrder="desc"
         onIntensityOrderChange={() => undefined}
@@ -197,6 +260,7 @@ describe('PublicFishCatchTable', () => {
   test('renders a neutral count badge below 50 and a high-count badge from 50', () => {
     render(
       <PublicFishCatchTable
+        {...headerControls}
         intensityOrder="desc"
         onIntensityOrderChange={() => undefined}
         rows={[
@@ -219,6 +283,7 @@ describe('PublicFishCatchTable', () => {
     const longComment = 'Длинный комментарий '.repeat(20).trim();
     render(
       <PublicFishCatchTable
+        {...headerControls}
         intensityOrder="desc"
         onIntensityOrderChange={() => undefined}
         rows={[
@@ -239,6 +304,7 @@ describe('PublicFishCatchTable', () => {
   test('shows only anomaly classifications and an unknown BaseFish maximum fallback', () => {
     const { rerender } = render(
       <PublicFishCatchTable
+        {...headerControls}
         intensityOrder="desc"
         onIntensityOrderChange={() => undefined}
         rows={[
@@ -257,6 +323,7 @@ describe('PublicFishCatchTable', () => {
 
     rerender(
       <PublicFishCatchTable
+        {...headerControls}
         intensityOrder="desc"
         onIntensityOrderChange={() => undefined}
         rows={[
@@ -276,6 +343,7 @@ describe('PublicFishCatchTable', () => {
 
     rerender(
       <PublicFishCatchTable
+        {...headerControls}
         rows={[aggregate]}
         intensityOrder="desc"
         onIntensityOrderChange={() => undefined}

@@ -13,6 +13,8 @@ const CURSOR: FishCatchAggregateCursor = {
   locationNumber: 7,
   locationId: '70000000-0000-4000-8000-000000000001',
   intensity: 18,
+  orderMode: 'catches',
+  intensityOrder: 'desc',
   baitNameNormalized: 'мотыль',
   baitId: '50000000-0000-4000-8000-000000000001',
 };
@@ -29,6 +31,8 @@ void describe('Fish catch aggregate cursor', () => {
     for (const value of [
       '',
       'not-json',
+      Buffer.from(JSON.stringify({ ...CURSOR, orderMode: undefined })).toString('base64url'),
+      Buffer.from(JSON.stringify({ ...CURSOR, orderMode: 'invalid' })).toString('base64url'),
       Buffer.from(JSON.stringify({ ...CURSOR, intensity: 0 })).toString('base64url'),
       Buffer.from(JSON.stringify({ ...CURSOR, baitId: undefined })).toString('base64url'),
       Buffer.from(JSON.stringify({ ...CURSOR, extra: true })).toString('base64url'),

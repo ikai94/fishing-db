@@ -12,8 +12,11 @@ import type { PublicFishDetail } from '@/lib/catalog-api';
 import {
   type FishCatchAggregate,
   type FishCatchIntensityOrder,
+  type FishCatchOrderMode,
+  type FishCatchPresenceFilters,
   listFishCatchAggregates,
 } from '@/lib/fish-catch-aggregates-api';
+import { readFishCatchOrder, writeFishCatchOrder } from '@/lib/fish-catch-order';
 import { readFishBaseSelection, writeFishBaseSelection } from '@/lib/fish-base-selection';
 import {
   type FishingConditionStatistic,
@@ -21,13 +24,15 @@ import {
 } from '@/lib/fishing-condition-statistics-api';
 import { BaitStatisticsList } from './bait-statistics-list';
 import { FishingConditionStatisticsTable } from './fishing-condition-statistics-table';
+import controls from './fish-controls.module.css';
+import { CommunityMarks } from './community-marks';
 import { PublicFishCatchTable } from './public-fish-catch-table';
 
 const AGGREGATE_PAGE_SIZE = 20;
 const INTENSITY_FILTERS = [
   { label: 'Все', minIntensity: null },
-  { label: 'Уловистые ≥10', minIntensity: 10 },
-  { label: 'Суперуловистые ≥30', minIntensity: 30 },
+  { label: 'Хороший клев', minIntensity: 10 },
+  { label: 'Отличный клев', minIntensity: 30 },
 ] as const;
 
 type FeedState =
@@ -59,6 +64,7 @@ type ActiveRequest = {
   scopeKey: string;
 };
 
+/** Сохраняет общий охват баз для исторической статистики и независимые отметки Fish. */
 export function FishExplorer({ fish }: { fish: PublicFishDetail }) {
   const searchParams = useSearchParams();
   const searchKey = searchParams.toString();
@@ -77,6 +83,7 @@ export function FishExplorer({ fish }: { fish: PublicFishDetail }) {
   );
 }
 
+/** Организует компактные разделы и синхронизирует выбор баз с URL. */
 function FishExplorerState({
   fish,
   availableBaseIds,
@@ -141,6 +148,14 @@ function FishExplorerState({
       </aside>
 
       <div className={styles.fishExplorerContent}>
+        <CommunityMarks key={fish.id} fishId={fish.id} />
+        <SpotAnalytics
+          key={`spots:${scopeKey}`}
+          scope={{ kind: 'fish', fishId: fish.id, baseIds: canonicalSelectedBaseIds }}
+          showFishCount={false}
+          showPlace
+        />
+
         <FishConditionStatistics
           key={`fishing-condition-statistics:${scopeKey}`}
           fishId={fish.id}
@@ -163,13 +178,6 @@ function FishExplorerState({
               ? 'Обновляем статистику наживок и приманок…'
               : 'Загружаем статистику наживок и приманок…'
           }
-        />
-
-        <SpotAnalytics
-          key={`spots:${scopeKey}`}
-          scope={{ kind: 'fish', fishId: fish.id, baseIds: canonicalSelectedBaseIds }}
-          showFishCount={false}
-          showPlace
         />
 
         <FishReportFeed
@@ -258,6 +266,7 @@ function BaseMembershipSelector({
   );
 }
 
+/** Сохраняет детализацию исторических условий в дополнительном раскрытии. */
 export function FishConditionStatistics({
   fishId,
   selectedBaseIds,
@@ -345,7 +354,12 @@ export function FishConditionStatistics({
     >
       <details className={styles.conditionDisclosure}>
         <summary className={styles.conditionDisclosureSummary}>
-          <span className={styles.sectionTitle} id="fish-fishing-condition-statistics-heading">
+          <span
+            className={`${styles.sectionTitle} ${controls.conditionTitle}`}
+            id="fish-fishing-condition-statistics-heading"
+            role="heading"
+            aria-level={2}
+          >
             Условия ловли в уловах
           </span>
         </summary>
@@ -380,6 +394,7 @@ export function FishConditionStatistics({
   );
 }
 
+/** Загружает наживки в общем охвате баз после раздела ям и точек. */
 export function FishBaitStatistics({
   fishId,
   selectedBaseIds,
@@ -499,10 +514,11 @@ export function FishBaitStatistics({
   );
 }
 
+/** Отменяет устаревшие страницы при смене сортировки или AND-фильтра данных. */
 export function FishReportFeed({
   fishId,
   selectedBaseIds,
-  scopeKey,
+  scopeKey: baseScopeKey,
   loadingMessage = 'Загружаем уловы…',
 }: {
   fishId: string;
@@ -510,12 +526,19 @@ export function FishReportFeed({
   scopeKey: string;
   loadingMessage?: string;
 }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const hasComment = searchParams.get('hasComment') === 'true';
+  const hasHole = searchParams.get('hasHole') === 'true';
+  const hasSpinning = searchParams.get('hasSpinning') === 'true';
+  const { orderMode, intensityOrder } = readFishCatchOrder(searchParams);
+  // Порядок и фильтры входят в область запроса: устаревшие страницы сразу скрываются.
+  const scopeKey = `${baseScopeKey}:${hasComment}:${hasHole}:${hasSpinning}:${orderMode}:${intensityOrder}`;
   const revisionRef = useRef(0);
   const initialRequestRef = useRef<ActiveRequest | null>(null);
   const loadMoreRequestRef = useRef<ActiveRequest | null>(null);
   const paginationSentinelRef = useRef<HTMLDivElement | null>(null);
   const [attempt, setAttempt] = useState(0);
-  const [intensityOrder, setIntensityOrder] = useState<FishCatchIntensityOrder>('desc');
   const [minIntensity, setMinIntensity] = useState<number | null>(null);
   const [state, setState] = useState<FeedState>(() => ({ kind: 'loading', scopeKey }));
   const [loadingMoreScope, setLoadingMoreScope] = useState<string | null>(null);
@@ -544,11 +567,18 @@ export function FishReportFeed({
           baseIds: [...selectedBaseIds],
           limit: AGGREGATE_PAGE_SIZE,
           intensityOrder,
+          orderMode,
+          hasComment,
+          hasHole,
+          hasSpinning,
           ...(minIntensity === null ? {} : { minIntensity }),
           signal: controller.signal,
         });
         if (!isCurrentRequest(initialRequestRef.current, request, scopeKey, revisionRef.current))
           return;
+        // При возврате к прежнему URL не восстанавливаем флаг отменённого продолжения.
+        setLoadingMoreScope(null);
+        setPaginationError(null);
         setState({
           kind: 'ready',
           scopeKey,
@@ -558,6 +588,8 @@ export function FishReportFeed({
       } catch (error) {
         if (!isCurrentRequest(initialRequestRef.current, request, scopeKey, revisionRef.current))
           return;
+        setLoadingMoreScope(null);
+        setPaginationError(null);
         setState({
           kind: 'error',
           scopeKey,
@@ -578,7 +610,18 @@ export function FishReportFeed({
       controller.abort();
       if (initialRequestRef.current === request) initialRequestRef.current = null;
     };
-  }, [attempt, fishId, intensityOrder, minIntensity, scopeKey, selectedBaseIds]);
+  }, [
+    attempt,
+    fishId,
+    intensityOrder,
+    orderMode,
+    minIntensity,
+    hasComment,
+    hasHole,
+    hasSpinning,
+    scopeKey,
+    selectedBaseIds,
+  ]);
 
   useEffect(
     () => () => {
@@ -620,6 +663,10 @@ export function FishReportFeed({
         cursor,
         limit: AGGREGATE_PAGE_SIZE,
         intensityOrder,
+        orderMode,
+        hasComment,
+        hasHole,
+        hasSpinning,
         ...(minIntensity === null ? {} : { minIntensity }),
         signal: controller.signal,
       });
@@ -651,16 +698,46 @@ export function FishReportFeed({
         setLoadingMoreScope((current) => (current === scopeKey ? null : current));
       }
     }
-  }, [fishId, intensityOrder, minIntensity, scopeKey, selectedBaseIds, state]);
+  }, [
+    fishId,
+    intensityOrder,
+    orderMode,
+    minIntensity,
+    hasComment,
+    hasHole,
+    hasSpinning,
+    scopeKey,
+    selectedBaseIds,
+    state,
+  ]);
 
+  /** Смена порядка сохраняет URL и начинает новую выдачу без старого курсора. */
+  function changeOrder(
+    mode: FishCatchOrderMode,
+    direction: FishCatchIntensityOrder = intensityOrder,
+  ) {
+    const search = writeFishCatchOrder(searchParams.toString(), {
+      orderMode: mode,
+      intensityOrder: direction,
+    });
+    router.replace(`/fish/${encodeURIComponent(fishId)}${search ? `?${search}` : ''}`, {
+      scroll: false,
+    });
+  }
+
+  /** Каждый флаг добавляет AND-условие, сохраняя порядок, охват и остальные фильтры URL. */
+  function changePresence(key: keyof FishCatchPresenceFilters, enabled: boolean) {
+    const search = new URLSearchParams(searchParams.toString());
+    if (enabled) search.set(key, 'true');
+    else search.delete(key);
+    router.replace(`/fish/${encodeURIComponent(fishId)}${search.size ? `?${search}` : ''}`, {
+      scroll: false,
+    });
+  }
+
+  /** Нажатие заголовка колонки всегда включает глобальную числовую сортировку. */
   function changeIntensityOrder(order: FishCatchIntensityOrder) {
-    if (order === intensityOrder) return;
-    loadMoreRequestRef.current?.controller.abort();
-    loadMoreRequestRef.current = null;
-    setLoadingMoreScope(null);
-    setPaginationError(null);
-    setState({ kind: 'loading', scopeKey });
-    setIntensityOrder(order);
+    changeOrder('catches', order);
   }
 
   function changeMinIntensity(value: number | null) {
@@ -728,34 +805,37 @@ export function FishReportFeed({
         </div>
       ) : null}
 
+      <div className={styles.catchTableToolbar} role="group" aria-label="Фильтр уловистости">
+        {INTENSITY_FILTERS.map((filter) => (
+          <button
+            className={`${styles.intensityFilterButton} ${minIntensity === filter.minIntensity ? styles.intensityFilterButtonActive : ''}`}
+            key={filter.label}
+            type="button"
+            aria-pressed={minIntensity === filter.minIntensity}
+            onClick={() => changeMinIntensity(filter.minIntensity)}
+          >
+            {filter.label}
+          </button>
+        ))}
+      </div>
+      <PublicFishCatchTable
+        rows={currentState?.kind === 'ready' ? currentState.items : []}
+        orderMode={orderMode}
+        intensityOrder={intensityOrder}
+        onIntensityOrderChange={changeIntensityOrder}
+        onPlaceOrderChange={() => changeOrder('places')}
+        filters={{ hasComment, hasHole, hasSpinning }}
+        onPresenceFilterChange={changePresence}
+      />
       {currentState?.kind === 'ready' ? (
         <>
-          <div className={styles.catchTableToolbar} role="group" aria-label="Фильтр уловистости">
-            {INTENSITY_FILTERS.map((filter) => (
-              <button
-                className={`${styles.intensityFilterButton} ${minIntensity === filter.minIntensity ? styles.intensityFilterButtonActive : ''}`}
-                key={filter.label}
-                type="button"
-                aria-pressed={minIntensity === filter.minIntensity}
-                onClick={() => changeMinIntensity(filter.minIntensity)}
-              >
-                {filter.label}
-              </button>
-            ))}
-          </div>
-          {currentState.items.length > 0 ? (
-            <PublicFishCatchTable
-              rows={currentState.items}
-              intensityOrder={intensityOrder}
-              onIntensityOrderChange={changeIntensityOrder}
-            />
-          ) : (
+          {currentState.items.length === 0 ? (
             <p className={styles.statusMessage}>
               {minIntensity === null
                 ? 'Для выбранных баз уловов пока нет.'
                 : 'Для выбранного фильтра уловов пока нет.'}
             </p>
-          )}
+          ) : null}
           {currentPaginationError ? (
             <div className={`${styles.statusMessage} ${styles.errorMessage}`} role="alert">
               <p>{currentPaginationError}</p>

@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import type {
   FishCatchAggregateQueryDto,
   FishCatchIntensityOrder,
+  FishCatchOrderMode,
 } from './dto/fish-catch-aggregate-query.dto.js';
 import {
   decodeFishCatchAggregateCursor,
@@ -13,6 +14,7 @@ import {
   InvalidFishCatchAggregateCursorError,
   type FishCatchAggregateCursor,
 } from './fish-catch-aggregate-pagination.js';
+import type { FishCatchValuesQueryDto } from './dto/fish-catch-values-query.dto.js';
 import { catchReportErrors } from './catch-reports.errors.js';
 
 type SpinningSize = 'SMALL' | 'MEDIUM' | 'LARGE';
@@ -190,80 +192,55 @@ function readHoleSpotSummary(
   };
 }
 
+/** В режиме уловов только число строки задаёт приоритет; UUID разрешают равенство для пагинации. */
 function cursorPredicate(
   cursor: FishCatchAggregateCursor | undefined,
-  intensityOrder: FishCatchIntensityOrder,
+  order: FishCatchIntensityOrder,
+  mode: FishCatchOrderMode,
 ): Prisma.Sql {
-  if (cursor === undefined) return Prisma.empty;
-
-  const intensity = BigInt(cursor.intensity);
-  const intensityComparison =
-    intensityOrder === 'asc'
-      ? Prisma.sql`aggregate_row."intensity" > ${intensity}`
-      : Prisma.sql`aggregate_row."intensity" < ${intensity}`;
-  return Prisma.sql`
-    (
-      aggregate_row."baseNameNormalized" COLLATE "C" > ${cursor.baseNameNormalized}
-      OR (
-        aggregate_row."baseNameNormalized" COLLATE "C" = ${cursor.baseNameNormalized}
-        AND aggregate_row."baseId" > ${cursor.baseId}::uuid
-      )
-      OR (
-        aggregate_row."baseNameNormalized" COLLATE "C" = ${cursor.baseNameNormalized}
-        AND aggregate_row."baseId" = ${cursor.baseId}::uuid
-        AND aggregate_row."locationNumber" > ${cursor.locationNumber}
-      )
-      OR (
-        aggregate_row."baseNameNormalized" COLLATE "C" = ${cursor.baseNameNormalized}
-        AND aggregate_row."baseId" = ${cursor.baseId}::uuid
-        AND aggregate_row."locationNumber" = ${cursor.locationNumber}
-        AND aggregate_row."locationId" > ${cursor.locationId}::uuid
-      )
-      OR (
-        aggregate_row."baseNameNormalized" COLLATE "C" = ${cursor.baseNameNormalized}
-        AND aggregate_row."baseId" = ${cursor.baseId}::uuid
-        AND aggregate_row."locationNumber" = ${cursor.locationNumber}
-        AND aggregate_row."locationId" = ${cursor.locationId}::uuid
-        AND ${intensityComparison}
-      )
-      OR (
-        aggregate_row."baseNameNormalized" COLLATE "C" = ${cursor.baseNameNormalized}
-        AND aggregate_row."baseId" = ${cursor.baseId}::uuid
-        AND aggregate_row."locationNumber" = ${cursor.locationNumber}
-        AND aggregate_row."locationId" = ${cursor.locationId}::uuid
-        AND aggregate_row."intensity" = ${intensity}
-        AND aggregate_row."baitNameNormalized" COLLATE "C" > ${cursor.baitNameNormalized}
-      )
-      OR (
-        aggregate_row."baseNameNormalized" COLLATE "C" = ${cursor.baseNameNormalized}
-        AND aggregate_row."baseId" = ${cursor.baseId}::uuid
-        AND aggregate_row."locationNumber" = ${cursor.locationNumber}
-        AND aggregate_row."locationId" = ${cursor.locationId}::uuid
-        AND aggregate_row."intensity" = ${intensity}
-        AND aggregate_row."baitNameNormalized" COLLATE "C" = ${cursor.baitNameNormalized}
-        AND aggregate_row."baitId" > ${cursor.baitId}::uuid
-      )
-    )
-  `;
+  if (!cursor) return Prisma.empty;
+  const count = BigInt(cursor.intensity);
+  const comparison =
+    order === 'asc' && mode === 'catches'
+      ? Prisma.sql`aggregate_row."intensity" > ${count}`
+      : Prisma.sql`aggregate_row."intensity" < ${count}`;
+  if (mode === 'catches')
+    return Prisma.sql`(${comparison} OR (aggregate_row."intensity" = ${count} AND
+    (aggregate_row."locationId", aggregate_row."baitId") > (${cursor.locationId}::uuid, ${cursor.baitId}::uuid)))`;
+  const place = Prisma.sql`(aggregate_row."baseNameNormalized" COLLATE "C", aggregate_row."baseId", aggregate_row."locationNumber", aggregate_row."locationId")`;
+  const previousPlace = Prisma.sql`(${cursor.baseNameNormalized} COLLATE "C", ${cursor.baseId}::uuid, ${cursor.locationNumber}, ${cursor.locationId}::uuid)`;
+  return Prisma.sql`(${place} > ${previousPlace} OR (${place} = ${previousPlace} AND (${comparison} OR (
+    aggregate_row."intensity" = ${count} AND (aggregate_row."baitNameNormalized" COLLATE "C", aggregate_row."baitId") > (${cursor.baitNameNormalized} COLLATE "C", ${cursor.baitId}::uuid)))))`;
 }
 
+/** Фильтрует готовые строки, сохраняя их счётчики и сводки наблюдений. */
 function pageWhere(
   cursor: FishCatchAggregateCursor | undefined,
-  intensityOrder: FishCatchIntensityOrder,
+  order: FishCatchIntensityOrder,
   minIntensity: number | undefined,
+  hasComment?: boolean,
+  hasHole?: boolean,
+  baseIds: readonly string[] = [],
+  orderMode: FishCatchOrderMode = 'catches',
+  hasSpinning?: boolean,
 ): Prisma.Sql {
-  const afterCursor = cursorPredicate(cursor, intensityOrder);
-  const meetsMinimum =
-    minIntensity === undefined
-      ? Prisma.empty
-      : Prisma.sql`aggregate_row."intensity" >= ${BigInt(minIntensity)}`;
-
-  if (cursor === undefined && minIntensity === undefined) return Prisma.empty;
-  if (cursor === undefined) return Prisma.sql`WHERE ${meetsMinimum}`;
-  if (minIntensity === undefined) return Prisma.sql`WHERE ${afterCursor}`;
-  return Prisma.sql`WHERE ${meetsMinimum} AND ${afterCursor}`;
+  const predicates: Prisma.Sql[] = [];
+  if (baseIds.length)
+    predicates.push(
+      Prisma.sql`aggregate_row."baseId" IN (${Prisma.join(baseIds.map((id) => Prisma.sql`${id}::uuid`))})`,
+    );
+  if (cursor) predicates.push(cursorPredicate(cursor, order, orderMode));
+  if (minIntensity !== undefined)
+    predicates.push(Prisma.sql`aggregate_row."intensity" >= ${BigInt(minIntensity)}`);
+  if (hasComment) predicates.push(Prisma.sql`aggregate_row."userNoteRawDistinctCount" > 0`);
+  if (hasHole) predicates.push(Prisma.sql`aggregate_row."holeSpotDistinctCount" > 0`);
+  // Используем готовую публичную сводку: наличие любого из двух полей достаточно.
+  if (hasSpinning)
+    predicates.push(Prisma.sql`jsonb_array_length(aggregate_row."spinningCombinations") > 0`);
+  return predicates.length ? Prisma.sql`WHERE ${Prisma.join(predicates, ' AND ')}` : Prisma.empty;
 }
 
+/** Один GROUP BY даёт число каждой строки; выбранный порядок применяется до LIMIT. */
 export function buildFishCatchAggregatesQuery(
   fishId: string,
   baseIds: readonly string[],
@@ -271,15 +248,17 @@ export function buildFishCatchAggregatesQuery(
   cursor?: FishCatchAggregateCursor,
   intensityOrder: FishCatchIntensityOrder = 'desc',
   minIntensity?: number,
+  hasComment?: boolean,
+  hasHole?: boolean,
+  orderMode: FishCatchOrderMode = 'catches',
+  hasSpinning?: boolean,
 ): Prisma.Sql {
-  const baseScope =
-    baseIds.length === 0
-      ? Prisma.empty
-      : Prisma.sql`AND source_location."fishingBaseId" IN (${Prisma.join(
-          baseIds.map((baseId) => Prisma.sql`${baseId}::uuid`),
-        )})`;
   const intensityDirection = intensityOrder === 'asc' ? Prisma.sql`ASC` : Prisma.sql`DESC`;
 
+  const orderBy =
+    orderMode === 'catches'
+      ? Prisma.sql`aggregate_row."intensity" ${intensityDirection}, aggregate_row."locationId" ASC, aggregate_row."baitId" ASC`
+      : Prisma.sql`aggregate_row."baseNameNormalized" COLLATE "C" ASC, aggregate_row."baseId" ASC, aggregate_row."locationNumber" ASC, aggregate_row."locationId" ASC, aggregate_row."intensity" DESC, aggregate_row."baitNameNormalized" COLLATE "C" ASC, aggregate_row."baitId" ASC`;
   return Prisma.sql`
     WITH "aggregateRows" AS (
       SELECT
@@ -359,7 +338,6 @@ export function buildFishCatchAggregatesQuery(
         ON base_fish."fishingBaseId" = source_location."fishingBaseId"
         AND base_fish."fishId" = report."fishId"
       WHERE report."fishId" = ${fishId}::uuid
-        ${baseScope}
       GROUP BY
         fish."id",
         fishing_base."id",
@@ -368,21 +346,14 @@ export function buildFishCatchAggregatesQuery(
         base_fish."minWeightGrams",
         base_fish."maxWeightGrams"
     )
-    SELECT *
-    FROM "aggregateRows" AS aggregate_row
-    ${pageWhere(cursor, intensityOrder, minIntensity)}
-    ORDER BY
-      aggregate_row."baseNameNormalized" COLLATE "C" ASC,
-      aggregate_row."baseId" ASC,
-      aggregate_row."locationNumber" ASC,
-      aggregate_row."locationId" ASC,
-      aggregate_row."intensity" ${intensityDirection},
-      aggregate_row."baitNameNormalized" COLLATE "C" ASC,
-      aggregate_row."baitId" ASC
+    SELECT * FROM "aggregateRows" AS aggregate_row
+    ${pageWhere(cursor, intensityOrder, minIntensity, hasComment, hasHole, baseIds, orderMode, hasSpinning)}
+    ORDER BY ${orderBy}
     LIMIT ${limit + 1}
   `;
 }
 
+/** Отдаёт публичные исторические строки Fish и ленивые наблюдения без приватных полей. */
 @Injectable()
 export class FishCatchAggregatesService {
   constructor(
@@ -390,6 +361,27 @@ export class FishCatchAggregatesService {
     @Inject(BaitImageDelivery) private readonly baitImageDelivery: BaitImageDelivery,
   ) {}
 
+  /** Возвращает точные публичные значения; rawSourceText никогда не читается. */
+  async values(query: FishCatchValuesQueryDto) {
+    const predicate = Prisma.sql`"fishId" = ${query.fishId}::uuid AND "locationId" = ${query.locationId}::uuid AND "baitId" = ${query.baitId}::uuid`;
+    if (query.field === 'comment') {
+      const rows = await this.prisma.$queryRaw<{ value: string }[]>(Prisma.sql`
+        SELECT DISTINCT "userNoteRaw" COLLATE "C" AS value FROM "CatchReport"
+        WHERE ${predicate} AND "userNoteRaw" IS NOT NULL
+        ORDER BY value LIMIT 26 OFFSET ${query.offset}`);
+      return { items: rows.slice(0, 25), nextOffset: rows.length > 25 ? query.offset + 25 : null };
+    }
+    const rows = await this.prisma.$queryRaw<
+      { holeDepthCm: number | null; spotPositionRaw: string | null }[]
+    >(Prisma.sql`
+      SELECT DISTINCT "holeDepthCm", "spotPositionRaw" COLLATE "C" AS "spotPositionRaw" FROM "CatchReport"
+      WHERE ${predicate} AND ("holeDepthCm" IS NOT NULL OR "spotPositionRaw" IS NOT NULL)
+      ORDER BY "holeDepthCm" ASC NULLS LAST, "spotPositionRaw" COLLATE "C" ASC NULLS LAST
+      LIMIT 26 OFFSET ${query.offset}`);
+    return { items: rows.slice(0, 25), nextOffset: rows.length > 25 ? query.offset + 25 : null };
+  }
+
+  /** Сохраняет локальные данные строк, меняя только глобальный ключ сортировки. */
   async list(query: FishCatchAggregateQueryDto) {
     const limit = query.limit;
     let cursor: FishCatchAggregateCursor | undefined;
@@ -405,6 +397,15 @@ export class FishCatchAggregatesService {
       }
     }
 
+    // Курсор другого режима или направления нельзя продолжать в новом порядке.
+    if (
+      cursor &&
+      (cursor.orderMode !== query.orderMode ||
+        cursor.intensityOrder !== (query.orderMode === 'places' ? 'desc' : query.intensityOrder))
+    ) {
+      throw catchReportErrors.invalidCursor();
+    }
+
     const fetchedRows = await this.prisma.$queryRaw<FishCatchAggregateDatabaseRow[]>(
       buildFishCatchAggregatesQuery(
         query.fishId,
@@ -413,6 +414,10 @@ export class FishCatchAggregatesService {
         cursor,
         query.intensityOrder,
         query.minIntensity,
+        query.hasComment,
+        query.hasHole,
+        query.orderMode,
+        query.hasSpinning,
       ),
     );
     const hasNextPage = fetchedRows.length > limit;
@@ -471,6 +476,8 @@ export class FishCatchAggregatesService {
               locationNumber: lastRow.locationNumber,
               locationId: lastRow.locationId,
               intensity: toSafeCount(lastRow.intensity, 'intensity'),
+              orderMode: query.orderMode,
+              intensityOrder: query.orderMode === 'places' ? 'desc' : query.intensityOrder,
               baitNameNormalized: lastRow.baitNameNormalized,
               baitId: lastRow.baitId,
             })

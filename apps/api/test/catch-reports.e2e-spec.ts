@@ -2947,6 +2947,7 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
     const endpoint = '/api/v1/catch-reports/statistics/fish-catches';
     const scope = {
       fishId: firstCatalog.fish.id,
+      orderMode: 'places',
       baseIds: `${firstCatalog.base.id},${secondCatalog.base.id}`,
     };
     const fullPage = readFishCatchAggregatePage(
@@ -3040,8 +3041,12 @@ void describe('CatchReport API (PostgreSQL e2e)', { concurrency: false }, () => 
     assert.equal(await prisma.catchReport.count(), 12);
 
     const allBasesPage = readFishCatchAggregatePage(
-      (await api().get(endpoint).query({ fishId: firstCatalog.fish.id, limit: 100 }).expect(200))
-        .body as unknown,
+      (
+        await api()
+          .get(endpoint)
+          .query({ fishId: firstCatalog.fish.id, limit: 100, orderMode: 'places' })
+          .expect(200)
+      ).body as unknown,
     );
     assert.deepEqual(allBasesPage, fullPage);
 

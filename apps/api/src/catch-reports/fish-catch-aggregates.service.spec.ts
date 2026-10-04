@@ -18,6 +18,7 @@ const QUERY: FishCatchAggregateQueryDto = {
   baseIds: [BASE_ID],
   limit: 1,
   intensityOrder: 'desc',
+  orderMode: 'catches',
 };
 
 const BAIT_IMAGE_URL = `/api/v1/bait-images/${'a'.repeat(64)}.png`;
@@ -108,7 +109,7 @@ void describe('FishCatchAggregatesService', () => {
     }
     assert.match(
       sqlQuery.text,
-      /ORDER BY\s+aggregate_row\."baseNameNormalized" COLLATE "C" ASC,\s+aggregate_row\."baseId" ASC,\s+aggregate_row\."locationNumber" ASC,\s+aggregate_row\."locationId" ASC,\s+aggregate_row\."intensity" DESC,\s+aggregate_row\."baitNameNormalized" COLLATE "C" ASC,\s+aggregate_row\."baitId" ASC/,
+      /ORDER BY\s+aggregate_row\."intensity" DESC,\s+aggregate_row\."locationId" ASC,\s+aggregate_row\."baitId" ASC/,
     );
     assert.deepEqual(result.items, [
       {
@@ -186,16 +187,20 @@ void describe('FishCatchAggregatesService', () => {
     });
     const sqlQuery = capturedQuery as { text: string };
 
-    assert.match(sqlQuery.text, /"baseNameNormalized" COLLATE "C" >/);
-    assert.match(sqlQuery.text, /"baseId" >/);
-    assert.match(sqlQuery.text, /"locationNumber" >/);
-    assert.match(sqlQuery.text, /"locationId" >/);
     assert.match(sqlQuery.text, /"intensity" </);
-    assert.match(sqlQuery.text, /"baitNameNormalized" COLLATE "C" >/);
-    assert.match(sqlQuery.text, /"baitId" >/);
+    assert.match(sqlQuery.text, /"baitId"\) >/);
+    for (const key of [
+      'baseNameNormalized',
+      'baseId',
+      'locationNumber',
+      'locationId',
+      'baitNameNormalized',
+      'baitId',
+    ])
+      assert.ok(sqlQuery.text.includes(key));
   });
 
-  void it('filters by minimum intensity and reverses intensity inside each Location group', async () => {
+  void it('filters by minimum intensity and reverses global row counts', async () => {
     let capturedQuery: unknown;
     const prisma = {
       $queryRaw: (query: unknown) => {
@@ -263,5 +268,31 @@ void describe('FishCatchAggregatesService', () => {
       const prisma = { $queryRaw: () => Promise.resolve([row]) } as unknown as PrismaService;
       await assert.rejects(service(prisma).list(QUERY));
     }
+  });
+  void it('restores original place ordering and rejects cursors from another mode or direction', async () => {
+    let capturedQuery: unknown;
+    const prisma = {
+      $queryRaw: (query: unknown) => {
+        capturedQuery = query;
+        return Promise.resolve([
+          databaseRow(),
+          databaseRow({ baitId: '50000000-0000-4000-8000-000000000002' }),
+        ]);
+      },
+    } as unknown as PrismaService;
+    const first = await service(prisma).list({ ...QUERY, orderMode: 'places' });
+    const sql = capturedQuery as { text: string };
+    assert.match(
+      sql.text,
+      /ORDER BY\s+aggregate_row\."baseNameNormalized" COLLATE "C" ASC, aggregate_row\."baseId" ASC, aggregate_row\."locationNumber" ASC, aggregate_row\."locationId" ASC, aggregate_row\."intensity" DESC, aggregate_row\."baitNameNormalized" COLLATE "C" ASC, aggregate_row\."baitId" ASC/,
+    );
+    assert.ok(first.nextCursor);
+    await assert.rejects(service(prisma).list({ ...QUERY, cursor: first.nextCursor }));
+    const catches = await service(prisma).list(QUERY);
+    assert.ok(catches.nextCursor);
+    await assert.rejects(
+      service(prisma).list({ ...QUERY, intensityOrder: 'asc', cursor: catches.nextCursor }),
+    );
+    assert.ok(!sql.text.includes('SUM(COUNT'));
   });
 });

@@ -24,6 +24,7 @@ import { CatchReportParamsDto } from './dto/catch-report-params.dto.js';
 import { CreateCatchReportDto } from './dto/create-catch-report.dto.js';
 import { CreateCatchReportsBatchDto } from './dto/create-catch-reports-batch.dto.js';
 import { HoleStatisticsQueryDto } from './dto/hole-statistics-query.dto.js';
+import { FishCatchValuesQueryDto } from './dto/fish-catch-values-query.dto.js';
 import { FishCatchAggregateQueryDto } from './dto/fish-catch-aggregate-query.dto.js';
 import { LocationObservationsParamsDto } from './dto/location-observations-params.dto.js';
 import { ParseCatchReportDto } from './dto/parse-catch-report.dto.js';
@@ -80,6 +81,14 @@ export class CatchReportsController {
     query: FishCatchAggregateQueryDto,
   ) {
     return this.fishCatchAggregates.list(query);
+  }
+
+  /** Раскрывает комментарии и ямы без загрузки полной истории отчётов. */
+  @Get('statistics/fish-catches/values')
+  fishCatchValues(
+    @Query(createApplicationValidationPipe(FishCatchValuesQueryDto)) query: FishCatchValuesQueryDto,
+  ) {
+    return this.fishCatchAggregates.values(query);
   }
 
   @Get('statistics/conditions')
