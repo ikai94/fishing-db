@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "version": "2026-10-08.v4",
+  "mode": "APPLIED_CONFIRMED_MAX_CORRECTIONS",
+  "baselineHead": "22020983ccd6d91dcc24228d1d347683dacf0a67",
+  "parentVersion": "2026-10-08.v3",
+  "parentSha256": "aa7a6c328e60bc0a2ad9970bf640752b2f913d3225c3ee407d76dad92f3a6612",
+  "supersedes": [
+    {
+      "version": "2026-10-05.v2",
+      "decisionKey": "fish-base-max:6f5b485a-f3b3-48f3-ba8e-6a67211dee99:7846ee37-654f-4973-8511-ad20f022501a",
+      "previousMaxWeightGrams": 4800000,
+      "confirmedMaxWeightGrams": 48000000,
+      "reason": "User explicitly corrected missing zero: 48 tonnes, not 4.8 tonnes."
+    }
+  ],
+  "applicationPolicy": "Explicit user correction to 48 tonnes; min preserved, all synthetic catches remapped, manual/site reports and all other previously applied pairs preserved.",
+  "manualReview": {
+    "source": "/home/userw/server/fishing-db/apps/api/.local/kohola-max-correction-2026-10-08.v1/human-instruction.json",
+    "sourceSha256": "853cbb8aaa4fc4eb634f9fb9ea17b73d58961318e00dde697bf38b4d01b7d4d8",
+    "counts": {
+      "keep": 0,
+      "change": 0,
+      "custom": 1,
+      "unresolved": 0,
+      "noOp": 0
+    },
+    "decisions": [
+      {
+        "fishId": "6f5b485a-f3b3-48f3-ba8e-6a67211dee99",
+        "fishingBaseId": "7846ee37-654f-4973-8511-ad20f022501a",
+        "fishName": "Кохола Вилу",
+        "baseName": "Гавайские острова",
+        "decisionKey": "fish-base-max:6f5b485a-f3b3-48f3-ba8e-6a67211dee99:7846ee37-654f-4973-8511-ad20f022501a",
+        "currentMaxWeightGrams": 4800000,
+        "confirmedMaxWeightGrams": 48000000,
+        "decision": "СВОЙ",
+        "kind": "custom",
+        "sheet": "EXPLICIT_USER_INSTRUCTION",
+        "row": 1,
+        "writable": true
+      }
+    ],
+    "consolidatedPendingMaxDecisionKeys": [
+      "fish-base-max:6f5b485a-f3b3-48f3-ba8e-6a67211dee99:7846ee37-654f-4973-8511-ad20f022501a"
+    ]
+  },
+  "entries": [
+    {
+      "fishId": "6f5b485a-f3b3-48f3-ba8e-6a67211dee99",
+      "fishName": "Кохола Вилу",
+      "fishingBaseId": "7846ee37-654f-4973-8511-ad20f022501a",
+      "baseName": "Гавайские острова",
+      "decisionKey": "fish-base-max:6f5b485a-f3b3-48f3-ba8e-6a67211dee99:7846ee37-654f-4973-8511-ad20f022501a",
+      "oldMinWeightGrams": 500000,
+      "oldMaxWeightGrams": 4800000,
+      "proposedMinWeightGrams": 500000,
+      "proposedMaxWeightGrams": 48000000,
+      "status": "MANUALLY_CONFIRMED",
+      "confidence": "MANUAL",
+      "manuallyConfirmed": true,
+      "appliedToTxt": true,
+      "appliedToCatalog": true,
+      "appliedToCatches": true,
+      "boundDecisions": {
+        "min": "PRESERVE_EXISTING",
+        "max": "CORRECT"
+      },
+      "manualDecision": "СВОЙ",
+      "source": {
+        "sheet": "EXPLICIT_USER_INSTRUCTION",
+        "row": 1
+      },
+      "remapPolicy": "CLAMPED_RELATIVE_INTERVAL_HALF_UP_INTEGER_GRAMS"
+    }
+  ],
+  "precheck": {
+    "result": "PASSED",
+    "auditedRows": 1,
+    "changedPairs": 1,
+    "txtRows": 445,
+    "dbRows": 445,
+    "rollbackPath": "/home/userw/server/fishing-db/apps/api/.local/kohola-max-correction-2026-10-08.v1/rollback",
+    "preparedPath": "/home/userw/server/fishing-db/apps/api/.local/kohola-max-correction-2026-10-08.v1/prepared.json"
+  },
+  "application": {
+    "date": "2026-10-08",
+    "verification": "PASSED",
+    "correctedPairs": 1,
+    "generatedRows": 445,
+    "changedRows": 445,
+    "unchangedRemappedRows": 0,
+    "nullMinPairs": [],
+    "policy": "INTEGER_HALF_UP; NON_NULL_RELATIVE_INTERVAL; NULL_MIN_PROPORTIONAL_CLAMP_1_MAX",
+    "rollbackPath": "/home/userw/server/fishing-db/apps/api/.local/kohola-max-correction-2026-10-08.v1/rollback",
+    "reportPath": "/home/userw/server/fishing-db/apps/api/.local/kohola-max-correction-2026-10-08.v1/report.json"
+  }
+}

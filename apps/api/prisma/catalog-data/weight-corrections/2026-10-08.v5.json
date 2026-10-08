@@ -1,0 +1,121 @@
+{
+  "schemaVersion": 1,
+  "version": "2026-10-08.v5",
+  "mode": "APPLIED_MANUAL_MAX_CONFIRMATIONS_AND_SYNTHETIC_REPAIR",
+  "baselineHead": "22020983ccd6d91dcc24228d1d347683dacf0a67",
+  "parentVersion": "2026-10-08.v4",
+  "parentSha256": "a52d75955628db8211afef95cfc31a6f96095f6853d07d761ec6a087b99ab2f2",
+  "manualReview": {
+    "source": "/home/userw/server/fishing-db/apps/api/.local/confirmed-final-max-2026-10-08.v1/human-instruction.json",
+    "sourceSha256": "5fb9c7366b81fc83453282699bcbb8f92ac0be84f0a9b34e3f62d7ecc05261da",
+    "counts": {
+      "keep": 2,
+      "change": 0,
+      "custom": 0,
+      "unresolved": 0
+    },
+    "decisions": [
+      {
+        "fishId": "680a6d11-a048-434b-9917-aee4ca1bc832",
+        "fishingBaseId": "d6cd3c34-3e8d-4c8a-9cb4-817a538d5ea4",
+        "fishName": "Малый полосатик",
+        "baseName": "Побережье Чили",
+        "minimum": 300000,
+        "maximum": 6600000,
+        "action": "CONFIRM_CURRENT_MAX",
+        "decisionKey": "fish-base-max:680a6d11-a048-434b-9917-aee4ca1bc832:d6cd3c34-3e8d-4c8a-9cb4-817a538d5ea4",
+        "decision": "KEEP_CONFIRMED",
+        "confirmedMaxWeightGrams": 6600000
+      },
+      {
+        "fishId": "ee0cf24d-2394-446c-876f-4ee68cdf132e",
+        "fishingBaseId": "0d4a8201-acda-4d22-b52e-9425a58ef3d0",
+        "fishName": "Кижуч",
+        "baseName": "Колыма",
+        "minimum": 500,
+        "maximum": 14800,
+        "action": "REPAIR_SYNTHETIC_TO_EXISTING_TXT",
+        "decisionKey": "fish-base-max:ee0cf24d-2394-446c-876f-4ee68cdf132e:0d4a8201-acda-4d22-b52e-9425a58ef3d0",
+        "decision": "KEEP_CONFIRMED",
+        "confirmedMaxWeightGrams": 14800
+      }
+    ]
+  },
+  "resolvesLegacyDeferredMaxDecisionKeys": [
+    "fish-base-max:680a6d11-a048-434b-9917-aee4ca1bc832:d6cd3c34-3e8d-4c8a-9cb4-817a538d5ea4"
+  ],
+  "entries": [
+    {
+      "fishId": "680a6d11-a048-434b-9917-aee4ca1bc832",
+      "fishingBaseId": "d6cd3c34-3e8d-4c8a-9cb4-817a538d5ea4",
+      "fishName": "Малый полосатик",
+      "baseName": "Побережье Чили",
+      "decisionKey": "fish-base-max:680a6d11-a048-434b-9917-aee4ca1bc832:d6cd3c34-3e8d-4c8a-9cb4-817a538d5ea4",
+      "oldMinWeightGrams": 300000,
+      "oldMaxWeightGrams": 6600000,
+      "proposedMinWeightGrams": 300000,
+      "proposedMaxWeightGrams": 6600000,
+      "status": "MANUAL_KEEP_CURRENT",
+      "confidence": "MANUAL",
+      "manuallyConfirmed": true,
+      "action": "CONFIRM_CURRENT_MAX",
+      "boundDecisions": {
+        "min": "PRESERVE_EXISTING",
+        "max": "KEEP_CONFIRMED"
+      },
+      "appliedToCatalog": true,
+      "appliedToTxt": true,
+      "appliedToCatches": true
+    },
+    {
+      "fishId": "ee0cf24d-2394-446c-876f-4ee68cdf132e",
+      "fishingBaseId": "0d4a8201-acda-4d22-b52e-9425a58ef3d0",
+      "fishName": "Кижуч",
+      "baseName": "Колыма",
+      "decisionKey": "fish-base-max:ee0cf24d-2394-446c-876f-4ee68cdf132e:0d4a8201-acda-4d22-b52e-9425a58ef3d0",
+      "oldMinWeightGrams": 500,
+      "oldMaxWeightGrams": 14800,
+      "proposedMinWeightGrams": 500,
+      "proposedMaxWeightGrams": 14800,
+      "status": "MANUAL_KEEP_CURRENT",
+      "confidence": "MANUAL",
+      "manuallyConfirmed": true,
+      "action": "REPAIR_SYNTHETIC_TO_EXISTING_TXT",
+      "boundDecisions": {
+        "min": "PRESERVE_EXISTING",
+        "max": "KEEP_CONFIRMED"
+      },
+      "appliedToCatalog": true,
+      "appliedToTxt": true,
+      "appliedToCatches": true
+    }
+  ],
+  "precheck": {
+    "result": "PASSED",
+    "catalogChangedPairs": 0,
+    "confirmedPairs": 2,
+    "repairDbRows": 1610,
+    "changedDbRows": 1610,
+    "txtChangedRows": 0,
+    "nonweightGroups": 145,
+    "identicalOldWeightTieGroups": 1,
+    "mappingPolicy": "EXACT_NONWEIGHT_TEXT_GROUPS; ASCENDING_WEIGHT; IDENTICAL_OLD_WEIGHT_TIES_BY_STABLE_UUID; TARGET_EXISTING_TXT_FILE_LINE_ORDER",
+    "rollbackPath": "/home/userw/server/fishing-db/apps/api/.local/confirmed-final-max-2026-10-08.v1/rollback",
+    "releaseManifestUnchanged": true
+  },
+  "application": {
+    "date": "2026-10-08",
+    "verification": "PASSED",
+    "confirmedPairs": 2,
+    "catalogChangedPairs": 0,
+    "syntheticDbChangedRows": 1610,
+    "txtChangedRows": 0,
+    "releaseManifestUnchanged": true,
+    "totalCatchReportCount": 7180258,
+    "manualSiteReportsUnchanged": true,
+    "idsAndOtherFieldsUnchanged": true,
+    "historicalManifestsUnchanged": true,
+    "rollbackPath": "/home/userw/server/fishing-db/apps/api/.local/confirmed-final-max-2026-10-08.v1/rollback",
+    "reportPath": "/home/userw/server/fishing-db/apps/api/.local/confirmed-final-max-2026-10-08.v1/report.json"
+  }
+}
