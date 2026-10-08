@@ -1,0 +1,2265 @@
+{
+  "datasetVersion": "2026-10-05.v2",
+  "source": "MANUAL",
+  "normalization": ["case", "whitespace/NBSP", "ё/е"],
+  "fuzzyMatchingAccepted": false,
+  "catalogSnapshotSha256": "eea4e13d509ea140806affccd51f37729a14dcc89506d99c77766fcbf4e4391a",
+  "previousGoldSha256": "71ddb83805b7394d821a5d3fafb084869f2fd6dc117827aa19fd8e6c584c3618",
+  "inputCount": 149,
+  "acceptedCount": 143,
+  "rejectedCount": 6,
+  "conflictingCount": 0,
+  "duplicateCount": 0,
+  "expectedFinalGoldCount": 152,
+  "accepted": [
+    {
+      "input": {
+        "inputRow": 2,
+        "fishName": "Амурский осётр",
+        "baseName": "Амур",
+        "confirmedMaxWeightGrams": 88000
+      },
+      "resolved": {
+        "fishId": "94b3394e-131f-4a6a-b40a-5fbf8a9e0695",
+        "fishingBaseId": "a37ac569-5eb2-4756-bf54-b9d9f7903036",
+        "fishName": "Амурский осетр",
+        "baseName": "Амур"
+      },
+      "match": "ALLOWED_TEXT_NORMALIZATION"
+    },
+    {
+      "input": {
+        "inputRow": 3,
+        "fishName": "Амурский сиг",
+        "baseName": "Амур",
+        "confirmedMaxWeightGrams": 2310
+      },
+      "resolved": {
+        "fishId": "a58d40b3-d20d-4ad3-bd17-33202639b1d2",
+        "fishingBaseId": "a37ac569-5eb2-4756-bf54-b9d9f7903036",
+        "fishName": "Амурский сиг",
+        "baseName": "Амур"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 4,
+        "fishName": "Ауха",
+        "baseName": "Амур",
+        "confirmedMaxWeightGrams": 9900
+      },
+      "resolved": {
+        "fishId": "11051c58-01bd-4836-b5c2-140f3700e70a",
+        "fishingBaseId": "a37ac569-5eb2-4756-bf54-b9d9f7903036",
+        "fishName": "Ауха",
+        "baseName": "Амур"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 5,
+        "fishName": "Белый Амур",
+        "baseName": "Амур",
+        "confirmedMaxWeightGrams": 41800
+      },
+      "resolved": {
+        "fishId": "329e4860-c5b0-42df-9b94-f3d5072f24dd",
+        "fishingBaseId": "a37ac569-5eb2-4756-bf54-b9d9f7903036",
+        "fishName": "Белый Амур",
+        "baseName": "Амур"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 6,
+        "fishName": "Верхогляд",
+        "baseName": "Амур",
+        "confirmedMaxWeightGrams": 9900
+      },
+      "resolved": {
+        "fishId": "7f2d766f-1c8b-482c-a3a5-c07b81ec54f8",
+        "fishingBaseId": "a37ac569-5eb2-4756-bf54-b9d9f7903036",
+        "fishName": "Верхогляд",
+        "baseName": "Амур"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 7,
+        "fishName": "Владиславия",
+        "baseName": "Амур",
+        "confirmedMaxWeightGrams": 143
+      },
+      "resolved": {
+        "fishId": "da83f90d-9168-44c2-8405-adf0a33b78a1",
+        "fishingBaseId": "a37ac569-5eb2-4756-bf54-b9d9f7903036",
+        "fishName": "Владиславия",
+        "baseName": "Амур"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 8,
+        "fishName": "Желтощёк",
+        "baseName": "Амур",
+        "confirmedMaxWeightGrams": 49500
+      },
+      "resolved": {
+        "fishId": "c4419acd-b400-4327-a27b-54df7c67a5b7",
+        "fishingBaseId": "a37ac569-5eb2-4756-bf54-b9d9f7903036",
+        "fishName": "Желтощек",
+        "baseName": "Амур"
+      },
+      "match": "ALLOWED_TEXT_NORMALIZATION"
+    },
+    {
+      "input": {
+        "inputRow": 9,
+        "fishName": "Змееголов",
+        "baseName": "Амур",
+        "confirmedMaxWeightGrams": 12100
+      },
+      "resolved": {
+        "fishId": "23e07acf-7717-4c66-883e-9ffd4ab135e8",
+        "fishingBaseId": "a37ac569-5eb2-4756-bf54-b9d9f7903036",
+        "fishName": "Змееголов",
+        "baseName": "Амур"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 11,
+        "fishName": "Кета",
+        "baseName": "Амур",
+        "confirmedMaxWeightGrams": 15400
+      },
+      "resolved": {
+        "fishId": "82b8eaba-1715-489e-9aa6-f2b9e70491e4",
+        "fishingBaseId": "a37ac569-5eb2-4756-bf54-b9d9f7903036",
+        "fishName": "Кета",
+        "baseName": "Амур"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 12,
+        "fishName": "Кижуч",
+        "baseName": "Амур",
+        "confirmedMaxWeightGrams": 14300
+      },
+      "resolved": {
+        "fishId": "ee0cf24d-2394-446c-876f-4ee68cdf132e",
+        "fishingBaseId": "a37ac569-5eb2-4756-bf54-b9d9f7903036",
+        "fishName": "Кижуч",
+        "baseName": "Амур"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 13,
+        "fishName": "Ленок",
+        "baseName": "Амур",
+        "confirmedMaxWeightGrams": 6600
+      },
+      "resolved": {
+        "fishId": "c723c054-3b26-4ac2-8380-a9da5ce2a470",
+        "fishingBaseId": "a37ac569-5eb2-4756-bf54-b9d9f7903036",
+        "fishName": "Ленок",
+        "baseName": "Амур"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 14,
+        "fishName": "Монгольский Краснопёр",
+        "baseName": "Амур",
+        "confirmedMaxWeightGrams": 4070
+      },
+      "resolved": {
+        "fishId": "4e6f97f4-ba93-4ced-9efb-b7313ae666c3",
+        "fishingBaseId": "a37ac569-5eb2-4756-bf54-b9d9f7903036",
+        "fishName": "Монгольский краснопер",
+        "baseName": "Амур"
+      },
+      "match": "ALLOWED_TEXT_NORMALIZATION"
+    },
+    {
+      "input": {
+        "inputRow": 15,
+        "fishName": "Пескарь",
+        "baseName": "Амур",
+        "confirmedMaxWeightGrams": 77
+      },
+      "resolved": {
+        "fishId": "1d7ddfb9-7ab8-4f6e-b12e-48078bbe3f10",
+        "fishingBaseId": "a37ac569-5eb2-4756-bf54-b9d9f7903036",
+        "fishName": "Пескарь",
+        "baseName": "Амур"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 16,
+        "fishName": "Пёстрый конь",
+        "baseName": "Амур",
+        "confirmedMaxWeightGrams": 1980
+      },
+      "resolved": {
+        "fishId": "2a80da61-882d-456e-8f5d-6fbd1a8813f4",
+        "fishingBaseId": "a37ac569-5eb2-4756-bf54-b9d9f7903036",
+        "fishName": "Пёстрый конь",
+        "baseName": "Амур"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 17,
+        "fishName": "Ротан",
+        "baseName": "Амур",
+        "confirmedMaxWeightGrams": 198
+      },
+      "resolved": {
+        "fishId": "06e71749-3ac1-4ede-9601-8b68359c2f42",
+        "fishingBaseId": "a37ac569-5eb2-4756-bf54-b9d9f7903036",
+        "fishName": "Ротан",
+        "baseName": "Амур"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 18,
+        "fishName": "Сима",
+        "baseName": "Амур",
+        "confirmedMaxWeightGrams": 9900
+      },
+      "resolved": {
+        "fishId": "a770ef48-c996-40c5-b095-71e93962d588",
+        "fishingBaseId": "a37ac569-5eb2-4756-bf54-b9d9f7903036",
+        "fishName": "Сима",
+        "baseName": "Амур"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 19,
+        "fishName": "Скрипун",
+        "baseName": "Амур",
+        "confirmedMaxWeightGrams": 715
+      },
+      "resolved": {
+        "fishId": "758f83cf-d9a5-405e-9eaf-b425d4984e6e",
+        "fishingBaseId": "a37ac569-5eb2-4756-bf54-b9d9f7903036",
+        "fishName": "Скрипун",
+        "baseName": "Амур"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 20,
+        "fishName": "Сом Амурский",
+        "baseName": "Амур",
+        "confirmedMaxWeightGrams": 13200
+      },
+      "resolved": {
+        "fishId": "298cced9-6f66-41f6-9764-fcebfb321f38",
+        "fishingBaseId": "a37ac569-5eb2-4756-bf54-b9d9f7903036",
+        "fishName": "Сом амурский",
+        "baseName": "Амур"
+      },
+      "match": "ALLOWED_TEXT_NORMALIZATION"
+    },
+    {
+      "input": {
+        "inputRow": 21,
+        "fishName": "Сом Солдатова",
+        "baseName": "Амур",
+        "confirmedMaxWeightGrams": 605000
+      },
+      "resolved": {
+        "fishId": "d37d930d-b6b5-4260-b642-67caa8cb2455",
+        "fishingBaseId": "a37ac569-5eb2-4756-bf54-b9d9f7903036",
+        "fishName": "Сом Солдатова",
+        "baseName": "Амур"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 22,
+        "fishName": "Таймень",
+        "baseName": "Амур",
+        "confirmedMaxWeightGrams": 77000
+      },
+      "resolved": {
+        "fishId": "5d71adc5-8fdc-4367-b130-1ce17dcb0267",
+        "fishingBaseId": "a37ac569-5eb2-4756-bf54-b9d9f7903036",
+        "fishName": "Таймень",
+        "baseName": "Амур"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 23,
+        "fishName": "Толстолобик",
+        "baseName": "Амур",
+        "confirmedMaxWeightGrams": 34100
+      },
+      "resolved": {
+        "fishId": "7b00c316-2d76-400e-b1dc-0c21c3f131b8",
+        "fishingBaseId": "a37ac569-5eb2-4756-bf54-b9d9f7903036",
+        "fishName": "Толстолобик",
+        "baseName": "Амур"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 24,
+        "fishName": "Троегуб",
+        "baseName": "Амур",
+        "confirmedMaxWeightGrams": 660
+      },
+      "resolved": {
+        "fishId": "f65bcc49-596a-4ffc-aab0-636786e9e9ee",
+        "fishingBaseId": "a37ac569-5eb2-4756-bf54-b9d9f7903036",
+        "fishName": "Троегуб",
+        "baseName": "Амур"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 25,
+        "fishName": "Уссурийская востробрюшка",
+        "baseName": "Амур",
+        "confirmedMaxWeightGrams": 330
+      },
+      "resolved": {
+        "fishId": "e0963f68-2830-43f5-a59f-18aa102a3484",
+        "fishingBaseId": "a37ac569-5eb2-4756-bf54-b9d9f7903036",
+        "fishName": "Уссурийская востробрюшка",
+        "baseName": "Амур"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 27,
+        "fishName": "Хариус",
+        "baseName": "Амур",
+        "confirmedMaxWeightGrams": 1980
+      },
+      "resolved": {
+        "fishId": "fce67e7f-e448-4b4f-ba8d-9a3ae1fae38e",
+        "fishingBaseId": "a37ac569-5eb2-4756-bf54-b9d9f7903036",
+        "fishName": "Хариус",
+        "baseName": "Амур"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 28,
+        "fishName": "Чёрный Амур",
+        "baseName": "Амур",
+        "confirmedMaxWeightGrams": 34100
+      },
+      "resolved": {
+        "fishId": "fb96587e-0658-4a01-86fa-9ec5792a2033",
+        "fishingBaseId": "a37ac569-5eb2-4756-bf54-b9d9f7903036",
+        "fishName": "Черный амур",
+        "baseName": "Амур"
+      },
+      "match": "ALLOWED_TEXT_NORMALIZATION"
+    },
+    {
+      "input": {
+        "inputRow": 29,
+        "fishName": "Чёрный лещ",
+        "baseName": "Амур",
+        "confirmedMaxWeightGrams": 3740
+      },
+      "resolved": {
+        "fishId": "b9cfe89d-6980-40e7-9240-efbe30389f33",
+        "fishingBaseId": "a37ac569-5eb2-4756-bf54-b9d9f7903036",
+        "fishName": "Черный лещ",
+        "baseName": "Амур"
+      },
+      "match": "ALLOWED_TEXT_NORMALIZATION"
+    },
+    {
+      "input": {
+        "inputRow": 30,
+        "fishName": "Амурская щука",
+        "baseName": "Амур",
+        "confirmedMaxWeightGrams": 23100
+      },
+      "resolved": {
+        "fishId": "a5574839-ee96-415e-9a37-30f1252189e3",
+        "fishingBaseId": "a37ac569-5eb2-4756-bf54-b9d9f7903036",
+        "fishName": "Амурская щука",
+        "baseName": "Амур"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 31,
+        "fishName": "Пескарь",
+        "baseName": "Вуокса",
+        "confirmedMaxWeightGrams": 79
+      },
+      "resolved": {
+        "fishId": "1d7ddfb9-7ab8-4f6e-b12e-48078bbe3f10",
+        "fishingBaseId": "77977a72-9684-479b-9d80-afdd1fb309c0",
+        "fishName": "Пескарь",
+        "baseName": "Вуокса"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 32,
+        "fishName": "Ручьевая форель",
+        "baseName": "Вуокса",
+        "confirmedMaxWeightGrams": 1925
+      },
+      "resolved": {
+        "fishId": "5089a7ef-3439-4e50-b058-f1da6ec37467",
+        "fishingBaseId": "77977a72-9684-479b-9d80-afdd1fb309c0",
+        "fishName": "Ручьевая форель",
+        "baseName": "Вуокса"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 33,
+        "fishName": "Усач",
+        "baseName": "Вуокса",
+        "confirmedMaxWeightGrams": 11550
+      },
+      "resolved": {
+        "fishId": "a4ad072e-837a-4fd3-8b45-26ac120a9186",
+        "fishingBaseId": "77977a72-9684-479b-9d80-afdd1fb309c0",
+        "fishName": "Усач",
+        "baseName": "Вуокса"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 34,
+        "fishName": "Щука",
+        "baseName": "Вуокса",
+        "confirmedMaxWeightGrams": 24750
+      },
+      "resolved": {
+        "fishId": "29a37946-940a-4b9c-a517-5cec9d57a5db",
+        "fishingBaseId": "77977a72-9684-479b-9d80-afdd1fb309c0",
+        "fishName": "Щука",
+        "baseName": "Вуокса"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 35,
+        "fishName": "Жерех",
+        "baseName": "Вуокса",
+        "confirmedMaxWeightGrams": 14733
+      },
+      "resolved": {
+        "fishId": "5a280edb-bad7-4caa-b375-7c48a4e99af7",
+        "fishingBaseId": "77977a72-9684-479b-9d80-afdd1fb309c0",
+        "fishName": "Жерех",
+        "baseName": "Вуокса"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 36,
+        "fishName": "Подлещик",
+        "baseName": "Вуокса",
+        "confirmedMaxWeightGrams": 935
+      },
+      "resolved": {
+        "fishId": "d0cb5dbe-b73d-4c9b-84a7-185408d07d0a",
+        "fishingBaseId": "77977a72-9684-479b-9d80-afdd1fb309c0",
+        "fishName": "Подлещик",
+        "baseName": "Вуокса"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 37,
+        "fishName": "Радужная форель",
+        "baseName": "Вуокса",
+        "confirmedMaxWeightGrams": 4950
+      },
+      "resolved": {
+        "fishId": "f1581f4a-6b40-468c-a227-2d3412c60d76",
+        "fishingBaseId": "77977a72-9684-479b-9d80-afdd1fb309c0",
+        "fishName": "Радужная форель",
+        "baseName": "Вуокса"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 38,
+        "fishName": "Карп голый",
+        "baseName": "Вуокса",
+        "confirmedMaxWeightGrams": 28600
+      },
+      "resolved": {
+        "fishId": "fd1b9866-9023-4265-8ad0-b0723c9bb53c",
+        "fishingBaseId": "77977a72-9684-479b-9d80-afdd1fb309c0",
+        "fishName": "Карп голый",
+        "baseName": "Вуокса"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 39,
+        "fishName": "Налим",
+        "baseName": "Вуокса",
+        "confirmedMaxWeightGrams": 15830
+      },
+      "resolved": {
+        "fishId": "0ffeab54-cb65-4b6f-bcb5-b26b2e54ea40",
+        "fishingBaseId": "77977a72-9684-479b-9d80-afdd1fb309c0",
+        "fishName": "Налим",
+        "baseName": "Вуокса"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 40,
+        "fishName": "Озерная форель",
+        "baseName": "Вуокса",
+        "confirmedMaxWeightGrams": 8030
+      },
+      "resolved": {
+        "fishId": "99b297b1-c257-4ae8-94d1-4acff8c2132f",
+        "fishingBaseId": "77977a72-9684-479b-9d80-afdd1fb309c0",
+        "fishName": "Озёрная форель",
+        "baseName": "Вуокса"
+      },
+      "match": "ALLOWED_TEXT_NORMALIZATION"
+    },
+    {
+      "input": {
+        "inputRow": 41,
+        "fishName": "Плотва",
+        "baseName": "Вуокса",
+        "confirmedMaxWeightGrams": 1980
+      },
+      "resolved": {
+        "fishId": "c4de2a56-d5ab-4da6-9fbd-86beffcdca57",
+        "fishingBaseId": "77977a72-9684-479b-9d80-afdd1fb309c0",
+        "fishName": "Плотва",
+        "baseName": "Вуокса"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 42,
+        "fishName": "Ряпушка",
+        "baseName": "Вуокса",
+        "confirmedMaxWeightGrams": 352
+      },
+      "resolved": {
+        "fishId": "f764072e-a7de-4d14-83cf-ec1c6804f054",
+        "fishingBaseId": "77977a72-9684-479b-9d80-afdd1fb309c0",
+        "fishName": "Ряпушка",
+        "baseName": "Вуокса"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 43,
+        "fishName": "Сиг",
+        "baseName": "Вуокса",
+        "confirmedMaxWeightGrams": 5940
+      },
+      "resolved": {
+        "fishId": "6f9d503d-5f28-49fb-828f-cf36a33188de",
+        "fishingBaseId": "77977a72-9684-479b-9d80-afdd1fb309c0",
+        "fishName": "Сиг",
+        "baseName": "Вуокса"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 44,
+        "fishName": "Елец",
+        "baseName": "Вуокса",
+        "confirmedMaxWeightGrams": 396
+      },
+      "resolved": {
+        "fishId": "d384b240-292a-4a31-9711-abf938436912",
+        "fishingBaseId": "77977a72-9684-479b-9d80-afdd1fb309c0",
+        "fishName": "Елец",
+        "baseName": "Вуокса"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 45,
+        "fishName": "Синец",
+        "baseName": "Вуокса",
+        "confirmedMaxWeightGrams": 693
+      },
+      "resolved": {
+        "fishId": "bc1ac401-8bde-4aae-92a7-58f12f95b317",
+        "fishingBaseId": "77977a72-9684-479b-9d80-afdd1fb309c0",
+        "fishName": "Синец",
+        "baseName": "Вуокса"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 46,
+        "fishName": "Судак",
+        "baseName": "Вуокса",
+        "confirmedMaxWeightGrams": 14300
+      },
+      "resolved": {
+        "fishId": "7f0b2750-b4b5-4593-ad2e-61b49df0af90",
+        "fishingBaseId": "77977a72-9684-479b-9d80-afdd1fb309c0",
+        "fishName": "Судак",
+        "baseName": "Вуокса"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 47,
+        "fishName": "Чехонь",
+        "baseName": "Вуокса",
+        "confirmedMaxWeightGrams": 1485
+      },
+      "resolved": {
+        "fishId": "0b989d73-3981-4b58-b2e7-eaff707c60f7",
+        "fishingBaseId": "77977a72-9684-479b-9d80-afdd1fb309c0",
+        "fishName": "Чехонь",
+        "baseName": "Вуокса"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 48,
+        "fishName": "Язь",
+        "baseName": "Вуокса",
+        "confirmedMaxWeightGrams": 7920
+      },
+      "resolved": {
+        "fishId": "dd5ff139-dfc7-441a-9f3e-78076b096e3e",
+        "fishingBaseId": "77977a72-9684-479b-9d80-afdd1fb309c0",
+        "fishName": "Язь",
+        "baseName": "Вуокса"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 49,
+        "fishName": "Берш",
+        "baseName": "Вуокса",
+        "confirmedMaxWeightGrams": 1540
+      },
+      "resolved": {
+        "fishId": "c11ad171-fe97-4a75-b490-e5ca2aaa83be",
+        "fishingBaseId": "77977a72-9684-479b-9d80-afdd1fb309c0",
+        "fishName": "Берш",
+        "baseName": "Вуокса"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 50,
+        "fishName": "Ёрш",
+        "baseName": "Вуокса",
+        "confirmedMaxWeightGrams": 198
+      },
+      "resolved": {
+        "fishId": "a0892f77-ed75-4a31-a0de-f69366721e0b",
+        "fishingBaseId": "77977a72-9684-479b-9d80-afdd1fb309c0",
+        "fishName": "Ёрш",
+        "baseName": "Вуокса"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 51,
+        "fishName": "Карп зеркальный",
+        "baseName": "Вуокса",
+        "confirmedMaxWeightGrams": 29700
+      },
+      "resolved": {
+        "fishId": "d394e4ba-f9f5-4948-bd52-519606e891b1",
+        "fishingBaseId": "77977a72-9684-479b-9d80-afdd1fb309c0",
+        "fishName": "Карп зеркальный",
+        "baseName": "Вуокса"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 52,
+        "fishName": "Белоглазка",
+        "baseName": "Вуокса",
+        "confirmedMaxWeightGrams": 990
+      },
+      "resolved": {
+        "fishId": "1a666b0c-f4c3-4f54-9c66-5229082ba4bb",
+        "fishingBaseId": "77977a72-9684-479b-9d80-afdd1fb309c0",
+        "fishName": "Белоглазка",
+        "baseName": "Вуокса"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 53,
+        "fishName": "Голец Арктический",
+        "baseName": "Вуокса",
+        "confirmedMaxWeightGrams": 17820
+      },
+      "resolved": {
+        "fishId": "27107321-333b-4ebf-9e1d-39aebf6a5731",
+        "fishingBaseId": "77977a72-9684-479b-9d80-afdd1fb309c0",
+        "fishName": "Голец арктический",
+        "baseName": "Вуокса"
+      },
+      "match": "ALLOWED_TEXT_NORMALIZATION"
+    },
+    {
+      "input": {
+        "inputRow": 54,
+        "fishName": "Голец усатый",
+        "baseName": "Вуокса",
+        "confirmedMaxWeightGrams": 77
+      },
+      "resolved": {
+        "fishId": "d299fec8-0618-4a91-9823-20725f3da645",
+        "fishingBaseId": "77977a72-9684-479b-9d80-afdd1fb309c0",
+        "fishName": "Голец усатый",
+        "baseName": "Вуокса"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 55,
+        "fishName": "Карп",
+        "baseName": "Вуокса",
+        "confirmedMaxWeightGrams": 34650
+      },
+      "resolved": {
+        "fishId": "9796b195-364c-456b-b923-3fc5c8651c5c",
+        "fishingBaseId": "77977a72-9684-479b-9d80-afdd1fb309c0",
+        "fishName": "Карп",
+        "baseName": "Вуокса"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 56,
+        "fishName": "Корюшка",
+        "baseName": "Вуокса",
+        "confirmedMaxWeightGrams": 154
+      },
+      "resolved": {
+        "fishId": "673fd46e-2eab-4e7b-80b1-ff120c17a288",
+        "fishingBaseId": "77977a72-9684-479b-9d80-afdd1fb309c0",
+        "fishName": "Корюшка",
+        "baseName": "Вуокса"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 57,
+        "fishName": "Лосось",
+        "baseName": "Вуокса",
+        "confirmedMaxWeightGrams": 28050
+      },
+      "resolved": {
+        "fishId": "67aac886-309d-4f8c-8bfd-2a58620d4cbd",
+        "fishingBaseId": "77977a72-9684-479b-9d80-afdd1fb309c0",
+        "fishName": "Лосось",
+        "baseName": "Вуокса"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 58,
+        "fishName": "Окунь",
+        "baseName": "Вуокса",
+        "confirmedMaxWeightGrams": 3960
+      },
+      "resolved": {
+        "fishId": "3de930a7-56a1-4b39-9058-f87dfe423a69",
+        "fishingBaseId": "77977a72-9684-479b-9d80-afdd1fb309c0",
+        "fishName": "Окунь",
+        "baseName": "Вуокса"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 59,
+        "fishName": "Уклейка",
+        "baseName": "Вуокса",
+        "confirmedMaxWeightGrams": 198
+      },
+      "resolved": {
+        "fishId": "2d1eeaba-12d1-48f4-ae76-a24ad2cb48df",
+        "fishingBaseId": "77977a72-9684-479b-9d80-afdd1fb309c0",
+        "fishName": "Уклейка",
+        "baseName": "Вуокса"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 60,
+        "fishName": "Густера",
+        "baseName": "Вуокса",
+        "confirmedMaxWeightGrams": 1210
+      },
+      "resolved": {
+        "fishId": "7d148f6e-39f7-419c-bbb4-84fb57ffe0d6",
+        "fishingBaseId": "77977a72-9684-479b-9d80-afdd1fb309c0",
+        "fishName": "Густера",
+        "baseName": "Вуокса"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 61,
+        "fishName": "Лещ",
+        "baseName": "Вуокса",
+        "confirmedMaxWeightGrams": 7920
+      },
+      "resolved": {
+        "fishId": "fee79da7-e0a9-447f-878e-1c1847876413",
+        "fishingBaseId": "77977a72-9684-479b-9d80-afdd1fb309c0",
+        "fishName": "Лещ",
+        "baseName": "Вуокса"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 62,
+        "fishName": "Палия",
+        "baseName": "Вуокса",
+        "confirmedMaxWeightGrams": 9400
+      },
+      "resolved": {
+        "fishId": "33b6673e-1779-4cbb-8c31-b2ac2cde5ba3",
+        "fishingBaseId": "77977a72-9684-479b-9d80-afdd1fb309c0",
+        "fishName": "Палия",
+        "baseName": "Вуокса"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 63,
+        "fishName": "Хариус",
+        "baseName": "Вуокса",
+        "confirmedMaxWeightGrams": 1980
+      },
+      "resolved": {
+        "fishId": "fce67e7f-e448-4b4f-ba8d-9a3ae1fae38e",
+        "fishingBaseId": "77977a72-9684-479b-9d80-afdd1fb309c0",
+        "fishName": "Хариус",
+        "baseName": "Вуокса"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 64,
+        "fishName": "Плотва",
+        "baseName": "Дёма",
+        "confirmedMaxWeightGrams": 2035
+      },
+      "resolved": {
+        "fishId": "c4de2a56-d5ab-4da6-9fbd-86beffcdca57",
+        "fishingBaseId": "640cd8f8-7613-4918-bb22-1f403ff84dbe",
+        "fishName": "Плотва",
+        "baseName": "Дема"
+      },
+      "match": "ALLOWED_TEXT_NORMALIZATION"
+    },
+    {
+      "input": {
+        "inputRow": 65,
+        "fishName": "Стерлядь",
+        "baseName": "Дёма",
+        "confirmedMaxWeightGrams": 13200
+      },
+      "resolved": {
+        "fishId": "0e37558c-c870-4315-9b37-90fddfe4a9b9",
+        "fishingBaseId": "640cd8f8-7613-4918-bb22-1f403ff84dbe",
+        "fishName": "Стерлядь",
+        "baseName": "Дема"
+      },
+      "match": "ALLOWED_TEXT_NORMALIZATION"
+    },
+    {
+      "input": {
+        "inputRow": 66,
+        "fishName": "Тарань",
+        "baseName": "Дёма",
+        "confirmedMaxWeightGrams": 935
+      },
+      "resolved": {
+        "fishId": "3f19c9a2-5e77-48dd-9ea9-1ecb0d2a4ad6",
+        "fishingBaseId": "640cd8f8-7613-4918-bb22-1f403ff84dbe",
+        "fishName": "Тарань",
+        "baseName": "Дема"
+      },
+      "match": "ALLOWED_TEXT_NORMALIZATION"
+    },
+    {
+      "input": {
+        "inputRow": 67,
+        "fishName": "Чехонь",
+        "baseName": "Дёма",
+        "confirmedMaxWeightGrams": 1375
+      },
+      "resolved": {
+        "fishId": "0b989d73-3981-4b58-b2e7-eaff707c60f7",
+        "fishingBaseId": "640cd8f8-7613-4918-bb22-1f403ff84dbe",
+        "fishName": "Чехонь",
+        "baseName": "Дема"
+      },
+      "match": "ALLOWED_TEXT_NORMALIZATION"
+    },
+    {
+      "input": {
+        "inputRow": 68,
+        "fishName": "Карп",
+        "baseName": "Дёма",
+        "confirmedMaxWeightGrams": 30800
+      },
+      "resolved": {
+        "fishId": "9796b195-364c-456b-b923-3fc5c8651c5c",
+        "fishingBaseId": "640cd8f8-7613-4918-bb22-1f403ff84dbe",
+        "fishName": "Карп",
+        "baseName": "Дема"
+      },
+      "match": "ALLOWED_TEXT_NORMALIZATION"
+    },
+    {
+      "input": {
+        "inputRow": 69,
+        "fishName": "Краснопёрка",
+        "baseName": "Дёма",
+        "confirmedMaxWeightGrams": 1925
+      },
+      "resolved": {
+        "fishId": "98289516-9e13-400f-8b2e-b79895b0ab46",
+        "fishingBaseId": "640cd8f8-7613-4918-bb22-1f403ff84dbe",
+        "fishName": "Красноперка",
+        "baseName": "Дема"
+      },
+      "match": "ALLOWED_TEXT_NORMALIZATION"
+    },
+    {
+      "input": {
+        "inputRow": 70,
+        "fishName": "Окунь",
+        "baseName": "Дёма",
+        "confirmedMaxWeightGrams": 3520
+      },
+      "resolved": {
+        "fishId": "3de930a7-56a1-4b39-9058-f87dfe423a69",
+        "fishingBaseId": "640cd8f8-7613-4918-bb22-1f403ff84dbe",
+        "fishName": "Окунь",
+        "baseName": "Дема"
+      },
+      "match": "ALLOWED_TEXT_NORMALIZATION"
+    },
+    {
+      "input": {
+        "inputRow": 71,
+        "fishName": "Рак",
+        "baseName": "Дёма",
+        "confirmedMaxWeightGrams": 572
+      },
+      "resolved": {
+        "fishId": "fd6dfccd-cee2-494f-94c9-6a52d7622aa9",
+        "fishingBaseId": "640cd8f8-7613-4918-bb22-1f403ff84dbe",
+        "fishName": "Рак",
+        "baseName": "Дема"
+      },
+      "match": "ALLOWED_TEXT_NORMALIZATION"
+    },
+    {
+      "input": {
+        "inputRow": 73,
+        "fishName": "Лещ",
+        "baseName": "Дёма",
+        "confirmedMaxWeightGrams": 7700
+      },
+      "resolved": {
+        "fishId": "fee79da7-e0a9-447f-878e-1c1847876413",
+        "fishingBaseId": "640cd8f8-7613-4918-bb22-1f403ff84dbe",
+        "fishName": "Лещ",
+        "baseName": "Дема"
+      },
+      "match": "ALLOWED_TEXT_NORMALIZATION"
+    },
+    {
+      "input": {
+        "inputRow": 74,
+        "fishName": "Густера",
+        "baseName": "Дёма",
+        "confirmedMaxWeightGrams": 1155
+      },
+      "resolved": {
+        "fishId": "7d148f6e-39f7-419c-bbb4-84fb57ffe0d6",
+        "fishingBaseId": "640cd8f8-7613-4918-bb22-1f403ff84dbe",
+        "fishName": "Густера",
+        "baseName": "Дема"
+      },
+      "match": "ALLOWED_TEXT_NORMALIZATION"
+    },
+    {
+      "input": {
+        "inputRow": 75,
+        "fishName": "Шемая",
+        "baseName": "Дёма",
+        "confirmedMaxWeightGrams": 275
+      },
+      "resolved": {
+        "fishId": "3dc3acdf-1e65-4e4c-af76-c2af1bc8cc4e",
+        "fishingBaseId": "640cd8f8-7613-4918-bb22-1f403ff84dbe",
+        "fishName": "Шемая",
+        "baseName": "Дема"
+      },
+      "match": "ALLOWED_TEXT_NORMALIZATION"
+    },
+    {
+      "input": {
+        "inputRow": 76,
+        "fishName": "Налим",
+        "baseName": "Дёма",
+        "confirmedMaxWeightGrams": 17900
+      },
+      "resolved": {
+        "fishId": "0ffeab54-cb65-4b6f-bcb5-b26b2e54ea40",
+        "fishingBaseId": "640cd8f8-7613-4918-bb22-1f403ff84dbe",
+        "fishName": "Налим",
+        "baseName": "Дема"
+      },
+      "match": "ALLOWED_TEXT_NORMALIZATION"
+    },
+    {
+      "input": {
+        "inputRow": 77,
+        "fishName": "Бычок",
+        "baseName": "Дёма",
+        "confirmedMaxWeightGrams": 110
+      },
+      "resolved": {
+        "fishId": "8b0b20c0-a8c7-4785-96c9-541109bdad50",
+        "fishingBaseId": "640cd8f8-7613-4918-bb22-1f403ff84dbe",
+        "fishName": "Бычок",
+        "baseName": "Дема"
+      },
+      "match": "ALLOWED_TEXT_NORMALIZATION"
+    },
+    {
+      "input": {
+        "inputRow": 78,
+        "fishName": "Вобла",
+        "baseName": "Дёма",
+        "confirmedMaxWeightGrams": 770
+      },
+      "resolved": {
+        "fishId": "d18d1f99-a476-42ed-9942-265158b7befa",
+        "fishingBaseId": "640cd8f8-7613-4918-bb22-1f403ff84dbe",
+        "fishName": "Вобла",
+        "baseName": "Дема"
+      },
+      "match": "ALLOWED_TEXT_NORMALIZATION"
+    },
+    {
+      "input": {
+        "inputRow": 79,
+        "fishName": "Жерех",
+        "baseName": "Дёма",
+        "confirmedMaxWeightGrams": 16500
+      },
+      "resolved": {
+        "fishId": "5a280edb-bad7-4caa-b375-7c48a4e99af7",
+        "fishingBaseId": "640cd8f8-7613-4918-bb22-1f403ff84dbe",
+        "fishName": "Жерех",
+        "baseName": "Дема"
+      },
+      "match": "ALLOWED_TEXT_NORMALIZATION"
+    },
+    {
+      "input": {
+        "inputRow": 80,
+        "fishName": "Линь",
+        "baseName": "Дёма",
+        "confirmedMaxWeightGrams": 7700
+      },
+      "resolved": {
+        "fishId": "6bbd6018-c016-48d6-8eb9-48566555d3b2",
+        "fishingBaseId": "640cd8f8-7613-4918-bb22-1f403ff84dbe",
+        "fishName": "Линь",
+        "baseName": "Дема"
+      },
+      "match": "ALLOWED_TEXT_NORMALIZATION"
+    },
+    {
+      "input": {
+        "inputRow": 81,
+        "fishName": "Сом",
+        "baseName": "Дёма",
+        "confirmedMaxWeightGrams": 77000
+      },
+      "resolved": {
+        "fishId": "bd42e1a2-da2d-4abc-aaf2-06da7b165cc6",
+        "fishingBaseId": "640cd8f8-7613-4918-bb22-1f403ff84dbe",
+        "fishName": "Сом",
+        "baseName": "Дема"
+      },
+      "match": "ALLOWED_TEXT_NORMALIZATION"
+    },
+    {
+      "input": {
+        "inputRow": 82,
+        "fishName": "Старая покрышка",
+        "baseName": "Дёма",
+        "confirmedMaxWeightGrams": 41800
+      },
+      "resolved": {
+        "fishId": "a327b909-d91c-4184-bac2-b0f209cacfad",
+        "fishingBaseId": "640cd8f8-7613-4918-bb22-1f403ff84dbe",
+        "fishName": "Старая покрышка",
+        "baseName": "Дема"
+      },
+      "match": "ALLOWED_TEXT_NORMALIZATION"
+    },
+    {
+      "input": {
+        "inputRow": 84,
+        "fishName": "Подлещик",
+        "baseName": "Дёма",
+        "confirmedMaxWeightGrams": 935
+      },
+      "resolved": {
+        "fishId": "d0cb5dbe-b73d-4c9b-84a7-185408d07d0a",
+        "fishingBaseId": "640cd8f8-7613-4918-bb22-1f403ff84dbe",
+        "fishName": "Подлещик",
+        "baseName": "Дема"
+      },
+      "match": "ALLOWED_TEXT_NORMALIZATION"
+    },
+    {
+      "input": {
+        "inputRow": 85,
+        "fishName": "Пузанок",
+        "baseName": "Дёма",
+        "confirmedMaxWeightGrams": 187
+      },
+      "resolved": {
+        "fishId": "060e1f8c-6b2f-4ac7-b87a-87691c7b94dc",
+        "fishingBaseId": "640cd8f8-7613-4918-bb22-1f403ff84dbe",
+        "fishName": "Пузанок",
+        "baseName": "Дема"
+      },
+      "match": "ALLOWED_TEXT_NORMALIZATION"
+    },
+    {
+      "input": {
+        "inputRow": 86,
+        "fishName": "Щука",
+        "baseName": "Дёма",
+        "confirmedMaxWeightGrams": 24200
+      },
+      "resolved": {
+        "fishId": "29a37946-940a-4b9c-a517-5cec9d57a5db",
+        "fishingBaseId": "640cd8f8-7613-4918-bb22-1f403ff84dbe",
+        "fishName": "Щука",
+        "baseName": "Дема"
+      },
+      "match": "ALLOWED_TEXT_NORMALIZATION"
+    },
+    {
+      "input": {
+        "inputRow": 87,
+        "fishName": "Судак",
+        "baseName": "Дёма",
+        "confirmedMaxWeightGrams": 9900
+      },
+      "resolved": {
+        "fishId": "7f0b2750-b4b5-4593-ad2e-61b49df0af90",
+        "fishingBaseId": "640cd8f8-7613-4918-bb22-1f403ff84dbe",
+        "fishName": "Судак",
+        "baseName": "Дема"
+      },
+      "match": "ALLOWED_TEXT_NORMALIZATION"
+    },
+    {
+      "input": {
+        "inputRow": 88,
+        "fishName": "Ёрш",
+        "baseName": "Дёма",
+        "confirmedMaxWeightGrams": 198
+      },
+      "resolved": {
+        "fishId": "a0892f77-ed75-4a31-a0de-f69366721e0b",
+        "fishingBaseId": "640cd8f8-7613-4918-bb22-1f403ff84dbe",
+        "fishName": "Ёрш",
+        "baseName": "Дема"
+      },
+      "match": "ALLOWED_TEXT_NORMALIZATION"
+    },
+    {
+      "input": {
+        "inputRow": 89,
+        "fishName": "Карась золотой",
+        "baseName": "Дёма",
+        "confirmedMaxWeightGrams": 3850
+      },
+      "resolved": {
+        "fishId": "8b323ae9-0cd3-41c1-b8b5-6e9937007c46",
+        "fishingBaseId": "640cd8f8-7613-4918-bb22-1f403ff84dbe",
+        "fishName": "Карась золотой",
+        "baseName": "Дема"
+      },
+      "match": "ALLOWED_TEXT_NORMALIZATION"
+    },
+    {
+      "input": {
+        "inputRow": 90,
+        "fishName": "Уклейка",
+        "baseName": "Дёма",
+        "confirmedMaxWeightGrams": 198
+      },
+      "resolved": {
+        "fishId": "2d1eeaba-12d1-48f4-ae76-a24ad2cb48df",
+        "fishingBaseId": "640cd8f8-7613-4918-bb22-1f403ff84dbe",
+        "fishName": "Уклейка",
+        "baseName": "Дема"
+      },
+      "match": "ALLOWED_TEXT_NORMALIZATION"
+    },
+    {
+      "input": {
+        "inputRow": 91,
+        "fishName": "Берш",
+        "baseName": "Дёма",
+        "confirmedMaxWeightGrams": 1540
+      },
+      "resolved": {
+        "fishId": "c11ad171-fe97-4a75-b490-e5ca2aaa83be",
+        "fishingBaseId": "640cd8f8-7613-4918-bb22-1f403ff84dbe",
+        "fishName": "Берш",
+        "baseName": "Дема"
+      },
+      "match": "ALLOWED_TEXT_NORMALIZATION"
+    },
+    {
+      "input": {
+        "inputRow": 92,
+        "fishName": "Голец арктический",
+        "baseName": "Кола",
+        "confirmedMaxWeightGrams": 15400
+      },
+      "resolved": {
+        "fishId": "27107321-333b-4ebf-9e1d-39aebf6a5731",
+        "fishingBaseId": "e77261e1-a5cd-4457-b685-c23f5584f443",
+        "fishName": "Голец арктический",
+        "baseName": "Кола"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 93,
+        "fishName": "Голец усатый",
+        "baseName": "Кола",
+        "confirmedMaxWeightGrams": 66
+      },
+      "resolved": {
+        "fishId": "d299fec8-0618-4a91-9823-20725f3da645",
+        "fishingBaseId": "e77261e1-a5cd-4457-b685-c23f5584f443",
+        "fishName": "Голец усатый",
+        "baseName": "Кола"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 94,
+        "fishName": "Горбуша",
+        "baseName": "Кола",
+        "confirmedMaxWeightGrams": 2860
+      },
+      "resolved": {
+        "fishId": "f7e63637-e178-4308-a9a4-bf5041787293",
+        "fishingBaseId": "e77261e1-a5cd-4457-b685-c23f5584f443",
+        "fishName": "Горбуша",
+        "baseName": "Кола"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 95,
+        "fishName": "Ёрш",
+        "baseName": "Кола",
+        "confirmedMaxWeightGrams": 198
+      },
+      "resolved": {
+        "fishId": "a0892f77-ed75-4a31-a0de-f69366721e0b",
+        "fishingBaseId": "e77261e1-a5cd-4457-b685-c23f5584f443",
+        "fishName": "Ёрш",
+        "baseName": "Кола"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 96,
+        "fishName": "Корюшка",
+        "baseName": "Кола",
+        "confirmedMaxWeightGrams": 165
+      },
+      "resolved": {
+        "fishId": "673fd46e-2eab-4e7b-80b1-ff120c17a288",
+        "fishingBaseId": "e77261e1-a5cd-4457-b685-c23f5584f443",
+        "fishName": "Корюшка",
+        "baseName": "Кола"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 97,
+        "fishName": "Кумжа",
+        "baseName": "Кола",
+        "confirmedMaxWeightGrams": 22000
+      },
+      "resolved": {
+        "fishId": "3221fea1-6740-447f-b691-12b2dc4910c1",
+        "fishingBaseId": "e77261e1-a5cd-4457-b685-c23f5584f443",
+        "fishName": "Кумжа",
+        "baseName": "Кола"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 98,
+        "fishName": "Налим",
+        "baseName": "Кола",
+        "confirmedMaxWeightGrams": 14300
+      },
+      "resolved": {
+        "fishId": "0ffeab54-cb65-4b6f-bcb5-b26b2e54ea40",
+        "fishingBaseId": "e77261e1-a5cd-4457-b685-c23f5584f443",
+        "fishName": "Налим",
+        "baseName": "Кола"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 99,
+        "fishName": "Озёрная форель",
+        "baseName": "Кола",
+        "confirmedMaxWeightGrams": 7150
+      },
+      "resolved": {
+        "fishId": "99b297b1-c257-4ae8-94d1-4acff8c2132f",
+        "fishingBaseId": "e77261e1-a5cd-4457-b685-c23f5584f443",
+        "fishName": "Озёрная форель",
+        "baseName": "Кола"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 100,
+        "fishName": "Окунь",
+        "baseName": "Кола",
+        "confirmedMaxWeightGrams": 3410
+      },
+      "resolved": {
+        "fishId": "3de930a7-56a1-4b39-9058-f87dfe423a69",
+        "fishingBaseId": "e77261e1-a5cd-4457-b685-c23f5584f443",
+        "fishName": "Окунь",
+        "baseName": "Кола"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 101,
+        "fishName": "Палия",
+        "baseName": "Кола",
+        "confirmedMaxWeightGrams": 7150
+      },
+      "resolved": {
+        "fishId": "33b6673e-1779-4cbb-8c31-b2ac2cde5ba3",
+        "fishingBaseId": "e77261e1-a5cd-4457-b685-c23f5584f443",
+        "fishName": "Палия",
+        "baseName": "Кола"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 102,
+        "fishName": "Пелядь",
+        "baseName": "Кола",
+        "confirmedMaxWeightGrams": 2420
+      },
+      "resolved": {
+        "fishId": "be40b26a-6876-47b7-9cd6-2fdbd230f5d3",
+        "fishingBaseId": "e77261e1-a5cd-4457-b685-c23f5584f443",
+        "fishName": "Пелядь",
+        "baseName": "Кола"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 103,
+        "fishName": "Плотва",
+        "baseName": "Кола",
+        "confirmedMaxWeightGrams": 1870
+      },
+      "resolved": {
+        "fishId": "c4de2a56-d5ab-4da6-9fbd-86beffcdca57",
+        "fishingBaseId": "e77261e1-a5cd-4457-b685-c23f5584f443",
+        "fishName": "Плотва",
+        "baseName": "Кола"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 104,
+        "fishName": "Подкаменщик",
+        "baseName": "Кола",
+        "confirmedMaxWeightGrams": 418
+      },
+      "resolved": {
+        "fishId": "ce0fa88d-964e-41f3-be20-ffa9f4081d07",
+        "fishingBaseId": "e77261e1-a5cd-4457-b685-c23f5584f443",
+        "fishName": "Подкаменщик",
+        "baseName": "Кола"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 105,
+        "fishName": "Ручьевая форель",
+        "baseName": "Кола",
+        "confirmedMaxWeightGrams": 2365
+      },
+      "resolved": {
+        "fishId": "5089a7ef-3439-4e50-b058-f1da6ec37467",
+        "fishingBaseId": "e77261e1-a5cd-4457-b685-c23f5584f443",
+        "fishName": "Ручьевая форель",
+        "baseName": "Кола"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 106,
+        "fishName": "Ряпушка",
+        "baseName": "Кола",
+        "confirmedMaxWeightGrams": 341
+      },
+      "resolved": {
+        "fishId": "f764072e-a7de-4d14-83cf-ec1c6804f054",
+        "fishingBaseId": "e77261e1-a5cd-4457-b685-c23f5584f443",
+        "fishName": "Ряпушка",
+        "baseName": "Кола"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 107,
+        "fishName": "Семга",
+        "baseName": "Кола",
+        "confirmedMaxWeightGrams": 38500
+      },
+      "resolved": {
+        "fishId": "a8cfb638-2fed-4142-b263-0fbc2b2da25b",
+        "fishingBaseId": "e77261e1-a5cd-4457-b685-c23f5584f443",
+        "fishName": "Семга",
+        "baseName": "Кола"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 108,
+        "fishName": "Сиг",
+        "baseName": "Кола",
+        "confirmedMaxWeightGrams": 6050
+      },
+      "resolved": {
+        "fishId": "6f9d503d-5f28-49fb-828f-cf36a33188de",
+        "fishingBaseId": "e77261e1-a5cd-4457-b685-c23f5584f443",
+        "fishName": "Сиг",
+        "baseName": "Кола"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 109,
+        "fishName": "Хариус",
+        "baseName": "Кола",
+        "confirmedMaxWeightGrams": 1870
+      },
+      "resolved": {
+        "fishId": "fce67e7f-e448-4b4f-ba8d-9a3ae1fae38e",
+        "fishingBaseId": "e77261e1-a5cd-4457-b685-c23f5584f443",
+        "fishName": "Хариус",
+        "baseName": "Кола"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 110,
+        "fishName": "Щука",
+        "baseName": "Кола",
+        "confirmedMaxWeightGrams": 23100
+      },
+      "resolved": {
+        "fishId": "29a37946-940a-4b9c-a517-5cec9d57a5db",
+        "fishingBaseId": "e77261e1-a5cd-4457-b685-c23f5584f443",
+        "fishName": "Щука",
+        "baseName": "Кола"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 112,
+        "fishName": "Валёк",
+        "baseName": "Верхняя Тунгуска",
+        "confirmedMaxWeightGrams": 990
+      },
+      "resolved": {
+        "fishId": "3f76886f-d83a-4022-b2f1-f1d2ffe7b57e",
+        "fishingBaseId": "8f78bb1c-f985-432d-9db5-7eee8c942ff6",
+        "fishName": "Валёк",
+        "baseName": "Верхняя Тунгуска"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 113,
+        "fishName": "Голец Арктический",
+        "baseName": "Верхняя Тунгуска",
+        "confirmedMaxWeightGrams": 15400
+      },
+      "resolved": {
+        "fishId": "27107321-333b-4ebf-9e1d-39aebf6a5731",
+        "fishingBaseId": "8f78bb1c-f985-432d-9db5-7eee8c942ff6",
+        "fishName": "Голец арктический",
+        "baseName": "Верхняя Тунгуска"
+      },
+      "match": "ALLOWED_TEXT_NORMALIZATION"
+    },
+    {
+      "input": {
+        "inputRow": 114,
+        "fishName": "Голец усатый",
+        "baseName": "Верхняя Тунгуска",
+        "confirmedMaxWeightGrams": 79
+      },
+      "resolved": {
+        "fishId": "d299fec8-0618-4a91-9823-20725f3da645",
+        "fishingBaseId": "8f78bb1c-f985-432d-9db5-7eee8c942ff6",
+        "fishName": "Голец усатый",
+        "baseName": "Верхняя Тунгуска"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 115,
+        "fishName": "Горбуша",
+        "baseName": "Верхняя Тунгуска",
+        "confirmedMaxWeightGrams": 3630
+      },
+      "resolved": {
+        "fishId": "f7e63637-e178-4308-a9a4-bf5041787293",
+        "fishingBaseId": "8f78bb1c-f985-432d-9db5-7eee8c942ff6",
+        "fishName": "Горбуша",
+        "baseName": "Верхняя Тунгуска"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 116,
+        "fishName": "Елец Сибирский",
+        "baseName": "Верхняя Тунгуска",
+        "confirmedMaxWeightGrams": 396
+      },
+      "resolved": {
+        "fishId": "7ceeb5b5-ac5f-45f9-a335-7b477f2ca861",
+        "fishingBaseId": "8f78bb1c-f985-432d-9db5-7eee8c942ff6",
+        "fishName": "Елец сибирский",
+        "baseName": "Верхняя Тунгуска"
+      },
+      "match": "ALLOWED_TEXT_NORMALIZATION"
+    },
+    {
+      "input": {
+        "inputRow": 117,
+        "fishName": "Ёрш",
+        "baseName": "Верхняя Тунгуска",
+        "confirmedMaxWeightGrams": 198
+      },
+      "resolved": {
+        "fishId": "a0892f77-ed75-4a31-a0de-f69366721e0b",
+        "fishingBaseId": "8f78bb1c-f985-432d-9db5-7eee8c942ff6",
+        "fishName": "Ёрш",
+        "baseName": "Верхняя Тунгуска"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 118,
+        "fishName": "Карась золотой",
+        "baseName": "Верхняя Тунгуска",
+        "confirmedMaxWeightGrams": 3960
+      },
+      "resolved": {
+        "fishId": "8b323ae9-0cd3-41c1-b8b5-6e9937007c46",
+        "fishingBaseId": "8f78bb1c-f985-432d-9db5-7eee8c942ff6",
+        "fishName": "Карась золотой",
+        "baseName": "Верхняя Тунгуска"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 120,
+        "fishName": "Колюшка девятииглая",
+        "baseName": "Верхняя Тунгуска",
+        "confirmedMaxWeightGrams": 68
+      },
+      "resolved": {
+        "fishId": "c3b412ce-ee79-4447-8203-7d2e2b18a4bf",
+        "fishingBaseId": "8f78bb1c-f985-432d-9db5-7eee8c942ff6",
+        "fishName": "Колюшка девятииглая",
+        "baseName": "Верхняя Тунгуска"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 121,
+        "fishName": "Колюшка трёхиглая",
+        "baseName": "Верхняя Тунгуска",
+        "confirmedMaxWeightGrams": 59
+      },
+      "resolved": {
+        "fishId": "5d22f11e-6653-41b7-ae92-34d6398fe18a",
+        "fishingBaseId": "8f78bb1c-f985-432d-9db5-7eee8c942ff6",
+        "fishName": "Колюшка трехиглая",
+        "baseName": "Верхняя Тунгуска"
+      },
+      "match": "ALLOWED_TEXT_NORMALIZATION"
+    },
+    {
+      "input": {
+        "inputRow": 122,
+        "fishName": "Корюшка",
+        "baseName": "Верхняя Тунгуска",
+        "confirmedMaxWeightGrams": 143
+      },
+      "resolved": {
+        "fishId": "673fd46e-2eab-4e7b-80b1-ff120c17a288",
+        "fishingBaseId": "8f78bb1c-f985-432d-9db5-7eee8c942ff6",
+        "fishName": "Корюшка",
+        "baseName": "Верхняя Тунгуска"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 123,
+        "fishName": "Ленок",
+        "baseName": "Верхняя Тунгуска",
+        "confirmedMaxWeightGrams": 7260
+      },
+      "resolved": {
+        "fishId": "c723c054-3b26-4ac2-8380-a9da5ce2a470",
+        "fishingBaseId": "8f78bb1c-f985-432d-9db5-7eee8c942ff6",
+        "fishName": "Ленок",
+        "baseName": "Верхняя Тунгуска"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 124,
+        "fishName": "Лещ Восточносибирский",
+        "baseName": "Верхняя Тунгуска",
+        "confirmedMaxWeightGrams": 4510
+      },
+      "resolved": {
+        "fishId": "48e48bc7-618d-40db-9fe5-eff8dce3297e",
+        "fishingBaseId": "8f78bb1c-f985-432d-9db5-7eee8c942ff6",
+        "fishName": "Лещ Восточносибирский",
+        "baseName": "Верхняя Тунгуска"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 125,
+        "fishName": "Линь",
+        "baseName": "Верхняя Тунгуска",
+        "confirmedMaxWeightGrams": 7920
+      },
+      "resolved": {
+        "fishId": "6bbd6018-c016-48d6-8eb9-48566555d3b2",
+        "fishingBaseId": "8f78bb1c-f985-432d-9db5-7eee8c942ff6",
+        "fishName": "Линь",
+        "baseName": "Верхняя Тунгуска"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 126,
+        "fishName": "Муксун",
+        "baseName": "Верхняя Тунгуска",
+        "confirmedMaxWeightGrams": 9900
+      },
+      "resolved": {
+        "fishId": "df881f46-5697-49bd-8026-96e63a9f47f8",
+        "fishingBaseId": "8f78bb1c-f985-432d-9db5-7eee8c942ff6",
+        "fishName": "Муксун",
+        "baseName": "Верхняя Тунгуска"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 127,
+        "fishName": "Окунь",
+        "baseName": "Верхняя Тунгуска",
+        "confirmedMaxWeightGrams": 3520
+      },
+      "resolved": {
+        "fishId": "3de930a7-56a1-4b39-9058-f87dfe423a69",
+        "fishingBaseId": "8f78bb1c-f985-432d-9db5-7eee8c942ff6",
+        "fishName": "Окунь",
+        "baseName": "Верхняя Тунгуска"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 128,
+        "fishName": "Омуль",
+        "baseName": "Верхняя Тунгуска",
+        "confirmedMaxWeightGrams": 1870
+      },
+      "resolved": {
+        "fishId": "9bcabd46-ba91-419d-ad9c-8ea1d8b89e39",
+        "fishingBaseId": "8f78bb1c-f985-432d-9db5-7eee8c942ff6",
+        "fishName": "Омуль",
+        "baseName": "Верхняя Тунгуска"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 129,
+        "fishName": "Омуль Байкальский",
+        "baseName": "Верхняя Тунгуска",
+        "confirmedMaxWeightGrams": 1870
+      },
+      "resolved": {
+        "fishId": "97962877-ae00-4113-9fea-8f3a6c114d21",
+        "fishingBaseId": "8f78bb1c-f985-432d-9db5-7eee8c942ff6",
+        "fishName": "Омуль Байкальский",
+        "baseName": "Верхняя Тунгуска"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 130,
+        "fishName": "Осётр Восточносибирский",
+        "baseName": "Верхняя Тунгуска",
+        "confirmedMaxWeightGrams": 115500
+      },
+      "resolved": {
+        "fishId": "94d92705-35ad-4d64-9519-bc22e8f38cfc",
+        "fishingBaseId": "8f78bb1c-f985-432d-9db5-7eee8c942ff6",
+        "fishName": "Осётр Восточносибирский",
+        "baseName": "Верхняя Тунгуска"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 131,
+        "fishName": "Пелядь",
+        "baseName": "Верхняя Тунгуска",
+        "confirmedMaxWeightGrams": 2640
+      },
+      "resolved": {
+        "fishId": "be40b26a-6876-47b7-9cd6-2fdbd230f5d3",
+        "fishingBaseId": "8f78bb1c-f985-432d-9db5-7eee8c942ff6",
+        "fishName": "Пелядь",
+        "baseName": "Верхняя Тунгуска"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 132,
+        "fishName": "Пескарь",
+        "baseName": "Верхняя Тунгуска",
+        "confirmedMaxWeightGrams": 80
+      },
+      "resolved": {
+        "fishId": "1d7ddfb9-7ab8-4f6e-b12e-48078bbe3f10",
+        "fishingBaseId": "8f78bb1c-f985-432d-9db5-7eee8c942ff6",
+        "fishName": "Пескарь",
+        "baseName": "Верхняя Тунгуска"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 133,
+        "fishName": "Плотва",
+        "baseName": "Верхняя Тунгуска",
+        "confirmedMaxWeightGrams": 1960
+      },
+      "resolved": {
+        "fishId": "c4de2a56-d5ab-4da6-9fbd-86beffcdca57",
+        "fishingBaseId": "8f78bb1c-f985-432d-9db5-7eee8c942ff6",
+        "fishName": "Плотва",
+        "baseName": "Верхняя Тунгуска"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 134,
+        "fishName": "Пыжьян",
+        "baseName": "Верхняя Тунгуска",
+        "confirmedMaxWeightGrams": 4972
+      },
+      "resolved": {
+        "fishId": "81ef844a-bd2b-4ecc-b362-167e2a2e1baf",
+        "fishingBaseId": "8f78bb1c-f985-432d-9db5-7eee8c942ff6",
+        "fishName": "Пыжьян",
+        "baseName": "Верхняя Тунгуска"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 135,
+        "fishName": "Радужная форель",
+        "baseName": "Верхняя Тунгуска",
+        "confirmedMaxWeightGrams": 5060
+      },
+      "resolved": {
+        "fishId": "f1581f4a-6b40-468c-a227-2d3412c60d76",
+        "fishingBaseId": "8f78bb1c-f985-432d-9db5-7eee8c942ff6",
+        "fishName": "Радужная форель",
+        "baseName": "Верхняя Тунгуска"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 136,
+        "fishName": "Рогатка",
+        "baseName": "Верхняя Тунгуска",
+        "confirmedMaxWeightGrams": 79
+      },
+      "resolved": {
+        "fishId": "3d97d875-038e-43bd-9f0c-923abf59f0d0",
+        "fishingBaseId": "8f78bb1c-f985-432d-9db5-7eee8c942ff6",
+        "fishName": "Рогатка",
+        "baseName": "Верхняя Тунгуска"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 137,
+        "fishName": "Ручьевая форель",
+        "baseName": "Верхняя Тунгуска",
+        "confirmedMaxWeightGrams": 1980
+      },
+      "resolved": {
+        "fishId": "5089a7ef-3439-4e50-b058-f1da6ec37467",
+        "fishingBaseId": "8f78bb1c-f985-432d-9db5-7eee8c942ff6",
+        "fishName": "Ручьевая форель",
+        "baseName": "Верхняя Тунгуска"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 138,
+        "fishName": "Ряпушка",
+        "baseName": "Верхняя Тунгуска",
+        "confirmedMaxWeightGrams": 330
+      },
+      "resolved": {
+        "fishId": "f764072e-a7de-4d14-83cf-ec1c6804f054",
+        "fishingBaseId": "8f78bb1c-f985-432d-9db5-7eee8c942ff6",
+        "fishName": "Ряпушка",
+        "baseName": "Верхняя Тунгуска"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 139,
+        "fishName": "Севанская форель",
+        "baseName": "Верхняя Тунгуска",
+        "confirmedMaxWeightGrams": 1540
+      },
+      "resolved": {
+        "fishId": "e65cacda-e17b-4b6b-baed-65c3bfae35cc",
+        "fishingBaseId": "8f78bb1c-f985-432d-9db5-7eee8c942ff6",
+        "fishName": "Севанская форель",
+        "baseName": "Верхняя Тунгуска"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 140,
+        "fishName": "Сиг",
+        "baseName": "Верхняя Тунгуска",
+        "confirmedMaxWeightGrams": 5500
+      },
+      "resolved": {
+        "fishId": "6f9d503d-5f28-49fb-828f-cf36a33188de",
+        "fishingBaseId": "8f78bb1c-f985-432d-9db5-7eee8c942ff6",
+        "fishName": "Сиг",
+        "baseName": "Верхняя Тунгуска"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 141,
+        "fishName": "Сом Амурский",
+        "baseName": "Верхняя Тунгуска",
+        "confirmedMaxWeightGrams": 11000
+      },
+      "resolved": {
+        "fishId": "298cced9-6f66-41f6-9764-fcebfb321f38",
+        "fishingBaseId": "8f78bb1c-f985-432d-9db5-7eee8c942ff6",
+        "fishName": "Сом амурский",
+        "baseName": "Верхняя Тунгуска"
+      },
+      "match": "ALLOWED_TEXT_NORMALIZATION"
+    },
+    {
+      "input": {
+        "inputRow": 142,
+        "fishName": "Стерлядь сибирская",
+        "baseName": "Верхняя Тунгуска",
+        "confirmedMaxWeightGrams": 11000
+      },
+      "resolved": {
+        "fishId": "7e74cda6-d2ab-4309-b070-7655cfe2e94b",
+        "fishingBaseId": "8f78bb1c-f985-432d-9db5-7eee8c942ff6",
+        "fishName": "Стерлядь сибирская",
+        "baseName": "Верхняя Тунгуска"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 143,
+        "fishName": "Таймень",
+        "baseName": "Верхняя Тунгуска",
+        "confirmedMaxWeightGrams": 79200
+      },
+      "resolved": {
+        "fishId": "5d71adc5-8fdc-4367-b130-1ce17dcb0267",
+        "fishingBaseId": "8f78bb1c-f985-432d-9db5-7eee8c942ff6",
+        "fishName": "Таймень",
+        "baseName": "Верхняя Тунгуска"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 144,
+        "fishName": "Тугун",
+        "baseName": "Верхняя Тунгуска",
+        "confirmedMaxWeightGrams": 60
+      },
+      "resolved": {
+        "fishId": "16991fbe-0639-423a-9eae-96db2d7d390b",
+        "fishingBaseId": "8f78bb1c-f985-432d-9db5-7eee8c942ff6",
+        "fishName": "Тугун",
+        "baseName": "Верхняя Тунгуска"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 145,
+        "fishName": "Хариус",
+        "baseName": "Верхняя Тунгуска",
+        "confirmedMaxWeightGrams": 1980
+      },
+      "resolved": {
+        "fishId": "fce67e7f-e448-4b4f-ba8d-9a3ae1fae38e",
+        "fishingBaseId": "8f78bb1c-f985-432d-9db5-7eee8c942ff6",
+        "fishName": "Хариус",
+        "baseName": "Верхняя Тунгуска"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 146,
+        "fishName": "Хариус сибирский",
+        "baseName": "Верхняя Тунгуска",
+        "confirmedMaxWeightGrams": 935
+      },
+      "resolved": {
+        "fishId": "aca5c3f5-0175-44a9-b0a0-aff1846b6751",
+        "fishingBaseId": "8f78bb1c-f985-432d-9db5-7eee8c942ff6",
+        "fishName": "Хариус Сибирский",
+        "baseName": "Верхняя Тунгуска"
+      },
+      "match": "ALLOWED_TEXT_NORMALIZATION"
+    },
+    {
+      "input": {
+        "inputRow": 147,
+        "fishName": "Чир",
+        "baseName": "Верхняя Тунгуска",
+        "confirmedMaxWeightGrams": 15400
+      },
+      "resolved": {
+        "fishId": "1f97bbe0-d60a-4bf1-9543-51b1a343e518",
+        "fishingBaseId": "8f78bb1c-f985-432d-9db5-7eee8c942ff6",
+        "fishName": "Чир",
+        "baseName": "Верхняя Тунгуска"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 148,
+        "fishName": "Шемая",
+        "baseName": "Верхняя Тунгуска",
+        "confirmedMaxWeightGrams": 297
+      },
+      "resolved": {
+        "fishId": "3dc3acdf-1e65-4e4c-af76-c2af1bc8cc4e",
+        "fishingBaseId": "8f78bb1c-f985-432d-9db5-7eee8c942ff6",
+        "fishName": "Шемая",
+        "baseName": "Верхняя Тунгуска"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 149,
+        "fishName": "Щука",
+        "baseName": "Верхняя Тунгуска",
+        "confirmedMaxWeightGrams": 22000
+      },
+      "resolved": {
+        "fishId": "29a37946-940a-4b9c-a517-5cec9d57a5db",
+        "fishingBaseId": "8f78bb1c-f985-432d-9db5-7eee8c942ff6",
+        "fishName": "Щука",
+        "baseName": "Верхняя Тунгуска"
+      },
+      "match": "EXACT"
+    },
+    {
+      "input": {
+        "inputRow": 150,
+        "fishName": "Язь",
+        "baseName": "Верхняя Тунгуска",
+        "confirmedMaxWeightGrams": 7700
+      },
+      "resolved": {
+        "fishId": "dd5ff139-dfc7-441a-9f3e-78076b096e3e",
+        "fishingBaseId": "8f78bb1c-f985-432d-9db5-7eee8c942ff6",
+        "fishName": "Язь",
+        "baseName": "Верхняя Тунгуска"
+      },
+      "match": "EXACT"
+    }
+  ],
+  "rejected": [
+    {
+      "inputRow": 10,
+      "fishName": "Карась Серебрянный",
+      "baseName": "Амур",
+      "confirmedMaxWeightGrams": 4620,
+      "reason": "UNKNOWN_AFTER_ALLOWED_NORMALIZATION",
+      "suggestedCatalogCandidates": [
+        {
+          "fishId": "1458f3f0-f569-406d-b2f0-9e719348e58c",
+          "fishingBaseId": "a37ac569-5eb2-4756-bf54-b9d9f7903036",
+          "fishName": "Карась серебряный",
+          "baseName": "Амур"
+        }
+      ],
+      "autoAccepted": false
+    },
+    {
+      "inputRow": 26,
+      "fishName": "Уссурийская Касатка",
+      "baseName": "Амур",
+      "confirmedMaxWeightGrams": 6930,
+      "reason": "UNKNOWN_AFTER_ALLOWED_NORMALIZATION",
+      "suggestedCatalogCandidates": [
+        {
+          "fishId": "765f5bbf-e916-4654-a031-15fdb90a6e50",
+          "fishingBaseId": "a37ac569-5eb2-4756-bf54-b9d9f7903036",
+          "fishName": "Уссурийская косатка",
+          "baseName": "Амур"
+        },
+        {
+          "fishId": "e0963f68-2830-43f5-a59f-18aa102a3484",
+          "fishingBaseId": "a37ac569-5eb2-4756-bf54-b9d9f7903036",
+          "fishName": "Уссурийская востробрюшка",
+          "baseName": "Амур"
+        }
+      ],
+      "autoAccepted": false
+    },
+    {
+      "inputRow": 72,
+      "fishName": "Рванный сапог",
+      "baseName": "Дёма",
+      "confirmedMaxWeightGrams": 7700,
+      "reason": "UNKNOWN_AFTER_ALLOWED_NORMALIZATION",
+      "suggestedCatalogCandidates": [
+        {
+          "fishId": "9c3feb84-98f1-4501-91c0-3127f8c05eb1",
+          "fishingBaseId": "640cd8f8-7613-4918-bb22-1f403ff84dbe",
+          "fishName": "Рваный сапог",
+          "baseName": "Дема"
+        }
+      ],
+      "autoAccepted": false
+    },
+    {
+      "inputRow": 83,
+      "fishName": "Карась серебрянный",
+      "baseName": "Дёма",
+      "confirmedMaxWeightGrams": 4570,
+      "reason": "UNKNOWN_AFTER_ALLOWED_NORMALIZATION",
+      "suggestedCatalogCandidates": [
+        {
+          "fishId": "1458f3f0-f569-406d-b2f0-9e719348e58c",
+          "fishingBaseId": "640cd8f8-7613-4918-bb22-1f403ff84dbe",
+          "fishName": "Карась серебряный",
+          "baseName": "Дема"
+        }
+      ],
+      "autoAccepted": false
+    },
+    {
+      "inputRow": 111,
+      "fishName": "Бычек",
+      "baseName": "Кола",
+      "confirmedMaxWeightGrams": 110,
+      "reason": "UNKNOWN_AFTER_ALLOWED_NORMALIZATION",
+      "suggestedCatalogCandidates": [
+        {
+          "fishId": "8b0b20c0-a8c7-4785-96c9-541109bdad50",
+          "fishingBaseId": "e77261e1-a5cd-4457-b685-c23f5584f443",
+          "fishName": "Бычок",
+          "baseName": "Кола"
+        }
+      ],
+      "autoAccepted": false
+    },
+    {
+      "inputRow": 119,
+      "fishName": "Карась серебрянный",
+      "baseName": "Верхняя Тунгуска",
+      "confirmedMaxWeightGrams": 4510,
+      "reason": "UNKNOWN_AFTER_ALLOWED_NORMALIZATION",
+      "suggestedCatalogCandidates": [
+        {
+          "fishId": "1458f3f0-f569-406d-b2f0-9e719348e58c",
+          "fishingBaseId": "8f78bb1c-f985-432d-9db5-7eee8c942ff6",
+          "fishName": "Карась серебряный",
+          "baseName": "Верхняя Тунгуска"
+        }
+      ],
+      "autoAccepted": false
+    }
+  ]
+}

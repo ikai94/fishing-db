@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 1,
+  "datasetVersion": "2026-10-05.v1",
+  "entries": [
+    {
+      "fishId": "dec88d02-1d43-494f-8162-fc6477d810f6",
+      "fishingBaseId": "8c5937b4-5bd5-476e-b491-827a86f65ee3",
+      "fishName": "Акула серо-голубая",
+      "baseName": "Побережье Камчатки",
+      "confirmedMaxWeightGrams": 1430000,
+      "confirmedMinWeightGrams": null,
+      "note": null,
+      "source": "MANUAL"
+    },
+    {
+      "fishId": "64d077ea-9cab-4b5a-918d-67a815e9f13e",
+      "fishingBaseId": "4f7526cd-b7ca-4501-9433-73595c788bd5",
+      "fishName": "Ламна",
+      "baseName": "Антарктика",
+      "confirmedMaxWeightGrams": 154000,
+      "confirmedMinWeightGrams": null,
+      "note": null,
+      "source": "MANUAL"
+    },
+    {
+      "fishId": "f0f2ddbf-b43a-4cc8-9454-a95a3020740b",
+      "fishingBaseId": "8c5937b4-5bd5-476e-b491-827a86f65ee3",
+      "fishName": "Рыба-лягушка",
+      "baseName": "Побережье Камчатки",
+      "confirmedMaxWeightGrams": 3850,
+      "confirmedMinWeightGrams": null,
+      "note": null,
+      "source": "MANUAL"
+    },
+    {
+      "fishId": "d4d0f018-521c-478d-8e91-e9d6fa2ec8dd",
+      "fishingBaseId": "eb49b3a5-e2d8-42b2-bd56-fcce7497a700",
+      "fishName": "Сейвал",
+      "baseName": "Лофотенские острова",
+      "confirmedMaxWeightGrams": 51700000,
+      "confirmedMinWeightGrams": null,
+      "note": null,
+      "source": "MANUAL"
+    },
+    {
+      "fishId": "a770ef48-c996-40c5-b095-71e93962d588",
+      "fishingBaseId": "b080f2c8-8abe-4e8d-8446-72366f3f6156",
+      "fishName": "Сима",
+      "baseName": "Кроноцкий залив",
+      "confirmedMaxWeightGrams": 13200,
+      "confirmedMinWeightGrams": null,
+      "note": null,
+      "source": "MANUAL"
+    },
+    {
+      "fishId": "dc8df3a0-28a9-4d4d-b184-14e892759f7c",
+      "fishingBaseId": "02a84aef-ecd3-4779-856b-6f66d1952506",
+      "fishName": "Угорь речной японский",
+      "baseName": "Янцзы",
+      "confirmedMaxWeightGrams": 14300,
+      "confirmedMinWeightGrams": null,
+      "note": null,
+      "source": "MANUAL"
+    },
+    {
+      "fishId": "59c5b08a-3dfd-4bd6-8db3-28b637f1ac46",
+      "fishingBaseId": "7846ee37-654f-4973-8511-ad20f022501a",
+      "fishName": "Носорог Вламинга",
+      "baseName": "Гавайские острова",
+      "confirmedMaxWeightGrams": 2750,
+      "confirmedMinWeightGrams": null,
+      "note": null,
+      "source": "MANUAL"
+    },
+    {
+      "fishId": "8207b9b0-f477-41d8-999a-b302fa72e3f4",
+      "fishingBaseId": "d14715b4-3204-4c2c-9c35-bc24bb91ba31",
+      "fishName": "Гребнистый крокодил",
+      "baseName": "Большой Барьерный Риф",
+      "confirmedMaxWeightGrams": 2530000,
+      "confirmedMinWeightGrams": null,
+      "note": null,
+      "source": "MANUAL"
+    },
+    {
+      "fishId": "1f97bbe0-d60a-4bf1-9543-51b1a343e518",
+      "fishingBaseId": "bc807741-396d-4b5a-a338-0fbda455304d",
+      "fishName": "Чир",
+      "baseName": "Ундюлюнг",
+      "confirmedMaxWeightGrams": 19800,
+      "confirmedMinWeightGrams": null,
+      "note": null,
+      "source": "MANUAL"
+    }
+  ]
+}
