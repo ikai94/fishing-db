@@ -80,23 +80,24 @@ enum FishCommunityMark {
 }
 
 model User {
-  id                 String              @id @default(uuid()) @db.Uuid
-  email              String              @unique @db.VarChar(254)
-  nickname           String              @db.VarChar(32)
-  nicknameNormalized String              @unique @db.VarChar(32)
-  passwordHash       String              @db.VarChar(255)
-  role               UserRole            @default(USER)
-  isBanned           Boolean             @default(false)
-  emailVerifiedAt    DateTime?           @db.Timestamptz(3)
-  createdAt          DateTime            @default(now()) @db.Timestamptz(3)
-  updatedAt          DateTime            @default(now()) @updatedAt @db.Timestamptz(3)
-  sessions           Session[]
-  authTokens         AuthToken[]
-  catchReports       CatchReport[]
-  catchImportRuns    CatchImportRun[]
-  activityEvents     ActivityEvent[]
-  favoriteFish       UserFavoriteFish[]
-  communityVotes     FishCommunityVote[]
+  id                      String                  @id @default(uuid()) @db.Uuid
+  email                   String                  @unique @db.VarChar(254)
+  nickname                String                  @db.VarChar(32)
+  nicknameNormalized      String                  @unique @db.VarChar(32)
+  passwordHash            String                  @db.VarChar(255)
+  role                    UserRole                @default(USER)
+  isBanned                Boolean                 @default(false)
+  emailVerifiedAt         DateTime?               @db.Timestamptz(3)
+  createdAt               DateTime                @default(now()) @db.Timestamptz(3)
+  updatedAt               DateTime                @default(now()) @updatedAt @db.Timestamptz(3)
+  sessions                Session[]
+  authTokens              AuthToken[]
+  catchReports            CatchReport[]
+  catchImportRuns         CatchImportRun[]
+  activityEvents          ActivityEvent[]
+  favoriteFish            UserFavoriteFish[]
+  communityVotes          FishCommunityVote[]
+  baseFishNotebookEntries BaseFishNotebookEntry[]
 }
 
 model Session {
@@ -254,16 +255,33 @@ model Bait {
 }
 
 model FishingBaseFish {
-  fishingBaseId  String      @db.Uuid
-  fishId         String      @db.Uuid
-  minWeightGrams Int?
-  maxWeightGrams Int?
-  createdAt      DateTime    @default(now()) @db.Timestamptz(3)
-  fishingBase    FishingBase @relation(fields: [fishingBaseId], references: [id], onDelete: Restrict)
-  fish           Fish        @relation(fields: [fishId], references: [id], onDelete: Restrict)
+  fishingBaseId   String                  @db.Uuid
+  fishId          String                  @db.Uuid
+  minWeightGrams  Int?
+  maxWeightGrams  Int?
+  createdAt       DateTime                @default(now()) @db.Timestamptz(3)
+  fishingBase     FishingBase             @relation(fields: [fishingBaseId], references: [id], onDelete: Restrict)
+  fish            Fish                    @relation(fields: [fishId], references: [id], onDelete: Restrict)
+  notebookEntries BaseFishNotebookEntry[]
 
   @@id([fishingBaseId, fishId])
   @@index([fishId])
+}
+
+// Личная запись ADMIN привязана к существующей паре базы и рыбы, а не к глобальной Fish.
+model BaseFishNotebookEntry {
+  userId        String          @db.Uuid
+  fishingBaseId String          @db.Uuid
+  fishId        String          @db.Uuid
+  noteText      String?         @db.Text
+  isHidden      Boolean         @default(false)
+  createdAt     DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime        @default(now()) @updatedAt @db.Timestamptz(3)
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  baseFish      FishingBaseFish @relation(fields: [fishingBaseId, fishId], references: [fishingBaseId, fishId], onDelete: Cascade, map: "BaseFishNotebookEntry_baseFish_fkey")
+
+  @@id([userId, fishingBaseId, fishId])
+  @@index([fishingBaseId, fishId])
 }
 
 model OfficialRecordSyncState {

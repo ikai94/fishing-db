@@ -7,6 +7,8 @@ import styles from '../../bases-locations.module.css';
 import { FishImage } from '@/app/fish/_components/fish-image';
 import { ApplicationShell } from '@/components/application-shell/application-shell';
 import { ShellIcon } from '@/components/application-shell/shell-icon';
+import { BaseNotebookLink } from '@/components/base-notebook-link';
+import { getCurrentUser } from '@/lib/auth-api';
 import { getFishingBase, listFish, type PublicFishImage } from '@/lib/catalog-api';
 import {
   catalogSearchTokens,
@@ -26,6 +28,11 @@ export default function FishingBasePage() {
   );
   const loadFish = useCallback((signal: AbortSignal) => listFish(signal), []);
   const { state: fishState } = useApiResource(loadFish, 'Не удалось загрузить изображения рыб.');
+  // Гостю и при ошибке проверки показываем обычный заголовок; сервер блокнота проверяет доступ отдельно.
+  const loadUser = useCallback((signal: AbortSignal) => getCurrentUser(signal), []);
+  const { state: userState } = useApiResource(loadUser, 'Не удалось проверить доступ к блокноту.');
+  const notebookAllowed =
+    userState.kind === 'ready' && userState.data.role === 'ADMIN' && !userState.data.isBanned;
   // Состав рыб берём из базы; общий каталог дополняет его изображениями, не блокируя список.
   const fishImages = useMemo(
     () =>
@@ -104,6 +111,7 @@ export default function FishingBasePage() {
                   <ShellIcon name="bases" />
                 </span>
                 <h1 className={styles.title}>{state.data.name}</h1>
+                <BaseNotebookLink baseId={state.data.id} allowed={notebookAllowed} />
               </div>
               <p className={styles.subtitle}>Рыболовная база</p>
             </header>

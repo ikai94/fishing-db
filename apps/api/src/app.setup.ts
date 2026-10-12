@@ -4,6 +4,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import cookieParser from 'cookie-parser';
 import { createApplicationValidationPipe } from './common/validation/validation-exception.factory.js';
 
+/** Общие HTTP-границы сохраняют cookie-авторизацию и разрешают запросы только с настроенного web-origin. */
 export function configureApplication(app: INestApplication): void {
   const configService = app.get(ConfigService);
   const webOrigin = configService.getOrThrow<string>('WEB_ORIGIN');
@@ -15,7 +16,8 @@ export function configureApplication(app: INestApplication): void {
   app.enableCors({
     origin: [webOrigin],
     credentials: true,
-    methods: ['GET', 'HEAD', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+    // Блокнот сохраняет заметку через PUT: без него браузер останавливает запрос на preflight.
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type'],
   });
   app.enableShutdownHooks();

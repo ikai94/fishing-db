@@ -330,11 +330,13 @@ export async function getAdminRarityReviews(
 export async function updateAdminNightMark(
   fishId: string,
   isNightBiting: boolean,
+  signal?: AbortSignal,
 ): Promise<UpdatedNightMarkResponse> {
   const root = exactObject(
     await apiRequest<unknown>(`/admin/records/night-marks/${fishId}`, {
       method: 'PATCH',
       body: JSON.stringify({ isNightBiting }),
+      signal,
     }),
     'ответ ночной метки',
     ['fish'],

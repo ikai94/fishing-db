@@ -4,6 +4,8 @@ import { ActivityModule } from '../activity/activity.module.js';
 import { AuthModule } from '../auth/auth.module.js';
 import { PrismaModule } from '../prisma/prisma.module.js';
 import { AdminCatalogController } from './admin-catalog.controller.js';
+import { AdminBaseFishNotebookController } from './admin-base-fish-notebook.controller.js';
+import { BaseFishNotebookService } from './base-fish-notebook.service.js';
 import { BaitImageDelivery } from './bait-image-delivery.js';
 import { BaitImagesController } from './bait-images.controller.js';
 import { CatalogAdminService } from './catalog-admin.service.js';
@@ -21,12 +23,14 @@ import { CatalogController } from './catalog.controller.js';
   controllers: [
     CatalogController,
     AdminCatalogController,
+    AdminBaseFishNotebookController,
     FishImagesController,
     BaitImagesController,
   ],
   providers: [
     CatalogQueryService,
     CatalogAdminService,
+    BaseFishNotebookService,
     {
       provide: BaitImageDelivery,
       inject: [ConfigService],

@@ -8,6 +8,7 @@ import type { PublicFishSummary } from '@/lib/catalog-api';
 const mocks = vi.hoisted(() => ({
   getFishingBase: vi.fn(),
   listFish: vi.fn(),
+  getCurrentUser: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({
@@ -18,6 +19,7 @@ vi.mock('@/lib/catalog-api', () => ({
   getFishingBase: mocks.getFishingBase,
   listFish: mocks.listFish,
 }));
+vi.mock('@/lib/auth-api', () => ({ getCurrentUser: mocks.getCurrentUser }));
 
 vi.mock('@/components/application-shell/application-shell', () => ({
   ApplicationShell: ({ children }: { children: ReactNode }) => (
@@ -47,6 +49,36 @@ describe('FishingBasePage', () => {
   beforeEach(() => {
     mocks.getFishingBase.mockReset();
     mocks.listFish.mockReset().mockResolvedValue([]);
+    mocks.getCurrentUser.mockReset().mockResolvedValue({ role: 'USER', isBanned: false });
+  });
+
+  test('places the authorized notebook icon immediately beside the Base title', async () => {
+    mocks.getFishingBase.mockResolvedValue(base);
+    mocks.getCurrentUser.mockResolvedValue({ role: 'ADMIN', isBanned: false });
+    render(<FishingBasePage />);
+    expect(await screen.findByRole('heading', { level: 1, name: 'Ахтуба' })).toBeVisible();
+    const link = await screen.findByRole('link', { name: 'Блокнот рыб базы' });
+    expect(link).toHaveAttribute('href', '/bases/base-1/notebook');
+    expect(link).toHaveAttribute('title', 'Блокнот рыб базы');
+    expect(link.previousElementSibling).toBe(
+      screen.getByRole('heading', { level: 1, name: 'Ахтуба' }),
+    );
+    expect(mocks.getCurrentUser).toHaveBeenCalledTimes(1);
+    expect(mocks.getCurrentUser).toHaveBeenCalledWith(expect.any(AbortSignal));
+  });
+
+  test.each([
+    ['USER', false],
+    ['ADMIN', true],
+    ['guest', false],
+  ])('hides the detail notebook icon for %s, banned=%s', async (role, isBanned) => {
+    mocks.getFishingBase.mockResolvedValue(base);
+    if (role === 'guest') mocks.getCurrentUser.mockRejectedValue(new Error('unauthorized'));
+    else mocks.getCurrentUser.mockResolvedValue({ role, isBanned });
+    render(<FishingBasePage />);
+    expect(await screen.findByRole('heading', { level: 1, name: 'Ахтуба' })).toBeVisible();
+    expect(screen.queryByRole('link', { name: 'Блокнот рыб базы' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   test('loads existing thumbnails by Fish ID without delaying Base links', async () => {

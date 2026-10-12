@@ -1,9 +1,10 @@
-import { describe, expect, test } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 import {
   decodeAdminRarityReviewsResponse,
   decodeAdminRecordNotesResponse,
   decodeAdminWrongMaxIssuesResponse,
   decodeRecordsResponse,
+  updateAdminNightMark,
 } from './records-api';
 
 describe('records API decoder', () => {
@@ -137,4 +138,73 @@ describe('records API decoder', () => {
       decodeAdminRarityReviewsResponse({ items: [{ fishId: 'fish', isRarest: true }] }),
     ).toThrow(/Некорректный элемент проверки редкости/u);
   });
+});
+
+afterEach(() => vi.unstubAllGlobals());
+
+test('night mark reuses the ADMIN PATCH contract with credentials, no-store and optional cancellation', async () => {
+  const fetchMock = vi.fn().mockImplementation(
+    async () =>
+      new Response(JSON.stringify({ fish: { fishId: 'fish', isNightBiting: true } }), {
+        status: 200,
+      }),
+  );
+  vi.stubGlobal('fetch', fetchMock);
+  const controller = new AbortController();
+  expect(await updateAdminNightMark('fish', true, controller.signal)).toEqual({
+    fish: { fishId: 'fish', isNightBiting: true },
+  });
+  expect(fetchMock).toHaveBeenLastCalledWith(
+    expect.stringMatching(/\/api\/v1\/admin\/records\/night-marks\/fish$/),
+    expect.objectContaining({
+      method: 'PATCH',
+      body: JSON.stringify({ isNightBiting: true }),
+      credentials: 'include',
+      cache: 'no-store',
+      signal: expect.any(AbortSignal),
+    }),
+  );
+  // Старые потребители страницы рекордов по-прежнему могут вызывать helper с двумя аргументами.
+  await expect(updateAdminNightMark('fish', true)).resolves.toEqual({
+    fish: { fishId: 'fish', isNightBiting: true },
+  });
+});
+
+test.each([
+  { fish: { fishId: 'fish', isNightBiting: 'true' } },
+  { fish: { fishId: 'fish', isNightBiting: true, noteText: 'private' } },
+  { fish: { fishId: 'fish', isNightBiting: true }, userId: 'private' },
+])(
+  'night mark refuses malformed or excessive fields instead of claiming success (%j)',
+  async (payload) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(JSON.stringify(payload), { status: 200 })),
+    );
+    await expect(updateAdminNightMark('fish', true)).rejects.toThrow();
+  },
+);
+
+test('night mark propagates HTTP failures and caller abort without artificial success', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ message: 'ADMIN_REQUIRED' }), { status: 403 }),
+      ),
+  );
+  await expect(updateAdminNightMark('fish', true)).rejects.toMatchObject({ status: 403 });
+  const controller = new AbortController();
+  const fetchMock = vi.fn().mockImplementation(
+    (_url: string, init: RequestInit) =>
+      new Promise((_resolve, reject) => {
+        init.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true });
+      }),
+  );
+  vi.stubGlobal('fetch', fetchMock);
+  const pending = updateAdminNightMark('fish', true, controller.signal);
+  controller.abort();
+  await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+  expect((fetchMock.mock.calls[0]![1] as RequestInit).signal?.aborted).toBe(true);
 });

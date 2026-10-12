@@ -1,0 +1,16 @@
+.link {
+  display: inline-flex;
+  vertical-align: middle;
+  margin-left: 0.35rem;
+  color: var(--app-text-muted, #5f6e76);
+  text-decoration: none;
+}
+
+.link:hover {
+  color: var(--app-accent-strong, #27658c);
+}
+
+.link:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}

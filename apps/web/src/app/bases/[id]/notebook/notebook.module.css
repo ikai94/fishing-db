@@ -1,0 +1,402 @@
+.page {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0.6rem;
+}
+.page h1 {
+  font-size: 1.15rem;
+  margin: 0.5rem 0;
+  overflow-wrap: anywhere;
+}
+.page p {
+  color: #65758a;
+  font-size: 12px;
+}
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px 8px;
+  min-width: 0;
+  margin: 8px 0;
+  font-size: 12px;
+}
+.controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  min-width: 0;
+}
+.controls input[type='search'],
+.controls select,
+.controls button {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 28px;
+  padding: 3px 5px;
+  border: 1px solid #c8d1dc;
+  border-radius: 2px;
+  color: var(--app-text, #1f2c33);
+  background: #fff;
+  font: inherit;
+}
+.controls input[type='search'] {
+  width: 180px;
+}
+.controls button {
+  min-width: 28px;
+  cursor: pointer;
+}
+.hiddenToggle,
+.nightToggle {
+  cursor: pointer;
+}
+.filterMoon {
+  flex-shrink: 0;
+  color: #354a91;
+}
+.resultCount {
+  color: #65758a;
+  font-variant-numeric: tabular-nums;
+}
+.hiddenRow {
+  background: #f3f5f7;
+}
+/* hidden остаётся сильнее мобильного display:grid: скрытые редакторы сохраняют своё состояние. */
+.table tbody tr[hidden] {
+  display: none;
+}
+.visibilityButton,
+.nightButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  color: #65758a;
+  background: transparent;
+  cursor: pointer;
+}
+.visibilityButton:hover {
+  border-color: #c8d1dc;
+  background: #f1f4f7;
+}
+/* Только цвет луны меняется при hover; прозрачная область нажатия остаётся без рамки и фона. */
+.nightButton {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  outline: none;
+}
+.nightButton:hover {
+  color: #495970;
+}
+.visibilityButton:disabled,
+.nightButton:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.tableRegion {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+.table {
+  width: 100%;
+  table-layout: auto;
+  border-collapse: collapse;
+  font-size: 13px;
+  line-height: 1.3;
+}
+.numberColumn,
+.fishColumn,
+.locationsColumn,
+.weightColumn {
+  width: 1%;
+}
+/* Автораскладка оставляет справочные столбцы по содержимому и отдаёт свободное место заметке. */
+.noteColumn {
+  width: 100%;
+}
+.rowNumber,
+.weight {
+  white-space: nowrap;
+}
+.noteCell {
+  min-width: 160px;
+}
+.table th,
+.table td {
+  padding: 3px 5px;
+  border-bottom: 1px solid #dce2e8;
+  text-align: left;
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+.table thead th {
+  white-space: nowrap;
+  background: #f1f4f7;
+  font-size: 12px;
+}
+.fish {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  width: max-content;
+  max-width: 220px;
+  font-weight: 500;
+}
+/* Меняем только размер изображения внутри блокнота, сохраняя общий компонент и остальные страницы. */
+.fish [data-fish-image='thumbnail'] {
+  width: 32px;
+  height: 24px;
+  flex: 0 0 32px;
+}
+.fish img {
+  object-fit: contain;
+}
+.fish a {
+  min-width: 0;
+}
+.entityLink,
+.entityLink:visited {
+  color: var(--app-text, #1f2c33);
+  text-decoration: none;
+}
+.entityLink:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+/* Цвет и луна повторяют метки каталога на странице рекордов; оба признака независимы. */
+.rarestFishLink,
+.rarestFishLink:visited {
+  color: #b42318;
+}
+.nightButtonActive {
+  color: #354a91;
+}
+.nightButtonActive:hover {
+  color: #253b7d;
+}
+.locations {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  width: max-content;
+  max-width: 200px;
+}
+.locations li {
+  display: inline;
+}
+.locations a {
+  display: inline-block;
+  white-space: nowrap;
+}
+.empty {
+  color: #65758a;
+  font-size: 12px;
+}
+.noteEditor {
+  display: flex;
+  align-items: flex-start;
+  gap: 3px;
+  min-width: 0;
+}
+.editor {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 28px;
+  height: auto;
+  resize: none;
+  overflow-y: hidden;
+  overflow-wrap: anywhere;
+  padding: 3px 4px;
+  border: 1px solid #c8d1dc;
+  border-radius: 2px;
+  font: inherit;
+  line-height: 1.3;
+}
+.editor:focus-visible,
+.buttons button:focus-visible,
+.table a:focus-visible {
+  outline: 2px solid #496b83;
+  outline-offset: 2px;
+}
+.visibilityButton:focus-visible,
+.nightButton:focus-visible,
+.controls input:focus-visible,
+.controls select:focus-visible,
+.controls button:focus-visible {
+  outline: 2px solid #496b83;
+  outline-offset: 2px;
+}
+.buttons {
+  display: flex;
+  flex-shrink: 0;
+  gap: 2px;
+}
+.buttons button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid #c8d1dc;
+  border-radius: 2px;
+  background: #f1f4f7;
+  color: #294c3b;
+  cursor: pointer;
+}
+.buttons button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.saveStatus {
+  display: block;
+  color: #294c3b;
+  font-size: 11px;
+}
+.page .error {
+  margin: 2px 0 0;
+  color: #a22b36;
+  font-size: 12px;
+}
+.weight {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.mobileLabel {
+  display: none;
+}
+
+/* Те же поля остаются смонтированными: CSS меняет раскладку, а не редакторы и их черновики. */
+@media (max-width: 760px) {
+  .controls .searchControl {
+    flex: 1 1 100%;
+  }
+  .searchControl input[type='search'] {
+    flex: 1;
+  }
+  .table,
+  .table tbody {
+    display: block;
+  }
+  .table colgroup {
+    display: none;
+  }
+  .table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .table tbody {
+    display: grid;
+    gap: 6px;
+  }
+  .table tbody tr {
+    display: grid;
+    grid-template-columns: 30px minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas: 'number fish fish' 'locations locations locations' 'note note note' 'min min max';
+    border: 1px solid #dce2e8;
+    border-radius: 3px;
+    min-width: 0;
+    padding: 4px;
+  }
+  .table th,
+  .table td {
+    border: 0;
+    padding: 3px;
+    min-width: 0;
+  }
+  .rowNumber {
+    grid-area: number;
+    color: #65758a;
+  }
+  .fishCell {
+    grid-area: fish;
+  }
+  .locationsCell {
+    grid-area: locations;
+  }
+  .noteCell {
+    grid-area: note;
+  }
+  .minWeight {
+    grid-area: min;
+  }
+  .maxWeight {
+    grid-area: max;
+  }
+  .mobileLabel {
+    display: inline;
+    margin-right: 5px;
+    font-size: 12px;
+    color: #65758a;
+  }
+  .noteCell > .mobileLabel {
+    display: block;
+    margin-bottom: 3px;
+  }
+  .locations {
+    display: inline;
+  }
+  .fish,
+  .locations {
+    width: auto;
+    max-width: 100%;
+  }
+  .weight {
+    white-space: normal;
+  }
+}
+
+/* Крупные цели на сенсорных экранах; 16px у ввода предотвращают увеличение при фокусе на iOS. */
+@media (max-width: 760px), (pointer: coarse) {
+  .controls input[type='search'],
+  .controls select {
+    min-height: 44px;
+    font-size: 16px;
+  }
+  .controls button,
+  .visibilityButton,
+  .nightButton {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .hiddenToggle,
+  .nightToggle {
+    min-height: 44px;
+  }
+  .editor {
+    font-size: 16px;
+    min-height: 44px;
+  }
+  .buttons button {
+    width: 44px;
+    height: 44px;
+  }
+  .locations a {
+    display: inline-flex;
+    align-items: center;
+    box-sizing: border-box;
+    min-height: 40px;
+    vertical-align: middle;
+    padding-block: 8px;
+  }
+}
