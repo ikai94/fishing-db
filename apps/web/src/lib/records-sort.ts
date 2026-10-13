@@ -1,7 +1,9 @@
 import { compareCatalogItemsByName } from './catalog-search';
 import type { RecordsItem } from './records-api';
 
-export type RecordsSortKey = 'default' | 'headroom' | 'weight' | 'name' | 'maxBase' | 'fishingBase';
+/** Ключи сортировки таблицы рекордов, сохраняемые в URL. */
+export type RecordsSortKey =
+  'default' | 'headroom' | 'weight' | 'name' | 'maxBase' | 'fishingBase' | 'playerName' | 'bait';
 export type RecordsSortDirection = 'asc' | 'desc';
 export type RecordsSort = { key: RecordsSortKey; direction: RecordsSortDirection };
 export const DEFAULT_RECORDS_SORT: RecordsSort = { key: 'default', direction: 'desc' };
@@ -10,7 +12,9 @@ export function readRecordsSort(search: Pick<URLSearchParams, 'get'>): RecordsSo
   const key = search.get('sort');
   const direction = search.get('direction');
   if (
-    !['headroom', 'weight', 'name', 'maxBase', 'fishingBase'].includes(key ?? '') ||
+    !['headroom', 'weight', 'name', 'maxBase', 'fishingBase', 'playerName', 'bait'].includes(
+      key ?? '',
+    ) ||
     !['asc', 'desc'].includes(direction ?? '')
   ) {
     return DEFAULT_RECORDS_SORT;
@@ -46,17 +50,19 @@ function nullableOrder(
   return direction === 'asc' ? left - right : right - left;
 }
 
-function nullableBaseNameOrder(
-  left: { name: string } | null,
-  right: { name: string } | null,
+/** Сравнивает отображаемый текст; отсутствующие значения остаются последними в обоих направлениях. */
+function nullableTextOrder(
+  left: string | null,
+  right: string | null,
   direction: RecordsSortDirection,
 ): number {
   if (left === null) return right === null ? 0 : 1;
   if (right === null) return -1;
-  const result = left.name.localeCompare(right.name, 'ru-RU');
+  const result = left.localeCompare(right, 'ru-RU');
   return direction === 'asc' ? result : -result;
 }
 
+/** Сортирует копию строк; при равных значениях сохраняет устойчивый порядок по имени рыбы. */
 export function sortRecords(items: readonly RecordsItem[], sort: RecordsSort): RecordsItem[] {
   return [...items].sort((left, right) => {
     if (sort.key === 'default') {
@@ -74,18 +80,28 @@ export function sortRecords(items: readonly RecordsItem[], sort: RecordsSort): R
     }
     if (sort.key === 'maxBase') {
       return (
-        nullableBaseNameOrder(
-          left.maxBases[0] ?? null,
-          right.maxBases[0] ?? null,
+        nullableTextOrder(
+          left.maxBases[0]?.name ?? null,
+          right.maxBases[0]?.name ?? null,
           sort.direction,
         ) || nameOrder(left, right)
       );
     }
     if (sort.key === 'fishingBase') {
       return (
-        nullableBaseNameOrder(
-          left.record?.fishingBase ?? null,
-          right.record?.fishingBase ?? null,
+        nullableTextOrder(
+          left.record?.fishingBase?.name ?? null,
+          right.record?.fishingBase?.name ?? null,
+          sort.direction,
+        ) || nameOrder(left, right)
+      );
+    }
+    if (sort.key === 'playerName' || sort.key === 'bait') {
+      // Дата показана рядом с игроком, но порядок определяется его именем, затем именем рыбы.
+      return (
+        nullableTextOrder(
+          left.record?.[sort.key] ?? null,
+          right.record?.[sort.key] ?? null,
           sort.direction,
         ) || nameOrder(left, right)
       );

@@ -11,7 +11,7 @@ function row(
   fishingBase: NonNullable<RecordsItem['record']>['fishingBase'] = null,
 ): RecordsItem {
   return {
-    fish: { id: name, name, isRarest: false, isNightBiting: false },
+    fish: { id: name, name, isRarest: false, isNightBiting: false, catchReportsCount: 0 },
     state,
     record:
       weight === null
@@ -125,4 +125,51 @@ describe('records sorting', () => {
       'sort=fishingBase&direction=desc',
     );
   });
+
+  test.each(['playerName', 'bait'] as const)(
+    'sorts %s by text with nulls last, Fish-name ties and URL round trips',
+    (key) => {
+      const first = row('Рыба Б', 'RECORD', 10, 900);
+      const tied = row('Рыба А', 'RECORD', 10, 900);
+      const last = row('Рыба В', 'RECORD', 10, 900);
+      first.record![key] = 'Антон';
+      tied.record![key] = 'Антон';
+      last.record![key] = 'Яков';
+      // Разные даты у одного игрока не меняют принятый порядок равных значений по рыбе.
+      first.record!.caughtAt = '2026-09-01T10:00:00Z';
+      tied.record!.caughtAt = '2026-09-10T10:00:00Z';
+      const missing = row('Нет рекорда', 'NO_RECORD', null, null);
+      const items = [last, first, missing, tied];
+      if (key === 'bait') {
+        const missingBait = row('Без наживки', 'RECORD', 10, 900);
+        missingBait.record!.bait = null;
+        items.push(missingBait);
+      }
+      const missingNames = key === 'bait' ? ['Без наживки', 'Нет рекорда'] : ['Нет рекорда'];
+      expect(sortRecords(items, { key, direction: 'asc' }).map((item) => item.fish.name)).toEqual([
+        'Рыба А',
+        'Рыба Б',
+        'Рыба В',
+        ...missingNames,
+      ]);
+      expect(sortRecords(items, { key, direction: 'desc' }).map((item) => item.fish.name)).toEqual([
+        'Рыба В',
+        'Рыба А',
+        'Рыба Б',
+        ...missingNames,
+      ]);
+      for (const direction of ['asc', 'desc'] as const) {
+        expect(readRecordsSort(new URLSearchParams(recordsSortSearch({ key, direction })))).toEqual(
+          {
+            key,
+            direction,
+          },
+        );
+      }
+      expect(readRecordsSort(new URLSearchParams(`sort=${key}&direction=invalid`)).key).toBe(
+        'default',
+      );
+      expect(items[0]).toBe(last);
+    },
+  );
 });
