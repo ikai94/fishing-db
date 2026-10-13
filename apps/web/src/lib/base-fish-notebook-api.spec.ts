@@ -4,9 +4,39 @@ import {
   getBaseFishNotebook,
   saveBaseFishNotebookEntry,
   setBaseFishNotebookVisibility,
+  decodeFishPersonalNotes,
+  getFishPersonalNotes,
 } from './base-fish-notebook-api';
 import { apiRequest } from './api-client';
 vi.mock('./api-client', () => ({ apiRequest: vi.fn(), apiBaseUrl: 'http://localhost:3001' }));
+
+test('Fish notes preserve formatting and reject extra owner/storage fields', async () => {
+  const data = {
+    rows: [
+      { base: { id: 'base', name: 'База' }, noteText: '  Строка\n\tСтрока  ' },
+      { base: { id: 'empty', name: 'Пустая' }, noteText: null },
+    ],
+  };
+  expect(decodeFishPersonalNotes(data)).toEqual(data);
+  for (const field of ['userId', 'fishId', 'rawSourceText', 'isHidden', 'importKey']) {
+    expect(() => decodeFishPersonalNotes({ ...data, [field]: 'private' })).toThrow();
+    expect(() =>
+      decodeFishPersonalNotes({ rows: [{ ...data.rows[0], [field]: 'private' }] }),
+    ).toThrow();
+    expect(() =>
+      decodeFishPersonalNotes({
+        rows: [{ ...data.rows[0], base: { ...data.rows[0]!.base, [field]: 'private' } }],
+      }),
+    ).toThrow();
+  }
+  expect(() =>
+    decodeFishPersonalNotes({ rows: [{ base: data.rows[0]!.base, noteText: 123 }] }),
+  ).toThrow();
+  vi.mocked(apiRequest).mockResolvedValue(data);
+  const signal = new AbortController().signal;
+  expect(await getFishPersonalNotes('fish/id', signal)).toEqual(data);
+  expect(apiRequest).toHaveBeenLastCalledWith('/admin/catalog/fish/fish%2Fid/notebook', { signal });
+});
 
 const payload = {
   base: { id: 'base', name: 'База' },

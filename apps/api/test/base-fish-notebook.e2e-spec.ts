@@ -235,6 +235,125 @@ void test('direct notebook API denies guest, USER, banned ADMIN and unverified A
   }
 });
 
+void test('Fish-level notebook read blocks unauthorized sessions', async () => {
+  const path = `/api/v1/admin/catalog/fish/${fishIds[0]}/notebook`;
+  await request(server).get(path).expect(401);
+  for (const [kind, status, code] of [
+    ['user', 403, 'ADMIN_REQUIRED'],
+    ['banned', 403, 'ACCOUNT_BANNED'],
+    ['unverified', 401, 'AUTH_REQUIRED'],
+  ] as const) {
+    const response = await request(server).get(path).set('Cookie', cookies[kind]).expect(status);
+    assert.equal((response.body as { code: string }).code, code);
+    assert.equal(JSON.stringify(response.body).includes('noteText'), false);
+  }
+});
+
+void test('Fish-level notebook read matches all Base/Fish pairs and isolates ADMIN notes without writes', async () => {
+  await prisma.fishingBaseFish.create({ data: { fishingBaseId: otherBaseId, fishId: fishIds[0] } });
+  try {
+    await prisma.baseFishNotebookEntry.createMany({
+      data: [
+        {
+          userId: userIds[0],
+          fishingBaseId: baseId,
+          fishId: fishIds[0],
+          noteText: '  ADMIN_A\n\tСтрока  ',
+          isHidden: true,
+        },
+        { userId: userIds[4], fishingBaseId: baseId, fishId: fishIds[0], noteText: 'ADMIN_B' },
+        { userId: userIds[0], fishingBaseId: baseId, fishId: fishIds[1], noteText: 'OTHER_FISH' },
+      ],
+    });
+    const notesBefore = await prisma.baseFishNotebookEntry.findMany({
+      where: { fishId: { in: fishIds } },
+      orderBy: [{ userId: 'asc' }, { fishId: 'asc' }, { fishingBaseId: 'asc' }],
+    });
+    const membershipsBefore = await prisma.fishingBaseFish.findMany({
+      where: { fishId: { in: fishIds } },
+      orderBy: [{ fishId: 'asc' }, { fishingBaseId: 'asc' }],
+    });
+    const catchesBefore = await prisma.catchReport.findMany({
+      where: { fishId: { in: fishIds } },
+      orderBy: { id: 'asc' },
+    });
+    const path = `/api/v1/admin/catalog/fish/${fishIds[0]}/notebook`;
+    for (const [actor, text] of [
+      ['admin', '  ADMIN_A\n\tСтрока  '],
+      ['otherAdmin', 'ADMIN_B'],
+    ] as const) {
+      // Попытка подставить владельца и фильтр баз не меняет серверную границу сессии.
+      const response = await request(server)
+        .get(`${path}?userId=${userIds[4]}&baseIds=${baseId}`)
+        .set('Cookie', cookies[actor])
+        .expect(200);
+      assert.equal(response.headers['cache-control'], 'private, no-store');
+      assert.match(response.headers.vary, /Cookie/);
+      const rows = (
+        response.body as { rows: { base: { id: string; name: string }; noteText: string | null }[] }
+      ).rows;
+      assert.equal(rows.length, 2);
+      assert.deepEqual(
+        rows.find((row) => row.base.id === baseId),
+        { base: { id: baseId, name: baseId }, noteText: text },
+      );
+      assert.deepEqual(
+        rows.find((row) => row.base.id === otherBaseId),
+        { base: { id: otherBaseId, name: otherBaseId }, noteText: null },
+      );
+      for (const value of [
+        'OTHER_FISH',
+        'userId',
+        'isHidden',
+        'rawSourceText',
+        'importKey',
+        'contributorKey',
+      ])
+        assert.equal(JSON.stringify(response.body).includes(value), false);
+      const empty = await request(server)
+        .get(`/api/v1/admin/catalog/fish/${fishIds[2]}/notebook`)
+        .set('Cookie', cookies[actor])
+        .expect(200);
+      assert.deepEqual(empty.body, { rows: [] });
+    }
+    await request(server)
+      .get(`/api/v1/admin/catalog/fish/${randomUUID()}/notebook`)
+      .set('Cookie', cookies.admin)
+      .expect(404);
+    await request(server)
+      .get('/api/v1/admin/catalog/fish/not-a-uuid/notebook')
+      .set('Cookie', cookies.admin)
+      .expect(400);
+    await request(server).get(`/api/v1/catalog/fish/${fishIds[0]}/notebook`).expect(404);
+    assert.deepEqual(
+      await prisma.baseFishNotebookEntry.findMany({
+        where: { fishId: { in: fishIds } },
+        orderBy: [{ userId: 'asc' }, { fishId: 'asc' }, { fishingBaseId: 'asc' }],
+      }),
+      notesBefore,
+    );
+    assert.deepEqual(
+      await prisma.fishingBaseFish.findMany({
+        where: { fishId: { in: fishIds } },
+        orderBy: [{ fishId: 'asc' }, { fishingBaseId: 'asc' }],
+      }),
+      membershipsBefore,
+    );
+    assert.deepEqual(
+      await prisma.catchReport.findMany({
+        where: { fishId: { in: fishIds } },
+        orderBy: { id: 'asc' },
+      }),
+      catchesBefore,
+    );
+  } finally {
+    await prisma.baseFishNotebookEntry.deleteMany({ where: { fishId: { in: fishIds } } });
+    await prisma.fishingBaseFish.delete({
+      where: { fishingBaseId_fishId: { fishingBaseId: otherBaseId, fishId: fishIds[0] } },
+    });
+  }
+});
+
 void test('PostgreSQL ranks historical report counts per Base/Fish with stable ties and stored weights', async () => {
   const response = await request(server)
     .get(`/api/v1/admin/catalog/bases/${baseId}/notebook`)

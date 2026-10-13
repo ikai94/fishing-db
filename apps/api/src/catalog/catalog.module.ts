@@ -5,6 +5,7 @@ import { AuthModule } from '../auth/auth.module.js';
 import { PrismaModule } from '../prisma/prisma.module.js';
 import { AdminCatalogController } from './admin-catalog.controller.js';
 import { AdminBaseFishNotebookController } from './admin-base-fish-notebook.controller.js';
+import { AdminFishNotesController } from './admin-fish-notes.controller.js';
 import { BaseFishNotebookService } from './base-fish-notebook.service.js';
 import { BaitImageDelivery } from './bait-image-delivery.js';
 import { BaitImagesController } from './bait-images.controller.js';
@@ -24,6 +25,7 @@ import { CatalogController } from './catalog.controller.js';
     CatalogController,
     AdminCatalogController,
     AdminBaseFishNotebookController,
+    AdminFishNotesController,
     FishImagesController,
     BaitImagesController,
   ],

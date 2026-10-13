@@ -4,6 +4,65 @@ import { BaseFishNotebookService } from './base-fish-notebook.service.js';
 import { DisabledFishImageDelivery } from './disabled-fish-image-delivery.service.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
 
+void test('Fish notes use all memberships and one owner/Fish-scoped query without rewriting text', async () => {
+  let calls = 0;
+  const prisma = {
+    fish: {
+      findUnique: (args: unknown) => {
+        assert.deepEqual(args, {
+          where: { id: 'fish' },
+          select: {
+            fishingBaseLinks: {
+              orderBy: [{ fishingBase: { nameNormalized: 'asc' } }, { fishingBaseId: 'asc' }],
+              select: { fishingBase: { select: { id: true, name: true } } },
+            },
+          },
+        });
+        return Promise.resolve({
+          fishingBaseLinks: Array.from({ length: 100 }, (_, i) => ({
+            fishingBase: { id: `base-${i}`, name: `База ${i}` },
+          })),
+        });
+      },
+    },
+    baseFishNotebookEntry: {
+      findMany: (args: unknown) => {
+        calls += 1;
+        assert.deepEqual(args, {
+          where: { userId: 'admin', fishId: 'fish' },
+          select: { fishingBaseId: true, noteText: true },
+        });
+        return Promise.resolve([{ fishingBaseId: 'base-0', noteText: '  Первая\n\tВторая  ' }]);
+      },
+    },
+  };
+  const result = await new BaseFishNotebookService(
+    prisma as unknown as PrismaService,
+    new DisabledFishImageDelivery(),
+  ).getFishNotes('fish', 'admin');
+  assert.equal(calls, 1);
+  assert.equal(result.rows.length, 100);
+  assert.deepEqual(result.rows[0], {
+    base: { id: 'base-0', name: 'База 0' },
+    noteText: '  Первая\n\tВторая  ',
+  });
+  assert.equal(result.rows[99].noteText, null);
+});
+
+void test('Fish notes distinguish missing Fish from an existing Fish with no memberships', async () => {
+  const prisma = {
+    fish: { findUnique: (): Promise<unknown> => Promise.resolve(null) },
+    baseFishNotebookEntry: { findMany: () => Promise.resolve([]) },
+  };
+  const service = new BaseFishNotebookService(
+    prisma as unknown as PrismaService,
+    new DisabledFishImageDelivery(),
+  );
+  await assert.rejects(service.getFishNotes('missing', 'admin'), /Рыба не найдена/);
+  prisma.fish.findUnique = () => Promise.resolve({ fishingBaseLinks: [] });
+  assert.deepEqual(await service.getFishNotes('fish', 'admin'), { rows: [] });
+});
+
 void test('all membership rows use one aggregate query and preserve nullable database weights', async () => {
   let aggregateCalls = 0;
   let noteCalls = 0;

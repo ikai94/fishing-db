@@ -23,6 +23,34 @@ export class BaseFishNotebookService {
     @Inject(FishImageDelivery) private readonly images: FishImageDelivery,
   ) {}
 
+  /** Читает личные заметки по всем связям рыбы с базами, независимо от публичных фильтров. */
+  async getFishNotes(fishId: string, userId: string) {
+    const fish = await this.prisma.fish.findUnique({
+      where: { id: fishId },
+      select: {
+        fishingBaseLinks: {
+          orderBy: [{ fishingBase: { nameNormalized: 'asc' } }, { fishingBaseId: 'asc' }],
+          select: { fishingBase: { select: { id: true, name: true } } },
+        },
+      },
+    });
+    if (fish === null) throw catalogErrors.fishNotFound();
+
+    // Один запрос для всех баз; обязательные userId и fishId исключают чужие записи.
+    const entries = await this.prisma.baseFishNotebookEntry.findMany({
+      where: { userId, fishId },
+      select: { fishingBaseId: true, noteText: true },
+    });
+    const notes = new Map(entries.map((entry) => [entry.fishingBaseId, entry.noteText]));
+    // isHidden относится к таблице блокнота базы и не исключает здесь ни одну связь.
+    return {
+      rows: fish.fishingBaseLinks.map(({ fishingBase }) => ({
+        base: { id: fishingBase.id, name: fishingBase.name },
+        noteText: notes.get(fishingBase.id) ?? null,
+      })),
+    };
+  }
+
   /** Возвращает все текущие связи базы с рыбами и три исторически наиболее частые локации. */
   async getNotebook(baseId: string, userId: string) {
     const base = await this.prisma.fishingBase.findUnique({

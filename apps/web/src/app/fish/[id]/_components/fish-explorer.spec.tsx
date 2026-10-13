@@ -43,6 +43,14 @@ vi.mock('./community-marks', () => ({
   CommunityMarks: () => <section aria-label="Знания сообщества" />,
 }));
 
+vi.mock('./fish-personal-notes', () => ({
+  FishPersonalNotes: ({ fishId }: { fishId: string }) => (
+    <section data-fish-id={fishId}>
+      <h2>Личные заметки</h2>
+    </section>
+  ),
+}));
+
 vi.mock('./bait-statistics-list', () => ({
   BaitStatisticsList: ({ items }: { items: Array<{ bait: { id: string; name: string } }> }) => (
     <ul aria-label="Статистика наживок и приманок">
@@ -398,6 +406,8 @@ describe('FishExplorer', () => {
       baseIds: ['base-a', 'base-b'],
     });
     expect(screen.queryByRole('heading', { name: /^Условия ловли$/ })).not.toBeInTheDocument();
+    expect(sectionNamed('Личные заметки').nextElementSibling).toBe(sectionNamed('Ямы и точки'));
+    expect(sectionNamed('Личные заметки')).toHaveAttribute('data-fish-id', 'fish-1');
     expect(sectionNamed('Ямы и точки').nextElementSibling).toBe(
       sectionNamed('Условия ловли в уловах'),
     );

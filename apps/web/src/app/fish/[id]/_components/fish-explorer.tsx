@@ -26,6 +26,7 @@ import { BaitStatisticsList } from './bait-statistics-list';
 import { FishingConditionStatisticsTable } from './fishing-condition-statistics-table';
 import controls from './fish-controls.module.css';
 import { CommunityMarks } from './community-marks';
+import { FishPersonalNotes } from './fish-personal-notes';
 import { PublicFishCatchTable } from './public-fish-catch-table';
 
 const AGGREGATE_PAGE_SIZE = 20;
@@ -149,6 +150,7 @@ function FishExplorerState({
 
       <div className={styles.fishExplorerContent}>
         <CommunityMarks key={fish.id} fishId={fish.id} />
+        <FishPersonalNotes key={`notes:${fish.id}`} fishId={fish.id} />
         <SpotAnalytics
           key={`spots:${scopeKey}`}
           scope={{ kind: 'fish', fishId: fish.id, baseIds: canonicalSelectedBaseIds }}

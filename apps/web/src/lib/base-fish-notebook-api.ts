@@ -8,6 +8,35 @@ import {
 /** Личные текстовые поля текущего ADMIN; идентификатор владельца не передаётся клиентом. */
 export type PersonalNotebookFields = { noteText: string | null };
 
+/** Личные заметки текущего ADMIN по всем базам одной рыбы. */
+export type FishPersonalNotes = {
+  rows: (PersonalNotebookFields & { base: PublicCatalogItem })[];
+};
+
+/** Проверяет приватную проекцию, сохраняя исходные пробелы и переносы заметок. */
+export function decodeFishPersonalNotes(payload: unknown): FishPersonalNotes {
+  const data = record(payload, ['rows']);
+  if (!Array.isArray(data.rows)) throw new Error('Некорректный ответ блокнота');
+  return {
+    rows: data.rows.map((value: unknown) => {
+      const row = record(value, ['base', 'noteText']);
+      return { base: namedItem(record(row.base, ['id', 'name'])), ...personalFields(row) };
+    }),
+  };
+}
+
+/** Запрашивает заметки только через защищённый endpoint и общий no-store транспорт. */
+export async function getFishPersonalNotes(
+  fishId: string,
+  signal?: AbortSignal,
+): Promise<FishPersonalNotes> {
+  return decodeFishPersonalNotes(
+    await apiRequest<unknown>(`/admin/catalog/fish/${encodeURIComponent(fishId)}/notebook`, {
+      signal,
+    }),
+  );
+}
+
 /** Контракт приватного блокнота с отдельными личными полями каждой пары базы и рыбы. */
 export type BaseFishNotebook = {
   base: PublicCatalogItem;
